@@ -3,3 +3,4 @@ dist/
 .nightshift/
 *.log
 .DS_Store
+workbench/*
