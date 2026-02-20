@@ -8,7 +8,7 @@ Local-first framework for queuing tasks to be executed autonomously by AI agents
 
 ## Why
 
-Engineers waste time on tasks that don't require real-time interaction: preparing standup notes from Jira, reviewing merge requests, generating weekly summaries, running audits. Night-shift turns these into fire-and-forget jobs that execute while you sleep.
+Night-shift turns day to day tasks into fire-and-forget jobs that execute while you sleep.
 
 The system is **local-first** by design. No cloud infrastructure, no servers, no accounts. A background daemon on your machine polls for ready tasks, spawns `claude -p` processes with your existing MCP server connections (Jira, Confluence, filesystem, etc.), and writes results as markdown files you can read in the morning.
 
@@ -77,7 +77,7 @@ nightshift submit "Prepare standup notes from Jira" \
   --budget 2.00 \
   --model sonnet \
   --name "standup-prep" \
-  --tools "mcp__jira__*" "Read" "Write"
+  --tools "mcp__jira__*" "Read"
 ```
 
 The command returns immediately. The daemon picks up the task on its next poll cycle.
