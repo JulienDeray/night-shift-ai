@@ -3,6 +3,36 @@
   "version": "0.1.0",
   "description": "Local-first framework for queuing tasks to be executed autonomously by AI agents during off-hours",
   "type": "module",
+  "license": "MIT",
+  "author": "Julien Deray",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/julienderay/night-shift.git"
+  },
+  "homepage": "https://github.com/julienderay/night-shift",
+  "bugs": {
+    "url": "https://github.com/julienderay/night-shift/issues"
+  },
+  "keywords": [
+    "ai-agent",
+    "autonomous",
+    "claude",
+    "cli",
+    "daemon",
+    "llm",
+    "task-queue",
+    "automation",
+    "mcp"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "files": [
+    "dist",
+    "bin",
+    "LICENSE",
+    "README.md"
+  ],
   "bin": {
     "nightshift": "./dist/bin/nightshift.js"
   },
