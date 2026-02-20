@@ -1,5 +1,5 @@
 import { Command } from "@commander-js/extra-typings";
-import { fork } from "node:child_process";
+import { spawn } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadConfig } from "../../core/config.js";
@@ -23,9 +23,11 @@ export const startCommand = new Command("start")
         return;
       }
 
-      // Fork daemon process
+      // Spawn daemon as a fully detached process.
+      // Using spawn instead of fork avoids the implicit IPC channel
+      // that fork creates, which would keep the parent process alive.
       const daemonPath = path.resolve(__dirname, "../../daemon/index.js");
-      const child = fork(daemonPath, [], {
+      const child = spawn(process.execPath, [daemonPath], {
         detached: true,
         stdio: "ignore",
         cwd: process.cwd(),

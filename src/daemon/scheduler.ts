@@ -13,7 +13,7 @@ interface SchedulerState {
 
 export class Scheduler {
   private state: SchedulerState = { lastRuns: {} };
-  private readonly config: NightShiftConfig;
+  private config: NightShiftConfig;
   private readonly logger: Logger;
   private readonly beads: BeadsClient | null;
 
@@ -21,6 +21,10 @@ export class Scheduler {
     this.config = config;
     this.logger = logger;
     this.beads = config.beads.enabled ? new BeadsClient() : null;
+  }
+
+  updateConfig(config: NightShiftConfig): void {
+    this.config = config;
   }
 
   async loadState(base?: string): Promise<void> {
