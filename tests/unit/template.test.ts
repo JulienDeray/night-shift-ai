@@ -23,4 +23,23 @@ describe("renderTemplate", () => {
     const result = renderTemplate("{{year}}/{{month}}/{{day}}");
     expect(result).toMatch(/^\d{4}\/\d{2}\/\d{2}$/);
   });
+
+  it("replaces {{datetime}} with date and time", () => {
+    const result = renderTemplate("report-{{datetime}}.md");
+    // datetime format: YYYY-MM-DD_HH-mm-ss
+    expect(result).toMatch(/^report-\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}\.md$/);
+  });
+
+  it("replaces {{time}} with time only", () => {
+    const result = renderTemplate("report-{{time}}.md");
+    // time format: HH-mm-ss
+    expect(result).toMatch(/^report-\d{2}-\d{2}-\d{2}\.md$/);
+  });
+
+  it("handles multiple variables in the same template", () => {
+    const result = renderTemplate("{{year}}/{{month}}/{{name}}-{{date}}.md", {
+      name: "report",
+    });
+    expect(result).toMatch(/^\d{4}\/\d{2}\/report-\d{4}-\d{2}-\d{2}\.md$/);
+  });
 });

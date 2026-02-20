@@ -100,4 +100,45 @@ describe("health", () => {
 
     expect(isDaemonRunning(state)).toBe(false);
   });
+
+  it("cleanupStaleState removes PID file and marks state as stopped", async () => {
+    // Write a state that will be detected as stale (old heartbeat)
+    const state: DaemonState = {
+      pid: 999999, // unlikely to be a real process
+      startedAt: new Date().toISOString(),
+      lastHeartbeat: new Date(Date.now() - 120000).toISOString(),
+      activeTasks: 0,
+      totalExecuted: 3,
+      totalCostUsd: 1.0,
+      status: "running",
+    };
+
+    await writePidFile(999999, tmpDir);
+    await writeDaemonState(state, tmpDir);
+
+    const { cleanupStaleState } = await import("../../src/daemon/health.js");
+    await cleanupStaleState(tmpDir);
+
+    const pid = await readPidFile(tmpDir);
+    expect(pid).toBeNull();
+
+    const updatedState = await readDaemonState(tmpDir);
+    expect(updatedState!.status).toBe("stopped");
+    // Original data should be preserved
+    expect(updatedState!.totalExecuted).toBe(3);
+  });
+
+  it("isDaemonRunning returns false when PID does not exist", () => {
+    const state: DaemonState = {
+      pid: 999999, // very likely not a real process
+      startedAt: new Date().toISOString(),
+      lastHeartbeat: new Date().toISOString(),
+      activeTasks: 0,
+      totalExecuted: 0,
+      totalCostUsd: 0,
+      status: "running",
+    };
+
+    expect(isDaemonRunning(state)).toBe(false);
+  });
 });

@@ -99,4 +99,14 @@ describe("CLI integration", () => {
     expect(res.stdout).toContain("workspace");
     expect(res.stdout).toContain("maxConcurrent");
   });
+
+  it("nightshift init prints next steps guidance", async () => {
+    const res = await run(["init"]);
+
+    expect(res.exitCode).toBe(0);
+    expect(res.stdout).toContain("Next steps");
+    expect(res.stdout).toContain("nightshift.yaml");
+    expect(res.stdout).toContain("nightshift submit");
+    expect(res.stdout).toContain("nightshift start");
+  });
 });

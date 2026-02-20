@@ -120,6 +120,18 @@ export class Orchestrator {
   }
 
   private async tick(): Promise<void> {
+    // 0. Hot-reload recurring tasks and defaultTimeout from config
+    try {
+      const freshConfig = await loadConfig();
+      this.config.recurring = freshConfig.recurring;
+      this.config.defaultTimeout = freshConfig.defaultTimeout;
+      this.scheduler.updateConfig(this.config);
+    } catch (err) {
+      this.logger.warn("Failed to reload config, continuing with previous", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+
     // 1. Evaluate cron schedules → create beads for due recurring tasks
     await this.scheduler.evaluateSchedules();
 

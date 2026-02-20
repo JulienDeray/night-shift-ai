@@ -30,39 +30,42 @@ export function toBeadDescription(task: NightShiftTask): string {
 
 export function fromBead(bead: BeadEntry): NightShiftTask {
   const meta = parseBeadDescription(bead.description);
-  const origin = bead.labels.some((l) => l.startsWith("nightshift:recurring:"))
+  const labels = bead.labels ?? [];
+  const origin = labels.some((l) => l.startsWith("nightshift:recurring:"))
     ? "recurring"
-    : "one-off";
-  const recurringLabel = bead.labels.find((l) =>
+    : (meta.origin as "one-off" | "recurring" | undefined) ?? "one-off";
+  const recurringLabel = labels.find((l) =>
     l.startsWith("nightshift:recurring:"),
   );
   const recurringName = recurringLabel
     ? recurringLabel.replace("nightshift:recurring:", "")
-    : undefined;
+    : meta.recurringName;
 
   return {
     id: bead.id,
     name: bead.title,
-    origin: origin as "one-off" | "recurring",
+    origin,
     prompt: meta.prompt,
-    status: bead.claimed ? "running" : bead.status === "closed" ? "completed" : "pending",
+    status: bead.status === "closed" ? "completed" : "pending",
     allowedTools: meta.allowedTools,
     timeout: meta.timeout ?? "30m",
     maxBudgetUsd: meta.maxBudgetUsd,
     model: meta.model,
     output: meta.output,
-    createdAt: bead.createdAt,
+    createdAt: bead.created_at,
     recurringName,
   };
 }
 
 interface ParsedMeta {
   prompt: string;
+  origin?: string;
   timeout?: string;
   maxBudgetUsd?: number;
   model?: string;
   allowedTools?: string[];
   output?: string;
+  recurringName?: string;
 }
 
 function parseBeadDescription(description: string): ParsedMeta {
@@ -81,6 +84,9 @@ function parseBeadDescription(description: string): ParsedMeta {
     const [key, ...rest] = line.split(": ");
     const value = rest.join(": ").trim();
     switch (key?.trim()) {
+      case "origin":
+        result.origin = value;
+        break;
       case "timeout":
         result.timeout = value;
         break;
