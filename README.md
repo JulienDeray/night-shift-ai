@@ -1,6 +1,6 @@
 # Night-Shift
 
-[![CI](https://github.com/julienderay/night-shift/actions/workflows/ci.yml/badge.svg)](https://github.com/julienderay/night-shift/actions/workflows/ci.yml)
+[![CI](https://github.com/julienderay/night-shift/github/workflows/ci.yml/badge.svg)](https://github.com/julienderay/night-shift/github/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Node >= 20](https://img.shields.io/badge/node-%3E%3D20-brightgreen.svg)](https://nodejs.org/)
 
