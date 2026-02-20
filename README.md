@@ -1,14 +1,153 @@
 # Night-Shift
 
-Local-first framework for queuing tasks to be executed autonomously by AI agents during off-hours. Submit tasks (one-off or recurring), let them run overnight via `claude -p`, and review results in the morning through an inbox of markdown reports.
+[![CI](https://github.com/julienderay/night-shift/actions/workflows/ci.yml/badge.svg)](https://github.com/julienderay/night-shift/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Node >= 20](https://img.shields.io/badge/node-%3E%3D20-brightgreen.svg)](https://nodejs.org/)
 
-## Vision
+Local-first framework for queuing tasks to be executed autonomously by AI agents during off-hours.
+
+## Why
 
 Engineers waste time on tasks that don't require real-time interaction: preparing standup notes from Jira, reviewing merge requests, generating weekly summaries, running audits. Night-shift turns these into fire-and-forget jobs that execute while you sleep.
 
 The system is **local-first** by design. No cloud infrastructure, no servers, no accounts. A background daemon on your machine polls for ready tasks, spawns `claude -p` processes with your existing MCP server connections (Jira, Confluence, filesystem, etc.), and writes results as markdown files you can read in the morning.
 
+Night-shift requires the [Claude CLI](https://claude.ai/download) — all agent execution goes through `claude -p`.
+
 Task tracking uses [beads](https://github.com/steveyegge/beads) for dependency graphs and atomic claiming, but falls back to a simple file-based queue when beads is unavailable.
+
+## Prerequisites
+
+- **Node.js >= 20**
+- **[Claude CLI](https://claude.ai/download)** — the agent runtime (`claude -p`)
+- **[beads](https://github.com/steveyegge/beads)** (optional) — enables dependency graphs and atomic task claiming; falls back to a file-based queue without it
+
+## Quick Start
+
+```bash
+# Install from source
+git clone https://github.com/julienderay/night-shift.git
+cd night-shift
+npm install
+npm run build
+npm link                     # registers the `nightshift` binary on your PATH
+
+# Initialize
+nightshift init              # creates .nightshift/ and nightshift.yaml
+
+# Submit a one-off task
+nightshift submit "Summarize the latest MRs in our repo"
+
+# Start the daemon (runs in background)
+nightshift start
+
+# Check on things
+nightshift status            # daemon state + queue depth
+nightshift inbox             # browse completed reports
+
+# Stop when done
+nightshift stop
+```
+
+Edit `nightshift.yaml` to configure recurring tasks, budgets, timeouts, and tool restrictions.
+
+## Using Night-Shift from an LLM Agent
+
+Night-shift is designed to be driven from the command line, which makes it straightforward to use from any LLM agent that can execute bash commands (including Claude Code itself).
+
+### Installation
+
+```bash
+git clone https://github.com/julienderay/night-shift.git /path/to/night-shift
+cd /path/to/night-shift && npm install && npm run build && npm link
+nightshift init
+```
+
+After `npm link`, the `nightshift` binary is available on `PATH`.
+
+### Submitting tasks
+
+```bash
+# Basic task
+nightshift submit "Review the open MRs in the repo and summarize findings"
+
+# With options
+nightshift submit "Prepare standup notes from Jira" \
+  --timeout 15m \
+  --budget 2.00 \
+  --model sonnet \
+  --name "standup-prep" \
+  --tools "mcp__jira__*" "Read" "Write"
+```
+
+The command returns immediately. The daemon picks up the task on its next poll cycle.
+
+### Start / stop the daemon
+
+```bash
+nightshift start             # fork background daemon
+nightshift stop              # graceful shutdown (drains active tasks)
+nightshift stop --force      # immediate shutdown (SIGKILL)
+```
+
+### Checking status
+
+```bash
+nightshift status            # daemon state, active tasks, total executed, cost
+nightshift schedule          # list recurring tasks with next run times
+```
+
+### Reading results
+
+```bash
+nightshift inbox             # list recent reports (default: last 10)
+nightshift inbox -n 5        # list last 5 reports
+nightshift inbox --read <filename>  # display a specific report
+```
+
+Reports are markdown files in `.nightshift/inbox/` with YAML frontmatter containing task metadata (cost, duration, status).
+
+### Validating config
+
+```bash
+nightshift config validate   # check nightshift.yaml against the schema
+nightshift config show       # print resolved config with defaults applied
+```
+
+### Complete workflow example
+
+```bash
+# One-time setup
+git clone https://github.com/julienderay/night-shift.git ~/night-shift
+cd ~/night-shift && npm install && npm run build && npm link
+nightshift init
+
+# Start daemon
+nightshift start
+
+# Submit work
+nightshift submit "Audit the codebase for TODO comments and categorize them" --timeout 20m --budget 3.00
+
+# Check progress
+nightshift status
+
+# Read results when done
+nightshift inbox
+nightshift inbox --read 2026-02-20_audit-todos_ns-a1b2c3d4.md
+
+# Stop daemon
+nightshift stop
+```
+
+### Key facts for LLM agents
+
+- **All commands are non-interactive** — no prompts, no confirmations, safe for scripted use.
+- **The daemon must be running** for tasks to execute. Start it with `nightshift start` before submitting tasks.
+- **Tasks execute asynchronously** — `nightshift submit` queues the task and returns immediately. Poll `nightshift status` or `nightshift inbox` to check completion.
+- **Each task spawns a `claude -p` process** with `--dangerously-skip-permissions`. Safety is enforced via `--allowedTools` per task.
+- **MCP servers are inherited** from the user's existing Claude CLI config — no additional setup needed.
+- **Results are markdown files** in `.nightshift/inbox/`, parseable via the YAML frontmatter.
+- **Exit codes**: all commands exit `0` on success, non-zero on error.
 
 ## Architecture
 
@@ -94,24 +233,48 @@ night-shift/
     └── scheduler.json                 # Scheduler dedup state (last run times)
 ```
 
-## Getting Started
+## CLI Reference
 
-```bash
-npm install
-npm run build                # compile TypeScript to dist/
-npm link                     # register the nightshift binary on your PATH
-nightshift init              # creates .nightshift/ and nightshift.yaml
-```
+### `nightshift init [--force]`
 
-Edit `nightshift.yaml` to configure recurring tasks, then:
+Creates `.nightshift/` directory structure and default `nightshift.yaml`. Use `--force` to overwrite an existing config.
 
-```bash
-nightshift start             # start the background daemon
-nightshift submit "Summarize the latest MRs in our repo"
-nightshift status            # check daemon + queue state
-nightshift inbox             # browse completed reports
-nightshift stop              # gracefully stop the daemon
-```
+### `nightshift submit <prompt> [options]`
+
+Queue a one-off task for the daemon to execute.
+
+| Flag | Description |
+|------|-------------|
+| `-t, --timeout <timeout>` | Task timeout (e.g. `30m`, `1h`) |
+| `-b, --budget <usd>` | Max budget in USD |
+| `-m, --model <model>` | Model to use (`sonnet`, `opus`) |
+| `-n, --name <name>` | Task name (auto-generated if omitted) |
+| `--tools <tools...>` | Allowed tools for the agent |
+
+### `nightshift start`
+
+Fork the daemon as a detached background process. Validates config before starting. Refuses to start if a daemon is already running.
+
+### `nightshift stop [--force]`
+
+Send SIGTERM to the daemon for graceful shutdown (drains active tasks). Use `--force` to send SIGKILL for immediate termination.
+
+### `nightshift status`
+
+Display daemon state (running/stopped, PID, uptime, heartbeat age, active tasks, total executed, total cost) and queue depth.
+
+### `nightshift schedule`
+
+Show all recurring tasks from config with their cron schedule, next run time, timeout, and budget.
+
+### `nightshift inbox [-n <count>] [--read <file>]`
+
+List the most recent inbox reports (default 10). Use `--read <filename>` to display a specific report.
+
+### `nightshift config show|validate`
+
+- `show`: Print the resolved config (after defaults are applied) as YAML
+- `validate`: Check that `nightshift.yaml` is valid against the schema
 
 ## Configuration
 
@@ -171,49 +334,6 @@ Output paths support `{{variable}}` substitution:
 | `{{month}}` | `02`             |
 | `{{day}}`   | `19`             |
 | `{{name}}`  | task name        |
-
-## CLI Reference
-
-### `nightshift init [--force]`
-
-Creates `.nightshift/` directory structure and default `nightshift.yaml`. Use `--force` to overwrite an existing config.
-
-### `nightshift submit <prompt> [options]`
-
-Queue a one-off task for the daemon to execute.
-
-| Flag | Description |
-|------|-------------|
-| `-t, --timeout <timeout>` | Task timeout (e.g. `30m`, `1h`) |
-| `-b, --budget <usd>` | Max budget in USD |
-| `-m, --model <model>` | Model to use (`sonnet`, `opus`) |
-| `-n, --name <name>` | Task name (auto-generated if omitted) |
-| `--tools <tools...>` | Allowed tools for the agent |
-
-### `nightshift start`
-
-Fork the daemon as a detached background process. Validates config before starting. Refuses to start if a daemon is already running.
-
-### `nightshift stop [--force]`
-
-Send SIGTERM to the daemon for graceful shutdown (drains active tasks). Use `--force` to send SIGKILL for immediate termination.
-
-### `nightshift status`
-
-Display daemon state (running/stopped, PID, uptime, heartbeat age, active tasks, total executed, total cost) and queue depth.
-
-### `nightshift schedule`
-
-Show all recurring tasks from config with their cron schedule, next run time, timeout, and budget.
-
-### `nightshift inbox [-n <count>] [--read <file>]`
-
-List the most recent inbox reports (default 10). Use `--read <filename>` to display a specific report.
-
-### `nightshift config show|validate`
-
-- `show`: Print the resolved config (after defaults are applied) as YAML
-- `validate`: Check that `nightshift.yaml` is valid against the schema
 
 ## Agent Execution
 
@@ -316,7 +436,7 @@ npm run build                  # compile to dist/
 
 ### Tests
 
-47 tests across 8 test files:
+134 tests across 15 test files:
 
 - **Unit**: config loading/validation, timeout parsing, process spawning, template rendering, report generation, beads mapper, scheduler cron evaluation, daemon health checks
 - **Integration**: full CLI flow for `init`, `config validate`, `config show`
@@ -338,3 +458,11 @@ npm run build                  # compile to dist/
 - **Task dependencies**: beads supports dependency graphs (`bd dep add`), but no CLI command exposes this
 - **Per-task MCP config**: the `mcp_config` field is plumbed through types and agent-runner args, but no CLI flag for `submit`
 - **Model flag in recurring tasks**: plumbed through but not exposed in schedule display
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, conventions, and PR guidelines.
+
+## License
+
+[MIT](LICENSE)

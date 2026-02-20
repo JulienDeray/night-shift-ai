@@ -1,6 +1,9 @@
 node_modules/
 dist/
 .nightshift/
+.beads/
+.claude/
+nightshift.yaml
 *.log
 .DS_Store
 workbench/*
