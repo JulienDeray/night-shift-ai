@@ -10,27 +10,27 @@ See: .planning/PROJECT.md (updated 2026-02-23)
 ## Current Position
 
 Phase: 1 of 4 (Notification Foundation)
-Plan: 1 of 2 in current phase
+Plan: 2 of 2 in current phase
 Status: In progress
-Last activity: 2026-02-23 — Plan 01-01 completed
+Last activity: 2026-02-23 — Plan 01-02 completed
 
-Progress: [█░░░░░░░░░] 10%
+Progress: [██░░░░░░░░] 20%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 1
-- Average duration: 2 min
-- Total execution time: 0.03 hours
+- Total plans completed: 2
+- Average duration: 1.5 min
+- Total execution time: 0.05 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| 01-notification-foundation | 1 | 2 min | 2 min |
+| 01-notification-foundation | 2 | 3 min | 1.5 min |
 
 **Recent Trend:**
-- Last 5 plans: 01-01 (2 min)
+- Last 5 plans: 01-01 (2 min), 01-02 (1 min)
 - Trend: -
 
 *Updated after each plan completion*
@@ -48,6 +48,9 @@ Recent decisions affecting current work:
 - 01-01: Use z.object().strict() for CategoryScheduleSchema (not z.record(z.enum())) — Zod v4 record with enum requires all keys present
 - 01-01: confluence_page_id is required (not optional) per user constraints
 - 01-01: NtfyConfigSchema and CodeAgentSchema use .optional() so daemon starts without either block
+- 01-02: Use AbortSignal.timeout(5000) — no manual AbortController needed, Node 22 supports it natively
+- 01-02: NtfyMessage.body maps to JSON field "message" — property named body for clarity, wire format uses ntfy convention
+- 01-02: No module-level fetch import — Node 22 provides fetch as a global, consistent with zero new dependencies decision
 
 ### Pending Todos
 
@@ -62,5 +65,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-23
-Stopped at: Completed 01-01-PLAN.md (config schema extension with ntfy, code_agent, notify)
+Stopped at: Completed 01-02-PLAN.md (NtfyClient fire-and-forget HTTP notification class)
 Resume file: None
