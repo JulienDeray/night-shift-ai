@@ -28,7 +28,11 @@ Decimal phases appear between their surrounding integers in numeric order.
   2. NtfyClient sends an HTTP POST to the configured topic and does not throw or crash the daemon if the POST fails
   3. A recurring task with `notify: true` in its config is recognised; a task without the field defaults to no notification
   4. A `code_agent` block with repo URL, Confluence page ID, and day-of-week category schedule can be added to nightshift.yaml and passes Zod validation
-**Plans**: TBD
+**Plans:** 2 plans
+
+Plans:
+- [ ] 01-01-PLAN.md — Config schema extensions (ntfy, code_agent, notify opt-in)
+- [ ] 01-02-PLAN.md — NtfyClient class (fire-and-forget HTTP POST)
 
 ### Phase 2: Orchestrator Hooks
 **Goal**: The daemon fires start and end notifications for any task that opts in, with distinct success, skip, and failure messages
@@ -70,7 +74,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Notification Foundation | 0/? | Not started | - |
+| 1. Notification Foundation | 0/2 | Not started | - |
 | 2. Orchestrator Hooks | 0/? | Not started | - |
 | 3. Agent Prompt and Security | 0/? | Not started | - |
 | 4. Git Harness and Logging | 0/? | Not started | - |
