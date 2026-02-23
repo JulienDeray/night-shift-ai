@@ -5,6 +5,39 @@ import { getConfigPath } from "./paths.js";
 import { ConfigError } from "./errors.js";
 import type { NightShiftConfig } from "./types.js";
 
+const CategoryScheduleSchema = z
+  .object({
+    monday: z.array(z.string().min(1)).optional(),
+    tuesday: z.array(z.string().min(1)).optional(),
+    wednesday: z.array(z.string().min(1)).optional(),
+    thursday: z.array(z.string().min(1)).optional(),
+    friday: z.array(z.string().min(1)).optional(),
+    saturday: z.array(z.string().min(1)).optional(),
+    sunday: z.array(z.string().min(1)).optional(),
+  })
+  .strict();
+
+const NtfyConfigSchema = z
+  .object({
+    topic: z.string().min(1),
+    token: z.string().optional(),
+    base_url: z.string().default("https://ntfy.sh"),
+  })
+  .optional();
+
+const CodeAgentSchema = z
+  .object({
+    repo_url: z
+      .string()
+      .regex(
+        /^git@[a-zA-Z0-9._-]+:[a-zA-Z0-9._\/-]+\.git$/,
+        "repo_url must be an SSH git URL (git@host:org/repo.git)",
+      ),
+    confluence_page_id: z.string().min(1),
+    category_schedule: CategoryScheduleSchema,
+  })
+  .optional();
+
 const RecurringTaskSchema = z.object({
   name: z.string().min(1),
   schedule: z.string().min(1),
@@ -15,6 +48,7 @@ const RecurringTaskSchema = z.object({
   max_budget_usd: z.number().positive().optional(),
   model: z.string().optional(),
   mcp_config: z.string().optional(),
+  notify: z.boolean().optional(),
 });
 
 const ConfigSchema = z.object({
@@ -46,6 +80,8 @@ const ConfigSchema = z.object({
       model: z.string().optional(),
     })
     .default({ timeout: "30m" }),
+  ntfy: NtfyConfigSchema,
+  code_agent: CodeAgentSchema,
 });
 
 type RawConfig = z.infer<typeof ConfigSchema>;
@@ -74,12 +110,27 @@ function mapConfig(raw: RawConfig): NightShiftConfig {
       maxBudgetUsd: r.max_budget_usd,
       model: r.model,
       mcpConfig: r.mcp_config,
+      notify: r.notify,
     })),
     oneOffDefaults: {
       timeout: raw.one_off_defaults.timeout,
       maxBudgetUsd: raw.one_off_defaults.max_budget_usd,
       model: raw.one_off_defaults.model,
     },
+    ntfy: raw.ntfy
+      ? {
+          topic: raw.ntfy.topic,
+          token: raw.ntfy.token,
+          baseUrl: raw.ntfy.base_url,
+        }
+      : undefined,
+    codeAgent: raw.code_agent
+      ? {
+          repoUrl: raw.code_agent.repo_url,
+          confluencePageId: raw.code_agent.confluence_page_id,
+          categorySchedule: raw.code_agent.category_schedule,
+        }
+      : undefined,
   };
 }
 
@@ -158,6 +209,21 @@ recurring: []
 #   output: "inbox/standup-prep-{{date}}.md"
 #   timeout: "15m"
 #   max_budget_usd: 2.00
+
+# ntfy:
+#   topic: night-shift
+#   token: tk_abc123        # optional
+#   base_url: https://ntfy.sh  # optional, defaults to ntfy.sh
+
+# code_agent:
+#   repo_url: git@gitlab.com:team/repo.git
+#   confluence_page_id: "123456"
+#   category_schedule:
+#     monday: [tests]
+#     tuesday: [refactoring]
+#     wednesday: [docs]
+#     thursday: [error_handling]
+#     friday: [cleanup]
 
 one_off_defaults:
   timeout: "30m"

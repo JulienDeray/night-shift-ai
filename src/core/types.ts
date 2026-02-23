@@ -37,6 +37,28 @@ export interface ClaudeJsonOutput {
   num_turns: number;
 }
 
+export interface NtfyConfig {
+  topic: string;
+  token?: string;
+  baseUrl: string;
+}
+
+export interface CategoryScheduleConfig {
+  monday?: string[];
+  tuesday?: string[];
+  wednesday?: string[];
+  thursday?: string[];
+  friday?: string[];
+  saturday?: string[];
+  sunday?: string[];
+}
+
+export interface CodeAgentConfig {
+  repoUrl: string;
+  confluencePageId: string;
+  categorySchedule: CategoryScheduleConfig;
+}
+
 export interface RecurringTaskConfig {
   name: string;
   schedule: string;
@@ -47,6 +69,7 @@ export interface RecurringTaskConfig {
   maxBudgetUsd?: number;
   model?: string;
   mcpConfig?: string;
+  notify?: boolean;
 }
 
 export interface OneOffDefaults {
@@ -74,6 +97,8 @@ export interface NightShiftConfig {
   daemon: DaemonConfig;
   recurring: RecurringTaskConfig[];
   oneOffDefaults: OneOffDefaults;
+  ntfy?: NtfyConfig;
+  codeAgent?: CodeAgentConfig;
 }
 
 export interface DaemonState {
