@@ -12,7 +12,7 @@ This milestone extends the existing night-shift daemon with two additions: a reu
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Notification Foundation** - NtfyClient, config schema extension, per-task opt-in
+- [x] **Phase 1: Notification Foundation** - NtfyClient, config schema extension, per-task opt-in
 - [ ] **Phase 2: Orchestrator Hooks** - Wire start/end notifications into daemon lifecycle for all tasks
 - [ ] **Phase 3: Agent Prompt and Security** - Prompt template, category rotation, credential isolation guards
 - [ ] **Phase 4: Git Harness and Logging** - Clone, branch, push, MR creation, local log, Confluence update
@@ -31,8 +31,8 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Plans:** 2 plans
 
 Plans:
-- [ ] 01-01-PLAN.md — Config schema extensions (ntfy, code_agent, notify opt-in)
-- [ ] 01-02-PLAN.md — NtfyClient class (fire-and-forget HTTP POST)
+- [x] 01-01-PLAN.md — Config schema extensions (ntfy, code_agent, notify opt-in)
+- [x] 01-02-PLAN.md — NtfyClient class (fire-and-forget HTTP POST)
 
 ### Phase 2: Orchestrator Hooks
 **Goal**: The daemon fires start and end notifications for any task that opts in, with distinct success, skip, and failure messages
@@ -74,7 +74,7 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Notification Foundation | 0/2 | Not started | - |
+| 1. Notification Foundation | 2/2 | Complete | 2026-02-23 |
 | 2. Orchestrator Hooks | 0/? | Not started | - |
 | 3. Agent Prompt and Security | 0/? | Not started | - |
 | 4. Git Harness and Logging | 0/? | Not started | - |
