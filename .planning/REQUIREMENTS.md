@@ -9,12 +9,12 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Notifications
 
-- [ ] **NTFY-01**: Ntfy config block in nightshift.yaml with topic URL, optional auth token, and optional base_url override
+- [x] **NTFY-01**: Ntfy config block in nightshift.yaml with topic URL, optional auth token, and optional base_url override
 - [ ] **NTFY-02**: Reusable NtfyClient class that sends HTTP POST notifications (fire-and-forget, never blocks daemon)
 - [ ] **NTFY-03**: Task-start notification fires when daemon dispatches a task (includes task name and category)
 - [ ] **NTFY-04**: Task-end notification fires on success with MR link, cost, and brief summary
 - [ ] **NTFY-05**: Task-end notification fires on failure or skip with distinct message and higher priority
-- [ ] **NTFY-06**: Per-task `notify: true/false` opt-in in recurring task config
+- [x] **NTFY-06**: Per-task `notify: true/false` opt-in in recurring task config
 
 ### Code Improvement Agent
 
@@ -30,8 +30,8 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Config & Rotation
 
-- [ ] **CONF-01**: `code_agent` config block in nightshift.yaml with target repo URL, Confluence page ID, and category schedule
-- [ ] **CONF-02**: Day-of-week to improvement category mapping (e.g. monday: tests, tuesday: refactoring, wednesday: docs)
+- [x] **CONF-01**: `code_agent` config block in nightshift.yaml with target repo URL, Confluence page ID, and category schedule
+- [x] **CONF-02**: Day-of-week to improvement category mapping (e.g. monday: tests, tuesday: refactoring, wednesday: docs)
 - [ ] **CONF-03**: Daemon resolves today's category from config and injects it into the agent prompt
 
 ### Logging
@@ -79,12 +79,12 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| NTFY-01 | Phase 1 | Pending |
+| NTFY-01 | Phase 1 | Complete |
 | NTFY-02 | Phase 1 | Pending |
 | NTFY-03 | Phase 2 | Pending |
 | NTFY-04 | Phase 2 | Pending |
 | NTFY-05 | Phase 2 | Pending |
-| NTFY-06 | Phase 1 | Pending |
+| NTFY-06 | Phase 1 | Complete |
 | AGENT-01 | Phase 4 | Pending |
 | AGENT-02 | Phase 4 | Pending |
 | AGENT-03 | Phase 4 | Pending |
@@ -94,8 +94,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | AGENT-07 | Phase 3 | Pending |
 | AGENT-08 | Phase 3 | Pending |
 | AGENT-09 | Phase 3 | Pending |
-| CONF-01 | Phase 1 | Pending |
-| CONF-02 | Phase 1 | Pending |
+| CONF-01 | Phase 1 | Complete |
+| CONF-02 | Phase 1 | Complete |
 | CONF-03 | Phase 2 | Pending |
 | LOG-01 | Phase 4 | Pending |
 | LOG-02 | Phase 4 | Pending |
