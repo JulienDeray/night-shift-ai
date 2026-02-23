@@ -117,4 +117,146 @@ max_concurrent: -1
     expect(result.valid).toBe(false);
     expect(result.error).toBeDefined();
   });
+
+  it("loads config with ntfy block", async () => {
+    const yaml = `
+workspace: ./w
+ntfy:
+  topic: night-shift
+  token: tk_abc
+  base_url: https://custom.ntfy.sh
+`;
+    await fs.writeFile(path.join(tmpDir, "nightshift.yaml"), yaml);
+
+    const config = await loadConfig(tmpDir);
+
+    expect(config.ntfy).toBeDefined();
+    expect(config.ntfy!.topic).toBe("night-shift");
+    expect(config.ntfy!.token).toBe("tk_abc");
+    expect(config.ntfy!.baseUrl).toBe("https://custom.ntfy.sh");
+  });
+
+  it("applies default base_url for ntfy", async () => {
+    const yaml = `
+workspace: ./w
+ntfy:
+  topic: test
+`;
+    await fs.writeFile(path.join(tmpDir, "nightshift.yaml"), yaml);
+
+    const config = await loadConfig(tmpDir);
+
+    expect(config.ntfy!.baseUrl).toBe("https://ntfy.sh");
+  });
+
+  it("loads config without ntfy block", async () => {
+    const yaml = `
+workspace: ./w
+`;
+    await fs.writeFile(path.join(tmpDir, "nightshift.yaml"), yaml);
+
+    const config = await loadConfig(tmpDir);
+
+    expect(config.ntfy).toBeUndefined();
+  });
+
+  it("loads config with code_agent block", async () => {
+    const yaml = `
+workspace: ./w
+code_agent:
+  repo_url: git@gitlab.com:team/repo.git
+  confluence_page_id: "123456"
+  category_schedule:
+    monday: [tests]
+    tuesday: [refactoring]
+`;
+    await fs.writeFile(path.join(tmpDir, "nightshift.yaml"), yaml);
+
+    const config = await loadConfig(tmpDir);
+
+    expect(config.codeAgent).toBeDefined();
+    expect(config.codeAgent!.repoUrl).toBe("git@gitlab.com:team/repo.git");
+    expect(config.codeAgent!.confluencePageId).toBe("123456");
+    expect(config.codeAgent!.categorySchedule.monday).toEqual(["tests"]);
+  });
+
+  it("rejects invalid repo_url (not SSH)", async () => {
+    const yaml = `
+workspace: ./w
+code_agent:
+  repo_url: https://gitlab.com/team/repo.git
+  confluence_page_id: "123"
+  category_schedule:
+    monday: [tests]
+`;
+    await fs.writeFile(path.join(tmpDir, "nightshift.yaml"), yaml);
+
+    await expect(loadConfig(tmpDir)).rejects.toThrow("Invalid config");
+  });
+
+  it("rejects unknown day name in category_schedule", async () => {
+    const yaml = `
+workspace: ./w
+code_agent:
+  repo_url: git@gitlab.com:team/repo.git
+  confluence_page_id: "123"
+  category_schedule:
+    munday: [tests]
+`;
+    await fs.writeFile(path.join(tmpDir, "nightshift.yaml"), yaml);
+
+    await expect(loadConfig(tmpDir)).rejects.toThrow();
+  });
+
+  it("loads recurring task with notify flag", async () => {
+    const yaml = `
+workspace: ./w
+recurring:
+  - name: "test-task"
+    schedule: "0 6 * * *"
+    prompt: "Do something"
+    notify: true
+`;
+    await fs.writeFile(path.join(tmpDir, "nightshift.yaml"), yaml);
+
+    const config = await loadConfig(tmpDir);
+
+    expect(config.recurring[0].notify).toBe(true);
+  });
+
+  it("notify defaults to undefined when not specified", async () => {
+    const yaml = `
+workspace: ./w
+recurring:
+  - name: "test-task"
+    schedule: "0 6 * * *"
+    prompt: "Do something"
+`;
+    await fs.writeFile(path.join(tmpDir, "nightshift.yaml"), yaml);
+
+    const config = await loadConfig(tmpDir);
+
+    expect(config.recurring[0].notify).toBeUndefined();
+  });
+
+  it("loads config without code_agent block", async () => {
+    const yaml = `
+workspace: ./w
+`;
+    await fs.writeFile(path.join(tmpDir, "nightshift.yaml"), yaml);
+
+    const config = await loadConfig(tmpDir);
+
+    expect(config.codeAgent).toBeUndefined();
+  });
+
+  it("getDefaultConfigYaml includes ntfy and code_agent examples", () => {
+    const yaml = getDefaultConfigYaml();
+
+    expect(yaml).toContain("ntfy:");
+    expect(yaml).toContain("topic:");
+    expect(yaml).toContain("code_agent:");
+    expect(yaml).toContain("repo_url:");
+    expect(yaml).toContain("category_schedule:");
+  });
 });
