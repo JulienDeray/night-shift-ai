@@ -32,7 +32,7 @@ Requirements for initial release. Each maps to roadmap phases.
 
 - [x] **CONF-01**: `code_agent` config block in nightshift.yaml with target repo URL, Confluence page ID, and category schedule
 - [x] **CONF-02**: Day-of-week to improvement category mapping (e.g. monday: tests, tuesday: refactoring, wednesday: docs)
-- [ ] **CONF-03**: Daemon resolves today's category from config and injects it into the agent prompt
+- [x] **CONF-03**: Daemon resolves today's category from config and injects it into the agent prompt
 
 ### Logging
 
@@ -96,7 +96,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | AGENT-09 | Phase 3 | Pending |
 | CONF-01 | Phase 1 | Complete |
 | CONF-02 | Phase 1 | Complete |
-| CONF-03 | Phase 2 | Pending |
+| CONF-03 | Phase 2 | Complete |
 | LOG-01 | Phase 4 | Pending |
 | LOG-02 | Phase 4 | Pending |
 

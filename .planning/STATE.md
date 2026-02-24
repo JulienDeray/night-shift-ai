@@ -9,28 +9,29 @@ See: .planning/PROJECT.md (updated 2026-02-23)
 
 ## Current Position
 
-Phase: 1 of 4 (Notification Foundation)
-Plan: 2 of 2 in current phase
+Phase: 2 of 4 (Orchestrator Hooks)
+Plan: 1 of 2 in current phase
 Status: In progress
-Last activity: 2026-02-23 — Plan 01-02 completed
+Last activity: 2026-02-24 — Plan 02-01 completed
 
-Progress: [██░░░░░░░░] 20%
+Progress: [███░░░░░░░] 30%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 2
-- Average duration: 1.5 min
-- Total execution time: 0.05 hours
+- Total plans completed: 3
+- Average duration: 1.3 min
+- Total execution time: 0.07 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 01-notification-foundation | 2 | 3 min | 1.5 min |
+| 02-orchestrator-hooks | 1 | 1 min | 1 min |
 
 **Recent Trend:**
-- Last 5 plans: 01-01 (2 min), 01-02 (1 min)
+- Last 5 plans: 01-01 (2 min), 01-02 (1 min), 02-01 (1 min)
 - Trend: -
 
 *Updated after each plan completion*
@@ -51,6 +52,9 @@ Recent decisions affecting current work:
 - 01-02: Use AbortSignal.timeout(5000) — no manual AbortController needed, Node 22 supports it natively
 - 01-02: NtfyMessage.body maps to JSON field "message" — property named body for clarity, wire format uses ntfy convention
 - 01-02: No module-level fetch import — Node 22 provides fetch as a global, consistent with zero new dependencies decision
+- 02-01: resolveCategory exported (not private) so tests can import it directly and future phases can reuse it
+- 02-01: Category resolved at task creation time (dispatch), not at completion time — frozen semantics prevent category drift
+- 02-01: DAYS array is module-level constant, not re-created per call
 
 ### Pending Todos
 
@@ -64,6 +68,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-02-23
-Stopped at: Completed 01-02-PLAN.md (NtfyClient fire-and-forget HTTP notification class)
+Last session: 2026-02-24
+Stopped at: Completed 02-01-PLAN.md (NightShiftTask category and notify field propagation with resolveCategory helper)
 Resume file: None
