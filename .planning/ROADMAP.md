@@ -43,7 +43,11 @@ Plans:
   2. A notification arrives when a task completes successfully, containing the MR link (or "no improvement found"), cost, and summary
   3. A notification with higher priority arrives when a task fails or is skipped, with a distinct message that distinguishes it from a success notification
   4. The daemon resolves today's improvement category from the code_agent day-of-week schedule and injects it into the task context
-**Plans**: TBD
+**Plans:** 2 plans
+
+Plans:
+- [ ] 02-01-PLAN.md — NightShiftTask type extension + category resolution (TDD)
+- [ ] 02-02-PLAN.md — Orchestrator notification hooks (TDD)
 
 ### Phase 3: Agent Prompt and Security
 **Goal**: The agent has a well-crafted, secure prompt that produces focused, reviewable improvements and explicitly skips when nothing meaningful is found
@@ -75,6 +79,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Notification Foundation | 2/2 | Complete    | 2026-02-23 |
-| 2. Orchestrator Hooks | 0/? | Not started | - |
+| 2. Orchestrator Hooks | 0/2 | Not started | - |
 | 3. Agent Prompt and Security | 0/? | Not started | - |
 | 4. Git Harness and Logging | 0/? | Not started | - |
