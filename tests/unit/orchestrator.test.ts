@@ -5,7 +5,8 @@ import os from "node:os";
 import { writeJsonFile, readJsonFile } from "../../src/utils/fs.js";
 import { Scheduler } from "../../src/daemon/scheduler.js";
 import { Logger } from "../../src/core/logger.js";
-import type { NightShiftTask, NightShiftConfig, DaemonState } from "../../src/core/types.js";
+import { Orchestrator } from "../../src/daemon/orchestrator.js";
+import type { NightShiftTask, NightShiftConfig, DaemonState, AgentExecutionResult } from "../../src/core/types.js";
 
 /**
  * Test the file-based queue logic that the orchestrator uses.
@@ -312,5 +313,193 @@ describe("Config hot-reload in tick", () => {
     } finally {
       process.cwd = origCwd;
     }
+  });
+});
+
+// Helpers for notification hook tests
+function makeNotifyTask(overrides?: Partial<NightShiftTask>): NightShiftTask {
+  return {
+    id: "ns-test001",
+    name: "test-task",
+    origin: "recurring",
+    prompt: "do something",
+    status: "running",
+    timeout: "30m",
+    createdAt: new Date().toISOString(),
+    ...overrides,
+  };
+}
+
+function makeResult(overrides?: Partial<AgentExecutionResult>): AgentExecutionResult {
+  return {
+    sessionId: "sess-001",
+    durationMs: 60000,
+    totalCostUsd: 0.25,
+    result: "Task completed successfully",
+    isError: false,
+    numTurns: 5,
+    ...overrides,
+  };
+}
+
+describe("Orchestrator notification hooks", () => {
+  let orchestrator: Orchestrator;
+  let mockNtfy: { send: ReturnType<typeof vi.fn> };
+  let logger: Logger;
+
+  beforeEach(() => {
+    orchestrator = new Orchestrator();
+    mockNtfy = { send: vi.fn().mockResolvedValue(undefined) };
+    logger = Logger.createCliLogger(false);
+    (orchestrator as any).logger = logger;
+  });
+
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
+  describe("notifyTaskStart (NTFY-03)", () => {
+    it("fires when task.notify=true and ntfy configured", async () => {
+      (orchestrator as any).ntfy = mockNtfy;
+      const task = makeNotifyTask({ notify: true, category: "tests" });
+
+      (orchestrator as any).notifyTaskStart(task);
+
+      // Allow promise to resolve
+      await Promise.resolve();
+      expect(mockNtfy.send).toHaveBeenCalledTimes(1);
+      const [message] = mockNtfy.send.mock.calls[0];
+      expect(message.title).toContain("test-task");
+      expect(message.body).toContain("tests");
+    });
+
+    it("does NOT fire when task.notify is false", async () => {
+      (orchestrator as any).ntfy = mockNtfy;
+      const task = makeNotifyTask({ notify: false });
+
+      (orchestrator as any).notifyTaskStart(task);
+
+      await Promise.resolve();
+      expect(mockNtfy.send).not.toHaveBeenCalled();
+    });
+
+    it("does NOT fire when task.notify is undefined", async () => {
+      (orchestrator as any).ntfy = mockNtfy;
+      const task = makeNotifyTask(); // no notify field
+
+      (orchestrator as any).notifyTaskStart(task);
+
+      await Promise.resolve();
+      expect(mockNtfy.send).not.toHaveBeenCalled();
+    });
+
+    it("does NOT fire when ntfy is null", async () => {
+      (orchestrator as any).ntfy = null;
+      const task = makeNotifyTask({ notify: true });
+
+      // Should not throw, and no call attempted
+      expect(() => (orchestrator as any).notifyTaskStart(task)).not.toThrow();
+      expect(mockNtfy.send).not.toHaveBeenCalled();
+    });
+
+    it("includes category in body when present", async () => {
+      (orchestrator as any).ntfy = mockNtfy;
+      const task = makeNotifyTask({ notify: true, category: "refactoring" });
+
+      (orchestrator as any).notifyTaskStart(task);
+
+      await Promise.resolve();
+      expect(mockNtfy.send).toHaveBeenCalledTimes(1);
+      const [message] = mockNtfy.send.mock.calls[0];
+      expect(message.body).toContain("refactoring");
+    });
+
+    it("handles missing category gracefully (no 'undefined' in body)", async () => {
+      (orchestrator as any).ntfy = mockNtfy;
+      const task = makeNotifyTask({ notify: true }); // no category
+
+      (orchestrator as any).notifyTaskStart(task);
+
+      await Promise.resolve();
+      expect(mockNtfy.send).toHaveBeenCalledTimes(1);
+      const [message] = mockNtfy.send.mock.calls[0];
+      expect(message.body).not.toContain("undefined");
+    });
+  });
+
+  describe("notifyTaskEnd (NTFY-04, NTFY-05)", () => {
+    it("fires success notification with priority 3", async () => {
+      (orchestrator as any).ntfy = mockNtfy;
+      const task = makeNotifyTask({ notify: true });
+      const result = makeResult({
+        isError: false,
+        totalCostUsd: 0.42,
+        result: "Improved test coverage",
+      });
+
+      (orchestrator as any).notifyTaskEnd(task, result);
+
+      await Promise.resolve();
+      expect(mockNtfy.send).toHaveBeenCalledTimes(1);
+      const [message] = mockNtfy.send.mock.calls[0];
+      expect(message.priority).toBe(3);
+      expect(message.title).toContain("test-task");
+      expect(message.body).toContain("0.42");
+      expect(message.body).toContain("Improved test coverage");
+    });
+
+    it("fires failure notification with priority 4", async () => {
+      (orchestrator as any).ntfy = mockNtfy;
+      const task = makeNotifyTask({ notify: true });
+      const result = makeResult({
+        isError: true,
+        result: "TypeError: cannot read property 'foo' of undefined",
+      });
+
+      (orchestrator as any).notifyTaskEnd(task, result);
+
+      await Promise.resolve();
+      expect(mockNtfy.send).toHaveBeenCalledTimes(1);
+      const [message] = mockNtfy.send.mock.calls[0];
+      expect(message.priority).toBe(4);
+      expect(message.title).toContain("FAILED");
+      expect(message.title).toContain("test-task");
+      expect(message.body).toContain("TypeError");
+    });
+
+    it("does NOT fire when task.notify is false", async () => {
+      (orchestrator as any).ntfy = mockNtfy;
+      const task = makeNotifyTask({ notify: false });
+      const result = makeResult();
+
+      (orchestrator as any).notifyTaskEnd(task, result);
+
+      await Promise.resolve();
+      expect(mockNtfy.send).not.toHaveBeenCalled();
+    });
+
+    it("does NOT fire when ntfy is null", async () => {
+      (orchestrator as any).ntfy = null;
+      const task = makeNotifyTask({ notify: true });
+      const result = makeResult();
+
+      expect(() => (orchestrator as any).notifyTaskEnd(task, result)).not.toThrow();
+      expect(mockNtfy.send).not.toHaveBeenCalled();
+    });
+
+    it("truncates long result strings in body (<=200 chars in result portion)", async () => {
+      (orchestrator as any).ntfy = mockNtfy;
+      const task = makeNotifyTask({ notify: true });
+      const longResult = "A".repeat(500);
+      const result = makeResult({ isError: false, result: longResult });
+
+      (orchestrator as any).notifyTaskEnd(task, result);
+
+      await Promise.resolve();
+      expect(mockNtfy.send).toHaveBeenCalledTimes(1);
+      const [message] = mockNtfy.send.mock.calls[0];
+      // The result portion should be truncated to 200 chars
+      expect(message.body.length).toBeLessThanOrEqual(300); // body = cost prefix + truncated result
+    });
   });
 });
