@@ -10,7 +10,8 @@ import { writeDaemonState, writePidFile, removePidFile } from "./health.js";
 import { writeReport } from "../inbox/reporter.js";
 import { readJsonFile } from "../utils/fs.js";
 import { getQueueDir } from "../core/paths.js";
-import type { DaemonState, NightShiftConfig, NightShiftTask } from "../core/types.js";
+import type { AgentExecutionResult, DaemonState, NightShiftConfig, NightShiftTask } from "../core/types.js";
+import { NtfyClient } from "../notifications/ntfy-client.js";
 import fs from "node:fs/promises";
 
 export class Orchestrator {
@@ -19,6 +20,7 @@ export class Orchestrator {
   private scheduler!: Scheduler;
   private pool!: AgentPool;
   private beads: BeadsClient | null = null;
+  private ntfy: NtfyClient | null = null;
   private stopping = false;
   private pollTimer: ReturnType<typeof setTimeout> | null = null;
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
@@ -44,6 +46,8 @@ export class Orchestrator {
       workspaceDir,
       logger: this.logger,
     });
+
+    this.ntfy = this.config.ntfy ? new NtfyClient(this.config.ntfy) : null;
 
     await ensureNightShiftDirs();
     await this.scheduler.loadState();
@@ -151,6 +155,7 @@ export class Orchestrator {
         const claimed = await this.claimTask(task);
         if (claimed) {
           this.pool.dispatch(task);
+          this.notifyTaskStart(task);
         }
       }
     }
@@ -268,6 +273,41 @@ export class Orchestrator {
     // Update stats
     this.state.totalExecuted++;
     this.state.totalCostUsd += result.totalCostUsd;
+
+    // Notify
+    this.notifyTaskEnd(task, result);
+  }
+
+  private notifyTaskStart(task: NightShiftTask): void {
+    if (!this.ntfy || !task.notify) return;
+    const body = task.category
+      ? `Category: ${task.category}`
+      : "Running\u2026";
+    void this.ntfy.send(
+      {
+        title: `Night-shift started: ${task.name}`,
+        body,
+        priority: 3,
+      },
+      this.logger,
+    );
+  }
+
+  private notifyTaskEnd(task: NightShiftTask, result: AgentExecutionResult): void {
+    if (!this.ntfy || !task.notify) return;
+    const isFailure = result.isError;
+    void this.ntfy.send(
+      {
+        title: isFailure
+          ? `Night-shift FAILED: ${task.name}`
+          : `Night-shift done: ${task.name}`,
+        body: isFailure
+          ? `Error: ${result.result.slice(0, 200)}`
+          : `Cost: $${result.totalCostUsd.toFixed(2)} \u2014 ${result.result.slice(0, 200)}`,
+        priority: isFailure ? 4 : 3,
+      },
+      this.logger,
+    );
   }
 
   private async writeHeartbeat(): Promise<void> {
