@@ -4,11 +4,24 @@ import { getSchedulerStatePath } from "../core/paths.js";
 import { readJsonFile, writeJsonFile } from "../utils/fs.js";
 import { BeadsClient } from "../beads/client.js";
 import { toBeadLabels, toBeadDescription } from "../beads/mapper.js";
-import type { NightShiftConfig, NightShiftTask, RecurringTaskConfig } from "../core/types.js";
+import type { NightShiftConfig, NightShiftTask, RecurringTaskConfig, CategoryScheduleConfig } from "../core/types.js";
 import type { Logger } from "../core/logger.js";
 
 interface SchedulerState {
   lastRuns: Record<string, string>; // name → ISO timestamp of last bead creation
+}
+
+const DAYS: (keyof CategoryScheduleConfig)[] = [
+  "sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday",
+];
+
+export function resolveCategory(
+  schedule: CategoryScheduleConfig | undefined,
+): string | undefined {
+  if (!schedule) return undefined;
+  const todayKey = DAYS[new Date().getDay()];
+  const categories = schedule[todayKey];
+  return categories?.length ? categories[0] : undefined;
 }
 
 export class Scheduler {
@@ -103,6 +116,8 @@ export class Scheduler {
       output: recurring.output,
       createdAt: new Date().toISOString(),
       recurringName: recurring.name,
+      notify: recurring.notify,
+      category: resolveCategory(this.config.codeAgent?.categorySchedule),
     };
 
     if (this.beads) {
