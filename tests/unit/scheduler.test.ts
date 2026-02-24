@@ -5,7 +5,7 @@ import os from "node:os";
 import { Scheduler } from "../../src/daemon/scheduler.js";
 import { Logger } from "../../src/core/logger.js";
 import { readJsonFile } from "../../src/utils/fs.js";
-import type { NightShiftConfig, NightShiftTask } from "../../src/core/types.js";
+import type { NightShiftConfig, NightShiftTask, CategoryScheduleConfig } from "../../src/core/types.js";
 
 function makeConfig(overrides?: Partial<NightShiftConfig>): NightShiftConfig {
   return {
@@ -356,5 +356,256 @@ describe("Scheduler", () => {
     } finally {
       process.cwd = origCwd;
     }
+  });
+
+  describe("category resolution and notify propagation", () => {
+    // 2026-01-05T02:00:00Z is a Monday (getDay() === 1)
+    const MONDAY_TIME = new Date("2026-01-05T02:00:00Z");
+
+    const FULL_SCHEDULE: CategoryScheduleConfig = {
+      sunday: ["sunday-cat"],
+      monday: ["monday-cat"],
+      tuesday: ["tuesday-cat"],
+      wednesday: ["wednesday-cat"],
+      thursday: ["thursday-cat"],
+      friday: ["friday-cat"],
+      saturday: ["saturday-cat"],
+    };
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("resolveCategory returns correct category for each weekday", async () => {
+      // Test all 7 days: 0=Sunday through 6=Saturday
+      const dayTests: Array<{ date: Date; expected: string }> = [
+        { date: new Date("2026-01-04T02:00:00Z"), expected: "sunday-cat" },    // Sunday
+        { date: new Date("2026-01-05T02:00:00Z"), expected: "monday-cat" },    // Monday
+        { date: new Date("2026-01-06T02:00:00Z"), expected: "tuesday-cat" },   // Tuesday
+        { date: new Date("2026-01-07T02:00:00Z"), expected: "wednesday-cat" }, // Wednesday
+        { date: new Date("2026-01-08T02:00:00Z"), expected: "thursday-cat" },  // Thursday
+        { date: new Date("2026-01-09T02:00:00Z"), expected: "friday-cat" },    // Friday
+        { date: new Date("2026-01-10T02:00:00Z"), expected: "saturday-cat" },  // Saturday
+      ];
+
+      for (const { date, expected } of dayTests) {
+        vi.useFakeTimers();
+        vi.setSystemTime(date);
+
+        const config = makeConfig({
+          codeAgent: {
+            repoUrl: "https://example.com/repo",
+            confluencePageId: "12345",
+            categorySchedule: FULL_SCHEDULE,
+          },
+          recurring: [
+            {
+              name: "daily-task",
+              schedule: "* * * * *",
+              prompt: "Daily task",
+              notify: true,
+            },
+          ],
+        });
+
+        const scheduler = new Scheduler(config, logger);
+        const origCwd = process.cwd;
+        process.cwd = () => tmpDir;
+        try {
+          const tasks = await scheduler.evaluateSchedules();
+          expect(tasks.length).toBe(1);
+          expect(tasks[0].category).toBe(expected);
+        } finally {
+          process.cwd = origCwd;
+        }
+
+        vi.useRealTimers();
+        // Reset scheduler state between days by clearing the queue dir
+        const queueDir = path.join(tmpDir, ".nightshift", "queue");
+        const stateFile = path.join(tmpDir, ".nightshift", "scheduler.json");
+        const files = await fs.readdir(queueDir).catch(() => []);
+        for (const f of files) {
+          await fs.rm(path.join(queueDir, f), { force: true });
+        }
+        await fs.rm(stateFile, { force: true });
+      }
+    });
+
+    it("resolveCategory returns undefined when day has no entry", async () => {
+      vi.useFakeTimers();
+      // Wednesday = getDay() === 3; schedule only has monday
+      vi.setSystemTime(new Date("2026-01-07T02:00:00Z"));
+
+      const config = makeConfig({
+        codeAgent: {
+          repoUrl: "https://example.com/repo",
+          confluencePageId: "12345",
+          categorySchedule: { monday: ["tests"] },
+        },
+        recurring: [
+          {
+            name: "daily-task",
+            schedule: "* * * * *",
+            prompt: "Daily task",
+            notify: true,
+          },
+        ],
+      });
+
+      const scheduler = new Scheduler(config, logger);
+      const origCwd = process.cwd;
+      process.cwd = () => tmpDir;
+      try {
+        const tasks = await scheduler.evaluateSchedules();
+        expect(tasks.length).toBe(1);
+        expect(tasks[0].category).toBeUndefined();
+      } finally {
+        process.cwd = origCwd;
+      }
+    });
+
+    it("resolveCategory returns undefined when no codeAgent config", async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(MONDAY_TIME);
+
+      const config = makeConfig({
+        // no codeAgent
+        recurring: [
+          {
+            name: "daily-task",
+            schedule: "* * * * *",
+            prompt: "Daily task",
+            notify: true,
+          },
+        ],
+      });
+
+      const scheduler = new Scheduler(config, logger);
+      const origCwd = process.cwd;
+      process.cwd = () => tmpDir;
+      try {
+        const tasks = await scheduler.evaluateSchedules();
+        expect(tasks.length).toBe(1);
+        expect(tasks[0].category).toBeUndefined();
+      } finally {
+        process.cwd = origCwd;
+      }
+    });
+
+    it("resolveCategory takes first element from array", async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(MONDAY_TIME); // Monday
+
+      const config = makeConfig({
+        codeAgent: {
+          repoUrl: "https://example.com/repo",
+          confluencePageId: "12345",
+          categorySchedule: { monday: ["tests", "docs"] },
+        },
+        recurring: [
+          {
+            name: "daily-task",
+            schedule: "* * * * *",
+            prompt: "Daily task",
+          },
+        ],
+      });
+
+      const scheduler = new Scheduler(config, logger);
+      const origCwd = process.cwd;
+      process.cwd = () => tmpDir;
+      try {
+        const tasks = await scheduler.evaluateSchedules();
+        expect(tasks.length).toBe(1);
+        expect(tasks[0].category).toBe("tests");
+      } finally {
+        process.cwd = origCwd;
+      }
+    });
+
+    it("resolveCategory returns undefined for empty array", async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(MONDAY_TIME); // Monday
+
+      const config = makeConfig({
+        codeAgent: {
+          repoUrl: "https://example.com/repo",
+          confluencePageId: "12345",
+          categorySchedule: { monday: [] },
+        },
+        recurring: [
+          {
+            name: "daily-task",
+            schedule: "* * * * *",
+            prompt: "Daily task",
+          },
+        ],
+      });
+
+      const scheduler = new Scheduler(config, logger);
+      const origCwd = process.cwd;
+      process.cwd = () => tmpDir;
+      try {
+        const tasks = await scheduler.evaluateSchedules();
+        expect(tasks.length).toBe(1);
+        expect(tasks[0].category).toBeUndefined();
+      } finally {
+        process.cwd = origCwd;
+      }
+    });
+
+    it("task.notify is propagated from RecurringTaskConfig.notify", async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(MONDAY_TIME);
+
+      const config = makeConfig({
+        recurring: [
+          {
+            name: "notify-task",
+            schedule: "* * * * *",
+            prompt: "Task with notify",
+            notify: true,
+          },
+        ],
+      });
+
+      const scheduler = new Scheduler(config, logger);
+      const origCwd = process.cwd;
+      process.cwd = () => tmpDir;
+      try {
+        const tasks = await scheduler.evaluateSchedules();
+        expect(tasks.length).toBe(1);
+        expect(tasks[0].notify).toBe(true);
+      } finally {
+        process.cwd = origCwd;
+      }
+    });
+
+    it("task.notify defaults to undefined when not set", async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(MONDAY_TIME);
+
+      const config = makeConfig({
+        recurring: [
+          {
+            name: "no-notify-task",
+            schedule: "* * * * *",
+            prompt: "Task without notify",
+            // notify not set
+          },
+        ],
+      });
+
+      const scheduler = new Scheduler(config, logger);
+      const origCwd = process.cwd;
+      process.cwd = () => tmpDir;
+      try {
+        const tasks = await scheduler.evaluateSchedules();
+        expect(tasks.length).toBe(1);
+        expect(tasks[0].notify).toBeUndefined();
+      } finally {
+        process.cwd = origCwd;
+      }
+    });
   });
 });
