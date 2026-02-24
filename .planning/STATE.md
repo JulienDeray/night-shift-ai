@@ -5,33 +5,33 @@
 See: .planning/PROJECT.md (updated 2026-02-23)
 
 **Core value:** Small, focused merge requests that appear in the morning — one coherent improvement per night, easy to review, never overwhelming.
-**Current focus:** Phase 1 — Notification Foundation
+**Current focus:** Phase 2 — Orchestrator Hooks (complete), moving to Phase 3
 
 ## Current Position
 
-Phase: 2 of 4 (Orchestrator Hooks)
-Plan: 1 of 2 in current phase
-Status: In progress
-Last activity: 2026-02-24 — Plan 02-01 completed
+Phase: 2 of 4 (Orchestrator Hooks) — COMPLETE
+Plan: 2 of 2 in current phase
+Status: Phase complete, ready for Phase 3
+Last activity: 2026-02-24 — Plan 02-02 completed
 
-Progress: [███░░░░░░░] 30%
+Progress: [████░░░░░░] 40%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 3
-- Average duration: 1.3 min
-- Total execution time: 0.07 hours
+- Total plans completed: 4
+- Average duration: 1.5 min
+- Total execution time: 0.10 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 01-notification-foundation | 2 | 3 min | 1.5 min |
-| 02-orchestrator-hooks | 1 | 1 min | 1 min |
+| 02-orchestrator-hooks | 2 | 3 min | 1.5 min |
 
 **Recent Trend:**
-- Last 5 plans: 01-01 (2 min), 01-02 (1 min), 02-01 (1 min)
+- Last 5 plans: 01-01 (2 min), 01-02 (1 min), 02-01 (1 min), 02-02 (2 min)
 - Trend: -
 
 *Updated after each plan completion*
@@ -55,6 +55,9 @@ Recent decisions affecting current work:
 - 02-01: resolveCategory exported (not private) so tests can import it directly and future phases can reuse it
 - 02-01: Category resolved at task creation time (dispatch), not at completion time — frozen semantics prevent category drift
 - 02-01: DAYS array is module-level constant, not re-created per call
+- [Phase 02-orchestrator-hooks]: void prefix on ntfy.send() calls — fire-and-forget consistent with writeHeartbeat pattern, must not block poll loop
+- [Phase 02-orchestrator-hooks]: Priority 3 for success, priority 4 for failure notifications — per ntfy numeric scale
+- [Phase 02-orchestrator-hooks]: result.result.slice(0, 200) truncation in notification bodies — prevents oversized payloads
 
 ### Pending Todos
 
@@ -69,5 +72,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-24
-Stopped at: Completed 02-01-PLAN.md (NightShiftTask category and notify field propagation with resolveCategory helper)
+Stopped at: Completed 02-02-PLAN.md (Orchestrator notification hooks - NtfyClient wiring with notifyTaskStart/notifyTaskEnd)
 Resume file: None

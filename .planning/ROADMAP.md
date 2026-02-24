@@ -13,7 +13,7 @@ This milestone extends the existing night-shift daemon with two additions: a reu
 Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Notification Foundation** - NtfyClient, config schema extension, per-task opt-in
-- [ ] **Phase 2: Orchestrator Hooks** - Wire start/end notifications into daemon lifecycle for all tasks
+- [x] **Phase 2: Orchestrator Hooks** - Wire start/end notifications into daemon lifecycle for all tasks (completed 2026-02-24)
 - [ ] **Phase 3: Agent Prompt and Security** - Prompt template, category rotation, credential isolation guards
 - [ ] **Phase 4: Git Harness and Logging** - Clone, branch, push, MR creation, local log, Confluence update
 
@@ -43,7 +43,7 @@ Plans:
   2. A notification arrives when a task completes successfully, containing the MR link (or "no improvement found"), cost, and summary
   3. A notification with higher priority arrives when a task fails or is skipped, with a distinct message that distinguishes it from a success notification
   4. The daemon resolves today's improvement category from the code_agent day-of-week schedule and injects it into the task context
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans complete
 
 Plans:
 - [ ] 02-01-PLAN.md — NightShiftTask type extension + category resolution (TDD)
@@ -79,6 +79,6 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. Notification Foundation | 2/2 | Complete    | 2026-02-23 |
-| 2. Orchestrator Hooks | 1/2 | In Progress|  |
+| 2. Orchestrator Hooks | 2/2 | Complete   | 2026-02-24 |
 | 3. Agent Prompt and Security | 0/? | Not started | - |
 | 4. Git Harness and Logging | 0/? | Not started | - |
