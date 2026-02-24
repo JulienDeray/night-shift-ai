@@ -17,6 +17,8 @@ export interface NightShiftTask {
   startedAt?: string;
   completedAt?: string;
   recurringName?: string;
+  notify?: boolean;
+  category?: string;
 }
 
 export interface AgentExecutionResult {
