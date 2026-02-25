@@ -1,3 +1,16 @@
+---
+gsd_state_version: 1.0
+milestone: v1.0
+milestone_name: milestone
+status: unknown
+last_updated: "2026-02-25T14:36:09.715Z"
+progress:
+  total_phases: 4
+  completed_phases: 3
+  total_plans: 8
+  completed_plans: 7
+---
+
 # Project State
 
 ## Project Reference
@@ -5,23 +18,23 @@
 See: .planning/PROJECT.md (updated 2026-02-23)
 
 **Core value:** Small, focused merge requests that appear in the morning — one coherent improvement per night, easy to review, never overwhelming.
-**Current focus:** Phase 3 — Agent Prompt and Security (COMPLETE)
+**Current focus:** Phase 4 — Git Harness and Logging (IN PROGRESS)
 
 ## Current Position
 
-Phase: 3 of 4 (Agent Prompt and Security) — COMPLETE
-Plan: 2 of 2 in current phase — COMPLETE
-Status: Plan 03-02 complete, Phase 3 done, ready for Phase 4
-Last activity: 2026-02-25 — Plan 03-02 completed
+Phase: 4 of 4 (Git Harness and Logging) — IN PROGRESS
+Plan: 1 of 2 in current phase — COMPLETE
+Status: Plan 04-01 complete, git-harness and run-logger implemented
+Last activity: 2026-02-25 — Plan 04-01 completed
 
-Progress: [███████░░░] 75%
+Progress: [████████░░] 87%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 5
-- Average duration: 1.6 min
-- Total execution time: 0.13 hours
+- Total plans completed: 6
+- Average duration: 1.8 min
+- Total execution time: 0.15 hours
 
 **By Phase:**
 
@@ -30,9 +43,10 @@ Progress: [███████░░░] 75%
 | 01-notification-foundation | 2 | 3 min | 1.5 min |
 | 02-orchestrator-hooks | 2 | 3 min | 1.5 min |
 | 03-agent-prompt-and-security | 2 | 8 min | 4 min |
+| 04-git-harness-and-logging | 1 | 3 min | 3 min |
 
 **Recent Trend:**
-- Last 5 plans: 01-02 (1 min), 02-01 (1 min), 02-02 (2 min), 03-01 (4 min), 03-02 (4 min)
+- Last 5 plans: 02-02 (2 min), 03-01 (4 min), 03-02 (4 min), 04-01 (3 min)
 - Trend: stable
 
 *Updated after each plan completion*
@@ -65,6 +79,9 @@ Recent decisions affecting current work:
 - 03-02: runBead returns BeadResult without throwing — pipeline orchestrator handles all error paths declaratively
 - 03-02: buildBeadEnv starts from explicit allowlist, not process.env filtered — belt-and-suspenders token isolation
 - 03-02: resetRepo called both between Implement retries and after all retries fail before fallback — ensures clean state
+- [Phase 04-01]: GIT_CONFIG_NOSYSTEM=1 blocks host git config contamination during clone
+- [Phase 04-01]: cleanupDir swallows all errors to never mask original clone failure
+- [Phase 04-01]: log_mcp_config added as optional string to support Confluence log bead in Plan 02
 
 ### Pending Todos
 
@@ -79,5 +96,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-25
-Stopped at: Completed 03-02-PLAN.md (bead-runner with env isolation, code-agent-runner 4-bead pipeline, 17 tests)
+Stopped at: Completed 04-01-PLAN.md (git-harness, run-logger, config schema extension, 16 tests)
 Resume file: None
