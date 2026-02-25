@@ -7,13 +7,15 @@ import type { ClaudeJsonOutput } from "../core/types.js";
  *
  * AGENT-08 enforcement point: GITLAB_TOKEN is NEVER passed to analyze,
  * implement, or verify beads. It is only forwarded for the "mr" bead.
+ * The "log" bead does not receive GITLAB_TOKEN either — it only uses
+ * MCP Atlassian tools that authenticate independently.
  *
  * We start from a minimal allowlist of safe env vars rather than spreading
  * process.env — this prevents accidental token leakage if GITLAB_TOKEN
  * happens to be set in the parent process environment.
  */
 export function buildBeadEnv(
-  beadName: "analyze" | "implement" | "verify" | "mr",
+  beadName: "analyze" | "implement" | "verify" | "mr" | "log",
   gitlabToken: string | undefined,
 ): NodeJS.ProcessEnv {
   const safeEnv: NodeJS.ProcessEnv = {
@@ -26,6 +28,7 @@ export function buildBeadEnv(
   };
 
   // Only the MR bead gets GITLAB_TOKEN (needed for `glab mr create`)
+  // The log bead explicitly must NOT receive it
   if (beadName === "mr" && gitlabToken) {
     safeEnv.GITLAB_TOKEN = gitlabToken;
   }
@@ -44,23 +47,36 @@ export function buildBeadEnv(
  *
  * SECURITY: GITLAB_TOKEN is never placed in the args array — it is forwarded
  * only via the env option in buildBeadEnv.
+ *
+ * When options.allowedTools is provided, it replaces the default ["Bash", "Read", "Write"].
+ * When options.mcpConfigPath is provided, "--mcp-config <path>" is appended to args.
  */
 export function buildBeadArgs(
   prompt: string,
   model: string,
   maxTokens?: number,
+  options?: {
+    mcpConfigPath?: string;
+    allowedTools?: string[];
+  },
 ): string[] {
+  const allowedTools = options?.allowedTools ?? ["Bash", "Read", "Write"];
+
   const args = [
     "-p", prompt,
     "--output-format", "json",
     "--dangerously-skip-permissions",
     "--no-session-persistence",
-    "--allowedTools", "Bash", "Read", "Write",
+    "--allowedTools", ...allowedTools,
     "--model", model,
   ];
 
   if (maxTokens !== undefined) {
     args.push("--max-budget-usd", maxTokens.toString());
+  }
+
+  if (options?.mcpConfigPath !== undefined) {
+    args.push("--mcp-config", options.mcpConfigPath);
   }
 
   return args;
@@ -78,18 +94,24 @@ export function buildBeadArgs(
  * - env is always constructed via buildBeadEnv (never process.env directly)
  * - GITLAB_TOKEN only forwarded for the "mr" bead
  * - Rendered prompt is never logged (may contain sensitive repo analysis)
+ * - Log bead receives mcpConfigPath and Atlassian-only allowedTools, no GITLAB_TOKEN
  */
 export async function runBead(options: {
-  beadName: "analyze" | "implement" | "verify" | "mr";
+  beadName: "analyze" | "implement" | "verify" | "mr" | "log";
   prompt: string;
   model: string;
   cwd: string;
   timeoutMs: number;
   gitlabToken?: string;
   maxTokens?: number;
+  mcpConfigPath?: string;
+  allowedTools?: string[];
 }): Promise<BeadResult> {
   const env = buildBeadEnv(options.beadName, options.gitlabToken);
-  const args = buildBeadArgs(options.prompt, options.model, options.maxTokens);
+  const args = buildBeadArgs(options.prompt, options.model, options.maxTokens, {
+    mcpConfigPath: options.mcpConfigPath,
+    allowedTools: options.allowedTools,
+  });
 
   const { result } = spawnWithTimeout("claude", args, {
     timeoutMs: options.timeoutMs,
