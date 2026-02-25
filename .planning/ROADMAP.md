@@ -23,7 +23,7 @@
 
 #### Phase Checklist
 
-- [ ] **Phase 5: Dispatch Foundation** — Retire `isCodeAgent`, define `AgentConfig` types, fix concurrent handoff naming
+- [x] **Phase 5: Dispatch Foundation** — Retire `isCodeAgent`, define `AgentConfig` types, fix concurrent handoff naming (completed 2026-02-25)
 - [ ] **Phase 6: Plugin Interfaces and Manifest Schema** — `BeadPlugin` interface, `BeadRegistry`, `AgentTemplateLoader`, full manifest Zod schema, security contracts
 - [ ] **Phase 7: Config Schema Migration and Startup Validation** — `nightshift.yaml` accepts `agents:` array, deprecation shim for `code_agent:`, manifest validation at daemon start
 - [ ] **Phase 8: AgentEngine and Bead Plugin Implementations** — Generic `AgentEngine`, `StandardBeadPlugin`, `GitCloneBeadPlugin`
@@ -120,7 +120,7 @@
 | 2. Orchestrator Hooks | v1.0 | 2/2 | Complete | 2026-02-24 |
 | 3. Agent Prompt and Security | v1.0 | 2/2 | Complete | 2026-02-25 |
 | 4. Git Harness and Logging | v1.0 | 2/2 | Complete | 2026-02-25 |
-| 5. Dispatch Foundation | 1/2 | In Progress|  | - |
+| 5. Dispatch Foundation | 2/2 | Complete   | 2026-02-25 | - |
 | 6. Plugin Interfaces and Manifest Schema | v2.0 | 0/? | Not started | - |
 | 7. Config Schema Migration and Startup Validation | v2.0 | 0/? | Not started | - |
 | 8. AgentEngine and Bead Plugin Implementations | v2.0 | 0/? | Not started | - |
