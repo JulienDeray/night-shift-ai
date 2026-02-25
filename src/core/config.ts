@@ -41,13 +41,16 @@ const CodeAgentSchema = z
         implement: z.string().default("./prompts/implement.md"),
         verify: z.string().default("./prompts/verify.md"),
         mr: z.string().default("./prompts/mr.md"),
+        log: z.string().default("./prompts/log.md"),
       })
       .default(() => ({
         analyze: "./prompts/analyze.md",
         implement: "./prompts/implement.md",
         verify: "./prompts/verify.md",
         mr: "./prompts/mr.md",
+        log: "./prompts/log.md",
       })),
+    log_mcp_config: z.string().optional(),
     reviewer: z.string().optional(),
     allowed_commands: z
       .array(z.string())
@@ -149,6 +152,7 @@ function mapConfig(raw: RawConfig): NightShiftConfig {
           confluencePageId: raw.code_agent.confluence_page_id,
           categorySchedule: raw.code_agent.category_schedule,
           prompts: raw.code_agent.prompts,
+          logMcpConfig: raw.code_agent.log_mcp_config,
           reviewer: raw.code_agent.reviewer,
           allowedCommands: raw.code_agent.allowed_commands,
           maxTokens: raw.code_agent.max_tokens,
@@ -254,6 +258,9 @@ recurring: []
 #   #   implement: ./prompts/implement.md
 #   #   verify: ./prompts/verify.md
 #   #   mr: ./prompts/mr.md
+#   #   log: ./prompts/log.md
+#   # Optional: MCP config for the Confluence log bead
+#   # log_mcp_config: /path/to/mcp-config.json
 #   # Optional: assign MRs to a reviewer by username
 #   # reviewer: "jsmith"
 #   # Optional: override default allowed shell commands
