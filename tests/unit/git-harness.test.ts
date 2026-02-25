@@ -62,7 +62,7 @@ describe("git-harness", () => {
       expect(secondCall[0]).toContain("/tmp");
     });
 
-    it("calls spawnWithTimeout with git clone --depth 1 and correct env", async () => {
+    it("calls spawnWithTimeout with git clone --depth 50 and correct env", async () => {
       const repoDir = "/tmp/night-shift-repo-abc-xyz";
       const handoffDir = "/tmp/night-shift-handoff-abc-pqr";
       mockFsMkdtemp
@@ -85,7 +85,7 @@ describe("git-harness", () => {
       expect(mockSpawnWithTimeout).toHaveBeenCalledOnce();
       const [command, args, options] = mockSpawnWithTimeout.mock.calls[0];
       expect(command).toBe("git");
-      expect(args).toEqual(["clone", "--depth", "1", repoUrl, repoDir]);
+      expect(args).toEqual(["clone", "--depth", "50", repoUrl, repoDir]);
       expect(options?.env).toMatchObject({
         GIT_CONFIG_NOSYSTEM: "1",
       });

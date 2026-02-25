@@ -30,7 +30,7 @@ export async function cloneRepo(
 
   const { result } = spawnWithTimeout(
     "git",
-    ["clone", "--depth", "1", repoUrl, repoDir],
+    ["clone", "--depth", "50", repoUrl, repoDir],
     { env: cloneEnv },
   );
 
