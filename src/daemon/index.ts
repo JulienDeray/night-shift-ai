@@ -1,4 +1,7 @@
+import { loadEnvFile } from "../utils/env-loader.js";
 import { Orchestrator } from "./orchestrator.js";
+
+loadEnvFile();
 
 const orchestrator = new Orchestrator();
 
