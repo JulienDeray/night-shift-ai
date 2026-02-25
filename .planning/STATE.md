@@ -8,7 +8,7 @@ progress:
   total_phases: 7
   completed_phases: 0
   total_plans: 21
-  completed_plans: 1
+  completed_plans: 2
 ---
 
 # Project State
@@ -23,11 +23,11 @@ See: .planning/PROJECT.md (updated 2026-02-25)
 ## Current Position
 
 Phase: 5 of 11 (Dispatch Foundation) — first v2.0 phase
-Plan: 1 of 3 complete
+Plan: 2 of 3 complete
 Status: In progress
-Last activity: 2026-02-25 — completed 05-01 (agent-types.ts + agentName dispatch migration)
+Last activity: 2026-02-25 — completed 05-02 (taskId suffix + per-agent handoff subdirectory)
 
-Progress: [█░░░░░░░░░] ~5% (v2.0, 1/21 plans complete)
+Progress: [█░░░░░░░░░] ~10% (v2.0, 2/21 plans complete)
 
 ## Performance Metrics
 
@@ -64,6 +64,12 @@ Phase 5 Plan 01 decisions (2026-02-25):
 - AgentRunResult import kept live in agent-pool.ts via private field until Phase 10
 - validateAgentName regex handles single-char and multi-char kebab names separately (no trailing hyphens)
 
+Phase 5 Plan 02 decisions (2026-02-25):
+- Single handoff file per run with structured keys (analysis, verify) — not one file per bead
+- handoffPath() helper centralizes filename construction: handoff-code-agent-{taskId}.json
+- Verify bead pre-reads existing file before writing stub to preserve analysis key
+- runAnalyzeBead rewrites handoff file as { analysis: <result> } after parsing agent output
+
 ### Pending Todos
 
 None.
@@ -91,5 +97,5 @@ Research flags for planning (investigate before finalizing plans):
 ## Session Continuity
 
 Last session: 2026-02-25
-Stopped at: Completed 05-01-PLAN.md (agent-types + agentName dispatch migration)
+Stopped at: Completed 05-02-PLAN.md (taskId suffix + per-agent handoff subdirectory)
 Resume file: None

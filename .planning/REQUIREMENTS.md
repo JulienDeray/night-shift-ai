@@ -11,7 +11,7 @@ Requirements for the Pluggable Agent Architecture milestone. Each maps to roadma
 
 - [x] **FOUN-01**: `isCodeAgent` boolean flag is fully retired — replaced by `agentName?: string` on task types
 - [x] **FOUN-02**: `AgentConfig` type system defines agent configuration, pipeline context, and run result interfaces
-- [ ] **FOUN-03**: Handoff files include task ID suffix to prevent collisions when `maxConcurrent > 1`
+- [x] **FOUN-03**: Handoff files include task ID suffix to prevent collisions when `maxConcurrent > 1`
 
 ### Manifest
 
@@ -83,7 +83,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 |-------------|-------|--------|
 | FOUN-01 | Phase 5 | Complete |
 | FOUN-02 | Phase 5 | Complete |
-| FOUN-03 | Phase 5 | Pending |
+| FOUN-03 | Phase 5 | Complete |
 | MFST-01 | Phase 6 | Pending |
 | MFST-02 | Phase 6 | Pending |
 | MFST-03 | Phase 6 | Pending |
