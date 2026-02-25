@@ -42,7 +42,9 @@
   2. `NightShiftTask` carries `agentName?: string` and the type system compiles with strict mode
   3. `AgentConfig`, `PipelineContext`, and `AgentRunResult` interfaces exist and are imported by the dispatch path
   4. Handoff filenames include the task ID suffix — two concurrent runs targeting the same agent do not overwrite each other's files
-**Plans**: TBD
+**Plans**: 2 plans
+  - [ ] 05-01-PLAN.md — Retire isCodeAgent, define AgentConfig type system, wire agentName dispatch
+  - [ ] 05-02-PLAN.md — Handoff file naming with taskId suffix and per-agent subdirectories
 
 ### Phase 6: Plugin Interfaces and Manifest Schema
 **Goal**: The contract between agent directories and the engine is fully defined — manifest schema validated, plugin interface typed, bead registry wired, path traversal prevented, env vars and template variables safe
@@ -118,7 +120,7 @@
 | 2. Orchestrator Hooks | v1.0 | 2/2 | Complete | 2026-02-24 |
 | 3. Agent Prompt and Security | v1.0 | 2/2 | Complete | 2026-02-25 |
 | 4. Git Harness and Logging | v1.0 | 2/2 | Complete | 2026-02-25 |
-| 5. Dispatch Foundation | v2.0 | 0/? | Not started | - |
+| 5. Dispatch Foundation | v2.0 | 0/2 | Planned | - |
 | 6. Plugin Interfaces and Manifest Schema | v2.0 | 0/? | Not started | - |
 | 7. Config Schema Migration and Startup Validation | v2.0 | 0/? | Not started | - |
 | 8. AgentEngine and Bead Plugin Implementations | v2.0 | 0/? | Not started | - |
