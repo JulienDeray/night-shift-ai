@@ -26,7 +26,7 @@ Retire `isCodeAgent` boolean, replace with string-based `agentName` dispatch, de
 - `AgentRunResult` includes `details: Record<string, unknown>` for agent-specific data (MR URL, summary, etc.)
 
 ### Default agent behavior
-- `agentName` is **required** on `NightShiftTask` — no implicit default, every task must declare its agent
+- `agentName` is **required at runtime** on `NightShiftTask` — no implicit default, every task must declare its agent. In the TypeScript type, `agentName` is optional (`agentName?: string`) during Phases 5-9 migration to avoid breaking non-code-agent task paths; it becomes a required field (`agentName: string`) in Phase 10 when AgentEngine is the sole dispatch path
 - During migration (Phases 5-9): hardcode `agentName='code-agent'` routing to the old pipeline. Phase 10 switches to AgentEngine
 - No directory validation in Phase 5 — agentName is carried as a string. Validation against `agents/` comes in Phase 7
 
