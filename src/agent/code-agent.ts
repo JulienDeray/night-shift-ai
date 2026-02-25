@@ -1,8 +1,11 @@
+import crypto from "node:crypto";
+import path from "node:path";
 import { cloneRepo, cleanupDir } from "./git-harness.js";
 import { runCodeAgentPipeline, type PipelineContext } from "./code-agent-runner.js";
 import { appendRunLog, type RunLogEntry } from "./run-logger.js";
 import { loadBeadPrompt } from "./prompt-loader.js";
 import { runBead } from "./bead-runner.js";
+import { ensureDir } from "../core/paths.js";
 import type { CodeAgentConfig } from "../core/types.js";
 import type { CodeAgentRunResult } from "./types.js";
 import type { Logger } from "../core/logger.js";
@@ -30,11 +33,16 @@ export async function runCodeAgent(
   const { repoDir, handoffDir } = await cloneRepo(config.repoUrl, options.gitlabToken);
 
   try {
+    const taskId = crypto.randomBytes(3).toString("hex");
+    const agentHandoffDir = path.join(handoffDir, "code-agent");
+    await ensureDir(agentHandoffDir);
+
     const ctx: PipelineContext = {
       config,
       configDir,
       repoDir,
-      handoffDir,
+      handoffDir: agentHandoffDir,
+      taskId,
       gitlabToken: options.gitlabToken,
       timeoutMs: options.timeoutMs,
       logger: options.logger,

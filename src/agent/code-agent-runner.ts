@@ -38,10 +38,19 @@ export interface PipelineContext {
   config: CodeAgentConfig;
   configDir: string; // directory containing nightshift.yaml
   repoDir: string; // cloned repo temp directory (cwd for beads)
-  handoffDir: string; // temp directory for JSON handoff files
+  handoffDir: string; // per-agent subdirectory: {baseHandoffDir}/code-agent/
+  taskId: string; // 6-char hex suffix for handoff filename uniqueness
   gitlabToken?: string; // from env, forwarded only to MR bead
   timeoutMs: number; // per-bead timeout
   logger: Logger;
+}
+
+/**
+ * Returns the single handoff file path for this run.
+ * Pattern: handoff-code-agent-{taskId}.json (per CONTEXT.md locked decision)
+ */
+function handoffPath(ctx: PipelineContext): string {
+  return path.join(ctx.handoffDir, `handoff-code-agent-${ctx.taskId}.json`);
 }
 
 /**
@@ -92,7 +101,7 @@ async function runAnalyzeBead(
   category: string,
   categoryGuidance: string,
 ): Promise<AnalyzeBeadResult> {
-  const handoffFile = path.join(ctx.handoffDir, "analysis.json");
+  const handoffFile = handoffPath(ctx);
 
   // Write stub before spawning (safety net: Pitfall 3 from RESEARCH.md)
   await fs.writeFile(
@@ -127,6 +136,9 @@ async function runAnalyzeBead(
     };
   }
 
+  // Rewrite the handoff file with structured key for downstream beads
+  await fs.writeFile(handoffFile, JSON.stringify({ analysis: analysisResult }), "utf-8");
+
   return {
     result: analysisResult,
     cost: beadResult.costUsd,
@@ -146,7 +158,7 @@ async function runImplementBead(
   categoryGuidance: string,
   verifyError: string,
 ): Promise<ImplementBeadResult> {
-  const analysisFile = path.join(ctx.handoffDir, "analysis.json");
+  const analysisFile = handoffPath(ctx);
 
   const vars = {
     ...buildBuiltInVars(ctx.config, category, categoryGuidance, analysisFile),
@@ -185,12 +197,19 @@ async function runVerifyBead(
   category: string,
   categoryGuidance: string,
 ): Promise<VerifyBeadResult> {
-  const verifyHandoffFile = path.join(ctx.handoffDir, "verify.json");
+  const verifyHandoffFile = handoffPath(ctx);
 
-  // Write stub before spawning (safety net)
+  // Read existing handoff data (has analysis key from analyze bead)
+  let existingData: Record<string, unknown> = {};
+  try {
+    const raw = await fs.readFile(verifyHandoffFile, "utf-8");
+    existingData = JSON.parse(raw) as Record<string, unknown>;
+  } catch { /* first write or corrupt — start fresh */ }
+
+  // Write stub with verify key, preserving existing keys (safety net)
   await fs.writeFile(
     verifyHandoffFile,
-    JSON.stringify({ passed: false, error_details: "pending" }),
+    JSON.stringify({ ...existingData, verify: { passed: false, error_details: "pending" } }),
     "utf-8",
   );
 
@@ -211,14 +230,15 @@ async function runVerifyBead(
     // No gitlabToken — verify bead must not receive it
   });
 
-  // Read and parse verify handoff file
+  // Read and parse verify handoff file — extract from the verify key
   let passed = false;
   let errorDetails = "";
   try {
     const raw = await fs.readFile(verifyHandoffFile, "utf-8");
-    const parsed = JSON.parse(raw) as { passed: boolean; error_details?: string };
-    passed = parsed.passed ?? false;
-    errorDetails = parsed.error_details ?? "";
+    const fullPayload = JSON.parse(raw) as Record<string, unknown>;
+    const verifyData = fullPayload.verify as { passed: boolean; error_details?: string } | undefined;
+    passed = verifyData?.passed ?? false;
+    errorDetails = verifyData?.error_details ?? "";
   } catch {
     passed = false;
     errorDetails = "Failed to read verify handoff file";
@@ -245,14 +265,15 @@ async function runMrBead(
   categoryGuidance: string,
   actualCategory: string,
 ): Promise<MrBeadResult> {
-  const analysisFile = path.join(ctx.handoffDir, "analysis.json");
+  const analysisFile = handoffPath(ctx);
 
   // Derive short_description from the analysis selected candidate if available
   let shortDescription = `${category} improvement`;
   try {
     const raw = await fs.readFile(analysisFile, "utf-8");
-    const analysis = JSON.parse(raw) as AnalysisResult;
-    if (analysis.selected?.description) {
+    const fullPayload = JSON.parse(raw) as Record<string, unknown>;
+    const analysis = fullPayload.analysis as AnalysisResult | undefined;
+    if (analysis?.selected?.description) {
       shortDescription = analysis.selected.description.slice(0, 80);
     }
   } catch {
