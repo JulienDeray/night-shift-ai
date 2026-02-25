@@ -45,8 +45,14 @@ Open items for next milestone validation:
 - GIT_CONFIG_NOSYSTEM=1 credential blocking needs integration test on actual machine config
 - Confluence macro-stripping workaround needs validation against real Confluence instance
 
+### Quick Tasks Completed
+
+| # | Description | Date | Commit | Directory |
+|---|-------------|------|--------|-----------|
+| 1 | Wire runCodeAgent into daemon | 2026-02-25 | 3e5b733 | [1-wire-runcodeagent-into-daemon](./quick/1-wire-runcodeagent-into-daemon/) |
+
 ## Session Continuity
 
 Last session: 2026-02-25
-Stopped at: v1.0 milestone archived
+Last activity: 2026-02-25 - Completed quick task 1: Wire runCodeAgent into daemon
 Resume file: None
