@@ -58,7 +58,7 @@ Plans:
   2. The agent prompt includes an explicit injection mitigation preamble and category-specific skip criteria (minimum complexity thresholds)
   3. The GITLAB_TOKEN never appears in the agent prompt string, agent output, or any log — it is passed only as an environment variable
   4. The agent's allowedTools is restricted to the minimum set (Bash for git/glab, Read, Write) and cannot call arbitrary shell commands
-**Plans:** 2 plans
+**Plans:** 1/2 plans executed
 
 Plans:
 - [ ] 03-01-PLAN.md — Config schema extension + prompt loader + 4 bead prompt templates
@@ -84,5 +84,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 |-------|----------------|--------|-----------|
 | 1. Notification Foundation | 2/2 | Complete    | 2026-02-23 |
 | 2. Orchestrator Hooks | 2/2 | Complete    | 2026-02-24 |
-| 3. Agent Prompt and Security | 0/2 | Planned | - |
+| 3. Agent Prompt and Security | 1/2 | In Progress|  |
 | 4. Git Harness and Logging | 0/? | Not started | - |

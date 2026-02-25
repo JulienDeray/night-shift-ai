@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-02-23)
 
 **Core value:** Small, focused merge requests that appear in the morning — one coherent improvement per night, easy to review, never overwhelming.
-**Current focus:** Phase 2 — Orchestrator Hooks (complete), moving to Phase 3
+**Current focus:** Phase 3 — Agent Prompt and Security (in progress)
 
 ## Current Position
 
-Phase: 2 of 4 (Orchestrator Hooks) — COMPLETE
-Plan: 2 of 2 in current phase
-Status: Phase complete, ready for Phase 3
-Last activity: 2026-02-24 — Plan 02-02 completed
+Phase: 3 of 4 (Agent Prompt and Security) — IN PROGRESS
+Plan: 1 of 2 in current phase — COMPLETE
+Status: Plan 03-01 complete, ready for Plan 03-02
+Last activity: 2026-02-25 — Plan 03-01 completed
 
-Progress: [████░░░░░░] 40%
+Progress: [█████░░░░░] 50%
 
 ## Performance Metrics
 
@@ -29,9 +29,10 @@ Progress: [████░░░░░░] 40%
 |-------|-------|-------|----------|
 | 01-notification-foundation | 2 | 3 min | 1.5 min |
 | 02-orchestrator-hooks | 2 | 3 min | 1.5 min |
+| 03-agent-prompt-and-security | 1 | 4 min | 4 min |
 
 **Recent Trend:**
-- Last 5 plans: 01-01 (2 min), 01-02 (1 min), 02-01 (1 min), 02-02 (2 min)
+- Last 5 plans: 01-01 (2 min), 01-02 (1 min), 02-01 (1 min), 02-02 (2 min), 03-01 (4 min)
 - Trend: -
 
 *Updated after each plan completion*
@@ -58,6 +59,9 @@ Recent decisions affecting current work:
 - [Phase 02-orchestrator-hooks]: void prefix on ntfy.send() calls — fire-and-forget consistent with writeHeartbeat pattern, must not block poll loop
 - [Phase 02-orchestrator-hooks]: Priority 3 for success, priority 4 for failure notifications — per ntfy numeric scale
 - [Phase 02-orchestrator-hooks]: result.result.slice(0, 200) truncation in notification bodies — prevents oversized payloads
+- 03-01: INJECTION_MITIGATION_PREAMBLE exported as named constant for test assertions but hardcoded — not configurable per locked CONTEXT.md decision
+- 03-01: configDir parameter resolves relative template paths against config file directory, not process.cwd() — avoids stale cwd assumption
+- 03-01: Zod v4 requires arrow function factories for .default() on objects/arrays (.default(() => ({}))); z.record(z.string(), z.string()) required for Record<string, string>
 
 ### Pending Todos
 
@@ -71,6 +75,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-02-24
-Stopped at: Completed 02-02-PLAN.md (Orchestrator notification hooks - NtfyClient wiring with notifyTaskStart/notifyTaskEnd)
+Last session: 2026-02-25
+Stopped at: Completed 03-01-PLAN.md (Agent prompt schema extension, prompt-loader with injection preamble, 4 bead templates)
 Resume file: None
