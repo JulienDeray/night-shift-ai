@@ -118,7 +118,9 @@ export class Scheduler {
       recurringName: recurring.name,
       notify: recurring.notify,
       category: resolveCategory(this.config.codeAgent?.categorySchedule),
-      isCodeAgent: recurring.name === "code-agent" && !!this.config.codeAgent,
+      agentName: recurring.name === "code-agent" && !!this.config.codeAgent
+        ? "code-agent"
+        : undefined,
     };
 
     if (this.beads) {
