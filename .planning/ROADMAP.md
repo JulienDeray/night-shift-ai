@@ -58,7 +58,11 @@ Plans:
   2. The agent prompt includes an explicit injection mitigation preamble and category-specific skip criteria (minimum complexity thresholds)
   3. The GITLAB_TOKEN never appears in the agent prompt string, agent output, or any log — it is passed only as an environment variable
   4. The agent's allowedTools is restricted to the minimum set (Bash for git/glab, Read, Write) and cannot call arbitrary shell commands
-**Plans**: TBD
+**Plans:** 2 plans
+
+Plans:
+- [ ] 03-01-PLAN.md — Config schema extension + prompt loader + 4 bead prompt templates
+- [ ] 03-02-PLAN.md — Code agent runner pipeline (bead-runner + 4-bead orchestration with retry and fallback)
 
 ### Phase 4: Git Harness and Logging
 **Goal**: The agent clones a fresh repo, creates a branch, commits an improvement, pushes, and opens a merge request — with unconditional cleanup and a full run record in the local log and Confluence
@@ -80,5 +84,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 |-------|----------------|--------|-----------|
 | 1. Notification Foundation | 2/2 | Complete    | 2026-02-23 |
 | 2. Orchestrator Hooks | 2/2 | Complete    | 2026-02-24 |
-| 3. Agent Prompt and Security | 0/? | Not started | - |
+| 3. Agent Prompt and Security | 0/2 | Planned | - |
 | 4. Git Harness and Logging | 0/? | Not started | - |
