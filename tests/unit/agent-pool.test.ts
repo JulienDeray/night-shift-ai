@@ -1,11 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { AgentPool } from "../../src/daemon/agent-pool.js";
 import { Logger } from "../../src/core/logger.js";
-import type { NightShiftTask } from "../../src/core/types.js";
+import type { NightShiftTask, CodeAgentConfig } from "../../src/core/types.js";
+import type { CodeAgentRunResult } from "../../src/agent/types.js";
 
 // Shared mock controls
 let mockRunFn = vi.fn();
 let mockKillFn = vi.fn();
+let mockRunCodeAgent = vi.fn();
 
 vi.mock("../../src/daemon/agent-runner.js", () => {
   return {
@@ -15,6 +17,10 @@ vi.mock("../../src/daemon/agent-runner.js", () => {
     })),
   };
 });
+
+vi.mock("../../src/agent/code-agent.js", () => ({
+  runCodeAgent: (...args: unknown[]) => mockRunCodeAgent(...args),
+}));
 
 function makeTask(overrides: Partial<NightShiftTask> = {}): NightShiftTask {
   return {
@@ -40,6 +46,33 @@ function successResult() {
   };
 }
 
+const mockCodeAgentConfig: CodeAgentConfig = {
+  repoUrl: "git@gitlab.com:team/repo.git",
+  confluencePageId: "123",
+  categorySchedule: { monday: ["tests"] },
+  prompts: {
+    analyze: "./prompts/analyze.md",
+    implement: "./prompts/implement.md",
+    verify: "./prompts/verify.md",
+    mr: "./prompts/mr.md",
+    log: "./prompts/log.md",
+  },
+  allowedCommands: ["git", "sbt test"],
+  variables: {},
+};
+
+function makeCodeAgentRunResult(overrides: Partial<CodeAgentRunResult> = {}): CodeAgentRunResult {
+  return {
+    outcome: "MR_CREATED",
+    mrUrl: "https://gitlab.com/team/repo/-/merge_requests/1",
+    categoryUsed: "tests",
+    isFallback: false,
+    totalCostUsd: 0.5,
+    totalDurationMs: 60000,
+    ...overrides,
+  };
+}
+
 describe("AgentPool", () => {
   let pool: AgentPool;
   let logger: Logger;
@@ -48,6 +81,7 @@ describe("AgentPool", () => {
     vi.clearAllMocks();
     mockRunFn = vi.fn().mockResolvedValue(successResult());
     mockKillFn = vi.fn();
+    mockRunCodeAgent = vi.fn().mockResolvedValue(makeCodeAgentRunResult());
     logger = Logger.createCliLogger(false);
     pool = new AgentPool({
       maxConcurrent: 2,
@@ -156,6 +190,130 @@ describe("AgentPool", () => {
 
       pool.killAll();
       expect(mockKillFn).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe("code-agent dispatch", () => {
+    it("dispatches code-agent task through runCodeAgent when isCodeAgent=true and codeAgentConfig provided", async () => {
+      const poolWithCodeAgent = new AgentPool({
+        maxConcurrent: 2,
+        workspaceDir: "/tmp/workspace",
+        logger,
+        codeAgentConfig: mockCodeAgentConfig,
+        configDir: "/tmp/config",
+      });
+
+      const task = makeTask({ id: "ns-ca001", isCodeAgent: true, recurringName: "code-agent" });
+      poolWithCodeAgent.dispatch(task);
+
+      const results = await poolWithCodeAgent.drain();
+
+      expect(mockRunCodeAgent).toHaveBeenCalledTimes(1);
+      expect(mockRunFn).not.toHaveBeenCalled();
+      expect(results).toHaveLength(1);
+      expect(results[0].result.isError).toBe(false);
+      expect(results[0].result.result).toContain("MR created");
+    });
+
+    it("falls back to AgentRunner for tasks without isCodeAgent", async () => {
+      const poolWithCodeAgent = new AgentPool({
+        maxConcurrent: 2,
+        workspaceDir: "/tmp/workspace",
+        logger,
+        codeAgentConfig: mockCodeAgentConfig,
+        configDir: "/tmp/config",
+      });
+
+      const task = makeTask({ id: "ns-ca002" }); // no isCodeAgent
+      poolWithCodeAgent.dispatch(task);
+
+      await new Promise((r) => setTimeout(r, 50));
+
+      expect(mockRunFn).toHaveBeenCalledTimes(1);
+      expect(mockRunCodeAgent).not.toHaveBeenCalled();
+    });
+
+    it("falls back to AgentRunner when codeAgentConfig is undefined", async () => {
+      // pool has no codeAgentConfig (default pool)
+      const task = makeTask({ id: "ns-ca003", isCodeAgent: true });
+      pool.dispatch(task);
+
+      await new Promise((r) => setTimeout(r, 50));
+
+      expect(mockRunFn).toHaveBeenCalledTimes(1);
+      expect(mockRunCodeAgent).not.toHaveBeenCalled();
+    });
+
+    it("produces isError=true TaskResult when runCodeAgent throws", async () => {
+      mockRunCodeAgent = vi.fn().mockRejectedValue(new Error("Pipeline failed"));
+
+      const poolWithCodeAgent = new AgentPool({
+        maxConcurrent: 2,
+        workspaceDir: "/tmp/workspace",
+        logger,
+        codeAgentConfig: mockCodeAgentConfig,
+        configDir: "/tmp/config",
+      });
+
+      const task = makeTask({ id: "ns-ca004", isCodeAgent: true });
+      poolWithCodeAgent.dispatch(task);
+
+      const results = await poolWithCodeAgent.drain();
+
+      expect(results).toHaveLength(1);
+      expect(results[0].result.isError).toBe(true);
+      expect(results[0].result.result).toContain("Pipeline failed");
+    });
+
+    it("formats MR_CREATED result with MR URL", async () => {
+      mockRunCodeAgent = vi.fn().mockResolvedValue(
+        makeCodeAgentRunResult({
+          outcome: "MR_CREATED",
+          mrUrl: "https://gitlab.com/team/repo/-/merge_requests/42",
+          categoryUsed: "tests",
+        }),
+      );
+
+      const poolWithCodeAgent = new AgentPool({
+        maxConcurrent: 2,
+        workspaceDir: "/tmp/workspace",
+        logger,
+        codeAgentConfig: mockCodeAgentConfig,
+        configDir: "/tmp/config",
+      });
+
+      const task = makeTask({ id: "ns-ca005", isCodeAgent: true });
+      poolWithCodeAgent.dispatch(task);
+
+      const results = await poolWithCodeAgent.drain();
+
+      expect(results[0].result.result).toContain("https://gitlab.com/team/repo/-/merge_requests/42");
+    });
+
+    it("formats NO_IMPROVEMENT result with reason", async () => {
+      mockRunCodeAgent = vi.fn().mockResolvedValue(
+        makeCodeAgentRunResult({
+          outcome: "NO_IMPROVEMENT",
+          mrUrl: undefined,
+          categoryUsed: "tests",
+          reason: "No test gaps found",
+        }),
+      );
+
+      const poolWithCodeAgent = new AgentPool({
+        maxConcurrent: 2,
+        workspaceDir: "/tmp/workspace",
+        logger,
+        codeAgentConfig: mockCodeAgentConfig,
+        configDir: "/tmp/config",
+      });
+
+      const task = makeTask({ id: "ns-ca006", isCodeAgent: true });
+      poolWithCodeAgent.dispatch(task);
+
+      const results = await poolWithCodeAgent.drain();
+
+      expect(results[0].result.result).toContain("No test gaps found");
     });
   });
 });
