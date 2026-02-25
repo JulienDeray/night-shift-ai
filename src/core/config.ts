@@ -35,6 +35,25 @@ const CodeAgentSchema = z
       ),
     confluence_page_id: z.string().min(1),
     category_schedule: CategoryScheduleSchema,
+    prompts: z
+      .object({
+        analyze: z.string().default("./prompts/analyze.md"),
+        implement: z.string().default("./prompts/implement.md"),
+        verify: z.string().default("./prompts/verify.md"),
+        mr: z.string().default("./prompts/mr.md"),
+      })
+      .default(() => ({
+        analyze: "./prompts/analyze.md",
+        implement: "./prompts/implement.md",
+        verify: "./prompts/verify.md",
+        mr: "./prompts/mr.md",
+      })),
+    reviewer: z.string().optional(),
+    allowed_commands: z
+      .array(z.string())
+      .default(() => ["git", "glab", "sbt compile", "sbt test", "sbt fmtCheck", "sbt fmt"]),
+    max_tokens: z.number().int().positive().optional(),
+    variables: z.record(z.string(), z.string()).default(() => ({})),
   })
   .optional();
 
@@ -129,6 +148,11 @@ function mapConfig(raw: RawConfig): NightShiftConfig {
           repoUrl: raw.code_agent.repo_url,
           confluencePageId: raw.code_agent.confluence_page_id,
           categorySchedule: raw.code_agent.category_schedule,
+          prompts: raw.code_agent.prompts,
+          reviewer: raw.code_agent.reviewer,
+          allowedCommands: raw.code_agent.allowed_commands,
+          maxTokens: raw.code_agent.max_tokens,
+          variables: raw.code_agent.variables,
         }
       : undefined,
   };
@@ -224,6 +248,22 @@ recurring: []
 #     wednesday: [docs]
 #     thursday: [error_handling]
 #     friday: [cleanup]
+#   # Optional: override default prompt templates (paths relative to this config file)
+#   # prompts:
+#   #   analyze: ./prompts/analyze.md
+#   #   implement: ./prompts/implement.md
+#   #   verify: ./prompts/verify.md
+#   #   mr: ./prompts/mr.md
+#   # Optional: assign MRs to a reviewer by username
+#   # reviewer: "jsmith"
+#   # Optional: override default allowed shell commands
+#   # allowed_commands: [git, glab, sbt compile, sbt test, sbt fmtCheck, sbt fmt]
+#   # Optional: max tokens per bead invocation
+#   # max_tokens: 8192
+#   # Optional: custom template variables passed to all bead prompts
+#   # variables:
+#   #   project_name: "MyApp"
+#   #   team_name: "Backend"
 
 one_off_defaults:
   timeout: "30m"
