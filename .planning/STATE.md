@@ -5,23 +5,23 @@
 See: .planning/PROJECT.md (updated 2026-02-23)
 
 **Core value:** Small, focused merge requests that appear in the morning — one coherent improvement per night, easy to review, never overwhelming.
-**Current focus:** Phase 3 — Agent Prompt and Security (in progress)
+**Current focus:** Phase 3 — Agent Prompt and Security (COMPLETE)
 
 ## Current Position
 
-Phase: 3 of 4 (Agent Prompt and Security) — IN PROGRESS
-Plan: 1 of 2 in current phase — COMPLETE
-Status: Plan 03-01 complete, ready for Plan 03-02
-Last activity: 2026-02-25 — Plan 03-01 completed
+Phase: 3 of 4 (Agent Prompt and Security) — COMPLETE
+Plan: 2 of 2 in current phase — COMPLETE
+Status: Plan 03-02 complete, Phase 3 done, ready for Phase 4
+Last activity: 2026-02-25 — Plan 03-02 completed
 
-Progress: [█████░░░░░] 50%
+Progress: [███████░░░] 75%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 4
-- Average duration: 1.5 min
-- Total execution time: 0.10 hours
+- Total plans completed: 5
+- Average duration: 1.6 min
+- Total execution time: 0.13 hours
 
 **By Phase:**
 
@@ -29,11 +29,11 @@ Progress: [█████░░░░░] 50%
 |-------|-------|-------|----------|
 | 01-notification-foundation | 2 | 3 min | 1.5 min |
 | 02-orchestrator-hooks | 2 | 3 min | 1.5 min |
-| 03-agent-prompt-and-security | 1 | 4 min | 4 min |
+| 03-agent-prompt-and-security | 2 | 8 min | 4 min |
 
 **Recent Trend:**
-- Last 5 plans: 01-01 (2 min), 01-02 (1 min), 02-01 (1 min), 02-02 (2 min), 03-01 (4 min)
-- Trend: -
+- Last 5 plans: 01-02 (1 min), 02-01 (1 min), 02-02 (2 min), 03-01 (4 min), 03-02 (4 min)
+- Trend: stable
 
 *Updated after each plan completion*
 
@@ -62,6 +62,9 @@ Recent decisions affecting current work:
 - 03-01: INJECTION_MITIGATION_PREAMBLE exported as named constant for test assertions but hardcoded — not configurable per locked CONTEXT.md decision
 - 03-01: configDir parameter resolves relative template paths against config file directory, not process.cwd() — avoids stale cwd assumption
 - 03-01: Zod v4 requires arrow function factories for .default() on objects/arrays (.default(() => ({}))); z.record(z.string(), z.string()) required for Record<string, string>
+- 03-02: runBead returns BeadResult without throwing — pipeline orchestrator handles all error paths declaratively
+- 03-02: buildBeadEnv starts from explicit allowlist, not process.env filtered — belt-and-suspenders token isolation
+- 03-02: resetRepo called both between Implement retries and after all retries fail before fallback — ensures clean state
 
 ### Pending Todos
 
@@ -76,5 +79,5 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-25
-Stopped at: Completed 03-01-PLAN.md (Agent prompt schema extension, prompt-loader with injection preamble, 4 bead templates)
+Stopped at: Completed 03-02-PLAN.md (bead-runner with env isolation, code-agent-runner 4-bead pipeline, 17 tests)
 Resume file: None
