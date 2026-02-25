@@ -194,7 +194,7 @@ describe("AgentPool", () => {
   });
 
   describe("code-agent dispatch", () => {
-    it("dispatches code-agent task through runCodeAgent when isCodeAgent=true and codeAgentConfig provided", async () => {
+    it("dispatches code-agent task through runCodeAgent when agentName='code-agent' and codeAgentConfig provided", async () => {
       const poolWithCodeAgent = new AgentPool({
         maxConcurrent: 2,
         workspaceDir: "/tmp/workspace",
@@ -203,7 +203,7 @@ describe("AgentPool", () => {
         configDir: "/tmp/config",
       });
 
-      const task = makeTask({ id: "ns-ca001", isCodeAgent: true, recurringName: "code-agent" });
+      const task = makeTask({ id: "ns-ca001", agentName: "code-agent", recurringName: "code-agent" });
       poolWithCodeAgent.dispatch(task);
 
       const results = await poolWithCodeAgent.drain();
@@ -215,7 +215,7 @@ describe("AgentPool", () => {
       expect(results[0].result.result).toContain("MR created");
     });
 
-    it("falls back to AgentRunner for tasks without isCodeAgent", async () => {
+    it("falls back to AgentRunner for tasks without agentName", async () => {
       const poolWithCodeAgent = new AgentPool({
         maxConcurrent: 2,
         workspaceDir: "/tmp/workspace",
@@ -224,7 +224,7 @@ describe("AgentPool", () => {
         configDir: "/tmp/config",
       });
 
-      const task = makeTask({ id: "ns-ca002" }); // no isCodeAgent
+      const task = makeTask({ id: "ns-ca002" }); // no agentName
       poolWithCodeAgent.dispatch(task);
 
       await new Promise((r) => setTimeout(r, 50));
@@ -235,7 +235,7 @@ describe("AgentPool", () => {
 
     it("falls back to AgentRunner when codeAgentConfig is undefined", async () => {
       // pool has no codeAgentConfig (default pool)
-      const task = makeTask({ id: "ns-ca003", isCodeAgent: true });
+      const task = makeTask({ id: "ns-ca003", agentName: "code-agent" });
       pool.dispatch(task);
 
       await new Promise((r) => setTimeout(r, 50));
@@ -255,7 +255,7 @@ describe("AgentPool", () => {
         configDir: "/tmp/config",
       });
 
-      const task = makeTask({ id: "ns-ca004", isCodeAgent: true });
+      const task = makeTask({ id: "ns-ca004", agentName: "code-agent" });
       poolWithCodeAgent.dispatch(task);
 
       const results = await poolWithCodeAgent.drain();
@@ -282,7 +282,7 @@ describe("AgentPool", () => {
         configDir: "/tmp/config",
       });
 
-      const task = makeTask({ id: "ns-ca005", isCodeAgent: true });
+      const task = makeTask({ id: "ns-ca005", agentName: "code-agent" });
       poolWithCodeAgent.dispatch(task);
 
       const results = await poolWithCodeAgent.drain();
@@ -308,7 +308,7 @@ describe("AgentPool", () => {
         configDir: "/tmp/config",
       });
 
-      const task = makeTask({ id: "ns-ca006", isCodeAgent: true });
+      const task = makeTask({ id: "ns-ca006", agentName: "code-agent" });
       poolWithCodeAgent.dispatch(task);
 
       const results = await poolWithCodeAgent.drain();

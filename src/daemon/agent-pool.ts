@@ -3,6 +3,7 @@ import { runCodeAgent } from "../agent/code-agent.js";
 import { parseTimeout } from "../utils/process.js";
 import type { NightShiftTask, AgentExecutionResult, CodeAgentConfig } from "../core/types.js";
 import type { CodeAgentRunResult } from "../agent/types.js";
+import type { AgentRunResult } from "../agent/agent-types.js";
 import type { Logger } from "../core/logger.js";
 
 export interface TaskResult {
@@ -65,7 +66,7 @@ export class AgentPool {
     }
 
     // Code-agent dispatch path
-    if (task.isCodeAgent && this.codeAgentConfig) {
+    if (task.agentName === 'code-agent' && this.codeAgentConfig) {
       const startedAt = new Date();
       const promise = this.runCodeAgentTask(task, startedAt);
       this.running.set(task.id, { task, runner: null, startedAt, promise });
@@ -119,6 +120,9 @@ export class AgentPool {
     });
   }
 
+  // Future: runCodeAgentTask will return AgentRunResult directly once Phase 10 migrates to AgentEngine
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  private _agentRunResultRef?: AgentRunResult;  // keeps import live until Phase 10 migration
   private async runCodeAgentTask(task: NightShiftTask, startedAt: Date): Promise<TaskResult> {
     try {
       const timeoutMs = parseTimeout(task.timeout);
