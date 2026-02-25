@@ -1,13 +1,13 @@
 ---
 gsd_state_version: 1.0
-milestone: v2.0
+milestone: v1.0
 milestone_name: Pluggable Agent Architecture
-status: in_progress
-last_updated: "2026-02-25"
+status: unknown
+last_updated: "2026-02-25T22:41:46.083Z"
 progress:
-  total_phases: 7
-  completed_phases: 0
-  total_plans: 21
+  total_phases: 1
+  completed_phases: 1
+  total_plans: 2
   completed_plans: 2
 ---
 
