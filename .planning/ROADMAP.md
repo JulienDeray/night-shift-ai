@@ -14,7 +14,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 
 - [x] **Phase 1: Notification Foundation** - NtfyClient, config schema extension, per-task opt-in
 - [x] **Phase 2: Orchestrator Hooks** - Wire start/end notifications into daemon lifecycle for all tasks (completed 2026-02-24)
-- [ ] **Phase 3: Agent Prompt and Security** - Prompt template, category rotation, credential isolation guards
+- [x] **Phase 3: Agent Prompt and Security** - Prompt template, category rotation, credential isolation guards (completed 2026-02-25)
 - [ ] **Phase 4: Git Harness and Logging** - Clone, branch, push, MR creation, local log, Confluence update
 
 ## Phase Details
@@ -58,7 +58,7 @@ Plans:
   2. The agent prompt includes an explicit injection mitigation preamble and category-specific skip criteria (minimum complexity thresholds)
   3. The GITLAB_TOKEN never appears in the agent prompt string, agent output, or any log — it is passed only as an environment variable
   4. The agent's allowedTools is restricted to the minimum set (Bash for git/glab, Read, Write) and cannot call arbitrary shell commands
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans complete
 
 Plans:
 - [ ] 03-01-PLAN.md — Config schema extension + prompt loader + 4 bead prompt templates
@@ -84,5 +84,5 @@ Phases execute in numeric order: 1 → 2 → 3 → 4
 |-------|----------------|--------|-----------|
 | 1. Notification Foundation | 2/2 | Complete    | 2026-02-23 |
 | 2. Orchestrator Hooks | 2/2 | Complete    | 2026-02-24 |
-| 3. Agent Prompt and Security | 1/2 | In Progress|  |
+| 3. Agent Prompt and Security | 2/2 | Complete   | 2026-02-25 |
 | 4. Git Harness and Logging | 0/? | Not started | - |
