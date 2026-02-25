@@ -18,8 +18,8 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Code Improvement Agent
 
-- [ ] **AGENT-01**: Agent clones target GitLab repo to a fresh temp directory on each run
-- [ ] **AGENT-02**: Temp directory is unconditionally cleaned up in a finally block (even on crash/timeout)
+- [x] **AGENT-01**: Agent clones target GitLab repo to a fresh temp directory on each run
+- [x] **AGENT-02**: Temp directory is unconditionally cleaned up in a finally block (even on crash/timeout)
 - [ ] **AGENT-03**: Agent creates a feature branch, commits the improvement, and pushes to remote
 - [ ] **AGENT-04**: Agent creates a merge request via `glab mr create` with descriptive title and body
 - [x] **AGENT-05**: Agent produces zero or one MR per run — skips if no meaningful improvement found (outputs `NO_IMPROVEMENT`)
@@ -36,7 +36,7 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ### Logging
 
-- [ ] **LOG-01**: Local log file appended per run with date, category, MR URL (or null), cost, duration, and agent summary
+- [x] **LOG-01**: Local log file appended per run with date, category, MR URL (or null), cost, duration, and agent summary
 - [ ] **LOG-02**: Agent updates a pre-existing Confluence page with a new row per run (append-only, fetch current body first)
 
 ## v2 Requirements
@@ -85,8 +85,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | NTFY-04 | Phase 2 | Complete |
 | NTFY-05 | Phase 2 | Complete |
 | NTFY-06 | Phase 1 | Complete |
-| AGENT-01 | Phase 4 | Pending |
-| AGENT-02 | Phase 4 | Pending |
+| AGENT-01 | Phase 4 | Complete |
+| AGENT-02 | Phase 4 | Complete |
 | AGENT-03 | Phase 4 | Pending |
 | AGENT-04 | Phase 4 | Pending |
 | AGENT-05 | Phase 3 | Complete |
@@ -97,7 +97,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | CONF-01 | Phase 1 | Complete |
 | CONF-02 | Phase 1 | Complete |
 | CONF-03 | Phase 2 | Complete |
-| LOG-01 | Phase 4 | Pending |
+| LOG-01 | Phase 4 | Complete |
 | LOG-02 | Phase 4 | Pending |
 
 **Coverage:**
