@@ -1,466 +1,601 @@
-# Architecture Patterns
+# Architecture Research
 
-**Domain:** Poll-based autonomous agent daemon — notification hooks + code improvement agent
-**Researched:** 2026-02-23
-**Confidence:** HIGH (based on direct codebase analysis + verified Ntfy/glab docs)
-
----
-
-## Context: Existing Architecture
-
-Night-shift is a poll-based daemon. The `Orchestrator` runs a `tick()` loop every 30s:
-
-```
-tick()
-  1. evaluateSchedules()    — Scheduler creates tasks for due cron entries
-  2. collectCompleted()     — AgentPool drains finished processes
-  3. handleCompleted()      — writeReport() + update beads/queue status
-  4. getReadyTasks()        — poll beads or file queue
-  5. claimTask() + pool.dispatch() — spawn claude -p subprocess
-```
-
-All state is file-based or beads-based. No in-process event bus. No plugin system. Two natural hook points exist: **task dispatch** and **task completion** (inside `handleCompleted`).
+**Domain:** Pluggable agent template system for poll-based autonomous agent daemon
+**Researched:** 2026-02-25
+**Confidence:** HIGH (based on direct codebase analysis — every file relevant to integration was read)
 
 ---
 
-## Recommended Architecture
+## Context: What Exists Today
 
-### System Topology (after this milestone)
+Night-shift v1.0 is a poll-based daemon with a hardcoded code-agent. The relevant coupling points are:
+
+**The hardcoded dispatch branch in `AgentPool.dispatch()`:**
+```typescript
+// agent-pool.ts — current
+if (task.isCodeAgent && this.codeAgentConfig) {
+  this.runCodeAgentTask(task, startedAt);  // → runCodeAgent()
+  return;
+}
+// Generic fallback
+const runner = new AgentRunner(runnerOpts);
+runner.run(task);
+```
+
+**The magic string coupling in `Scheduler.createTask()`:**
+```typescript
+isCodeAgent: recurring.name === "code-agent" && !!this.config.codeAgent,
+```
+
+**The flat config in `nightshift.yaml`:**
+```yaml
+code_agent:           # top-level singleton, hardcoded schema
+  repo_url: ...
+  confluence_page_id: ...
+  category_schedule: ...
+  prompts: { analyze, implement, verify, mr, log }
+```
+
+Everything in `src/agent/` implements the 4-bead pipeline as one monolithic flow hardcoded to the code-agent's specific concerns. The bead names (`analyze`, `implement`, `verify`, `mr`, `log`) are string literals spread across `bead-runner.ts`, `code-agent-runner.ts`, and `code-agent.ts`. There is no abstraction for "bead pipeline" — it is a sequence of imperative function calls.
+
+---
+
+## v2.0 Target Architecture
+
+### System Overview
 
 ```
 nightshift.yaml
-  └─ ntfy: { topic, base_url }
-  └─ code_agent: { repo, confluence_page_id, schedule, categories }
+  agents/
+    - name: code-agent
+      path: ./agents/code-agent/        ← agent template directory
+  recurring:
+    - name: nightly-code-improvement
+      schedule: "0 2 * * *"
+      agent: code-agent                 ← reference by name (NEW)
+      notify: true
 
-Orchestrator (poll loop, 30s)
-  ├─ Scheduler         — creates tasks when cron is due
-  ├─ AgentPool         — spawns claude -p subprocesses
-  ├─ NtfyClient        — fire-and-forget HTTP POST to ntfy.sh
-  └─ handleCompleted() — notification hook point
+Orchestrator (unchanged poll loop)
+  ├── Scheduler        ← reads agent: field, resolves template dir
+  ├── AgentPool        ← generic dispatch via AgentEngine (NEW)
+  └── AgentEngine      ← loads manifest, runs bead pipeline (NEW)
 
-code-improvement agent (runs as a recurring NightShiftTask)
-  Prompt → claude -p
-    ├─ git clone (temp dir)
-    ├─ analyze codebase (Read tools)
-    ├─ create branch + make change
-    ├─ git commit + push
-    ├─ glab mr create
-    ├─ update Confluence page (MCP)
-    └─ append to local log file
-  Result text → MR URL or "no improvement found"
-  Cleanup → rm -rf temp dir (in prompt instructions)
+Agent Template Directory (./agents/code-agent/)
+  ├── manifest.yaml    ← bead pipeline definition + typed I/O
+  ├── analyze.md       ← prompt template for analyze bead
+  ├── implement.md     ← prompt template for implement bead
+  ├── verify.md        ← prompt template for verify bead
+  ├── mr.md            ← prompt template for mr bead
+  └── log.md           ← prompt template for log bead
+
+Composable Bead Plugins (src/agent/beads/)
+  ├── types.ts         ← BeadPlugin<TInput, TOutput> interface (NEW)
+  ├── standard.ts      ← StandardBead plugin (prompt → claude -p → stdout)
+  ├── git-clone.ts     ← GitCloneBead plugin (no claude, returns repoDir) (NEW)
+  └── registry.ts      ← BeadRegistry mapping names to plugin factories (NEW)
 ```
-
----
 
 ### Component Boundaries
 
 | Component | Responsibility | Communicates With |
 |-----------|---------------|-------------------|
-| `NtfyClient` | Send HTTP POST to ntfy.sh; fire-and-forget with logged errors | Orchestrator (called from dispatch hook and handleCompleted) |
-| `Orchestrator` (extended) | Call NtfyClient on task start and task end | NtfyClient, AgentPool, Scheduler |
-| Config (`ntfy` block) | Hold topic name, optional base_url and auth token | loadConfig() → Orchestrator |
-| Config (`code_agent` block) | Hold repo URL, Confluence page ID, category schedule, MR defaults | loadConfig() → recurring task prompt builder |
-| Code Improvement Agent (prompt) | Clone repo, analyze, branch, commit, push, MR, log, clean up | claude -p with glab + git + Confluence MCP + Read/Write tools |
-| Local improvement log | Append-only markdown file tracking past MRs | Written by agent (Write tool) |
-| Confluence page | Running log visible to team | Updated by agent (Confluence MCP) |
+| `NightShiftTask` (extended) | Carries `agentName` instead of `isCodeAgent: boolean` | Scheduler → AgentPool → AgentEngine |
+| `AgentEngine` (new) | Load manifest, validate I/O contracts, run bead sequence, aggregate cost/duration | AgentPool (invoked by), BeadRegistry (uses), Logger |
+| `BeadPlugin<TIn, TOut>` interface (new) | Execute one step of an agent pipeline — input typed, output typed | AgentEngine (called by) |
+| `BeadRegistry` (new) | Map bead type names in manifest to plugin implementations | AgentEngine (reads), bead plugins (registered in) |
+| `AgentTemplateLoader` (new) | Read and validate `manifest.yaml` from template directory | AgentEngine (uses) |
+| `manifest.yaml` (new file format) | Declarative bead pipeline: name, type, prompt, tools, env, I/O schema | AgentEngine reads this |
+| `AgentPool` (modified) | Route tasks with `agentName` to `AgentEngine`; retain generic `AgentRunner` for plain recurring tasks | Orchestrator (same interface as before) |
+| `Scheduler` (modified) | Resolve `agent:` field from recurring task config to `agentName` on the dispatched task | Orchestrator (same interface) |
+| `config.ts` (modified) | Add `agents` array to config schema; change `RecurringTaskSchema` to accept `agent:` field | loadConfig() |
+| `code-agent/` template (new files) | Migrate hardcoded code-agent logic into manifest + prompt files | AgentEngine (loaded at runtime) |
 
 ---
 
-### Data Flow
+## What Changes vs What Is Created
 
-#### Notification Flow (task start)
+### Modified (existing files touched)
 
-```
-Orchestrator.tick()
-  → pool.dispatch(task)
-      [new] → ntfyClient.send({
-                title: task.name,
-                message: "Starting: " + task.name,
-                tags: ["gear", task.origin],
-                priority: "default"
-              })
-      → AgentRunner spawns claude -p
-```
+**`src/core/types.ts`**
+- Add `agentName?: string` to `NightShiftTask`
+- Remove `isCodeAgent?: boolean` from `NightShiftTask` (breaking — search all usages)
+- Add `AgentConfig` interface (name, path, variables)
+- Add `agents?: AgentConfig[]` to `NightShiftConfig`
+- Extend `RecurringTaskConfig` with `agent?: string`
+- Remove `CodeAgentConfig` (migrated to manifest.yaml format)
 
-#### Notification Flow (task end)
+**`src/core/config.ts`**
+- Add `AgentsSchema` (array of `{ name, path }`)
+- Replace `CodeAgentSchema` with `AgentsSchema` in `ConfigSchema`
+- Extend `RecurringTaskSchema` with `agent: z.string().optional()`
+- Remove `codeAgent` from `NightShiftConfig` return type
 
-```
-Orchestrator.handleCompleted(taskResult)
-  → writeReport()
-  [new] → ntfyClient.send({
-            title: task.name,
-            message: result.isError ? "Failed" : extractSummary(result),
-            tags: result.isError ? ["x", "red_circle"] : ["white_check_mark"],
-            click: mrUrl (if extracted from result),
-            priority: result.isError ? "high" : "default"
-          })
-  → beads.close() / queue cleanup
-```
+**`src/daemon/scheduler.ts`**
+- Remove magic string: `isCodeAgent: recurring.name === "code-agent" && !!this.config.codeAgent`
+- Replace with: `agentName: recurring.agent` (passes through whatever is in config)
+- Remove `CategoryScheduleConfig` import — category rotation moves into the code-agent manifest/template variables
 
-The `extractSummary()` helper parses the agent result text looking for MR URL patterns (`https://gitlab.com/.../-/merge_requests/...`) to surface as the click URL. Falls back to first 200 chars of result if no URL found.
+**`src/daemon/agent-pool.ts`**
+- Remove `codeAgentConfig` field and all `CodeAgentConfig` wiring
+- Remove `updateCodeAgentConfig()` method
+- Remove `runCodeAgentTask()` private method
+- Add `agentEngine: AgentEngine` field (constructed in Orchestrator, passed in)
+- Modify `dispatch()`: replace the `if (task.isCodeAgent)` branch with `if (task.agentName) → agentEngine.run(task)`
 
-#### Code Improvement Agent Workflow (inside claude -p)
+**`src/daemon/orchestrator.ts`**
+- Remove `codeAgentConfig: this.config.codeAgent` from AgentPool constructor args
+- Remove `this.pool.updateCodeAgentConfig(freshConfig.codeAgent)` in hot-reload tick
+- Add `AgentEngine` construction and pass to `AgentPool`
+- Add agents config directory resolution
 
-```
-Prompt instructs agent to:
+### Created (new files)
 
-1. CLONE
-   git clone <repo_url> <tmpdir>
-   (tmpdir = /tmp/night-shift-agent-<randomHex>)
+**`src/agent/engine/types.ts`**
+- `BeadPlugin<TInput, TOutput>` interface
+- `BeadManifestEntry` interface (bead name, type, prompt, tools, env, timeout)
+- `AgentManifest` interface (pipeline: BeadManifestEntry[], variables: Record)
+- `AgentRunResult` type (generalizes `CodeAgentRunResult`)
 
-2. ANALYZE
-   Read category from prompt context (today's mapped category)
-   Read relevant files (tests, src, docs depending on category)
-   Identify ONE small, focused improvement
+**`src/agent/engine/registry.ts`**
+- `BeadRegistry` class with `register(type: string, factory: BeadPluginFactory)` and `resolve(type: string): BeadPlugin`
+- Built-in registrations: `"standard"` (claude -p) and `"git-clone"` (harness-side clone)
 
-3. IF nothing meaningful found:
-   Exit with "no improvement found" message
-   (skip all remaining steps)
+**`src/agent/engine/loader.ts`**
+- `AgentTemplateLoader` class
+- `load(agentPath: string): Promise<AgentManifest>` — reads and validates manifest.yaml
+- Zod schema for manifest.yaml format
+- Resolves prompt file paths relative to agent directory
 
-4. BRANCH
-   git -C <tmpdir> checkout -b ns/<category>/<slug>-<date>
+**`src/agent/engine/index.ts`** (the new AgentEngine)
+- `AgentEngine` class with `run(task: NightShiftTask): Promise<AgentRunResult>`
+- Resolves agent template directory from config
+- Loads manifest via `AgentTemplateLoader`
+- Iterates bead sequence, calling appropriate plugin from registry
+- Typed I/O passing between beads (each bead output → next bead input via context object)
+- Cost/duration accumulation
+- Cleanup (try/finally for temp dirs created by git-clone bead)
 
-5. COMMIT
-   Make the change (Write tool)
-   git -C <tmpdir> add -A
-   git -C <tmpdir> commit -m "<conventional commit message>"
+**`src/agent/engine/plugins/standard.ts`**
+- `StandardBeadPlugin` — wraps existing `runBead()` from `bead-runner.ts`
+- Input: prompt vars, env, tools config
+- Output: claude JSON result + parsed structured output (if handoff file specified)
 
-6. PUSH
-   git -C <tmpdir> push origin ns/<category>/<slug>-<date>
+**`src/agent/engine/plugins/git-clone.ts`**
+- `GitCloneBeadPlugin` — wraps existing `cloneRepo()` from `git-harness.ts`
+- Input: `repoUrl`, `gitlabToken`
+- Output: `{ repoDir, handoffDir }`
+- Registers `try/finally` cleanup with the engine's context
 
-7. MR
-   glab mr create \
-     --repo <repo> \
-     --source-branch ns/<category>/<slug>-<date> \
-     --target-branch main \
-     --title "<title>" \
-     --description "<description>" \
-     --label "night-shift,<category>" \
-     --yes
+**`agents/code-agent/manifest.yaml`** (new agent template directory)
+- Full pipeline definition for the migrated code-agent
+- References `./analyze.md`, `./implement.md`, `./verify.md`, `./mr.md`, `./log.md`
+- Declares env requirements, tool allowlists, models per bead
+- Includes variables that come from nightshift.yaml (repo_url, confluence_page_id, etc.)
 
-8. LOG
-   Append to <local_log_path>:
-     "| <date> | <category> | <title> | <mr_url> |"
-   Update Confluence page <page_id> via MCP:
-     Prepend new row to running table
-
-9. CLEANUP
-   rm -rf <tmpdir>
-
-10. OUTPUT
-    Return result text containing MR URL
-```
-
-The agent receives category from the prompt (daemon builds it from `code_agent.categories` schedule mapped to day-of-week). The agent does NOT choose the category — the daemon chooses based on config.
+**`agents/code-agent/analyze.md`** (migrated from config-path prompts)
+- Moved from user-configured path to bundled template
+- Category/guidance variables still injected by engine at runtime
 
 ---
 
-### Config Schema Extensions
+## Data Flow Changes
 
-**Ntfy block** (new, optional — daemon skips notifications if absent):
+### Task Dispatch Flow (v1.0 → v2.0)
 
-```yaml
-ntfy:
-  topic: "night-shift-x7k2p9"     # required; treat as secret
-  base_url: "https://ntfy.sh"      # optional, default: https://ntfy.sh
-  token: ""                         # optional; Bearer auth for private servers
+```
+v1.0:
+  Scheduler.createTask()
+    → task.isCodeAgent = (name === "code-agent" && !!codeAgentConfig)
+    → AgentPool.dispatch()
+        → if (task.isCodeAgent) runCodeAgentTask()
+            → runCodeAgent(codeAgentConfig, ...)  ← hardcoded
+        → else AgentRunner.run(task)
+
+v2.0:
+  Scheduler.createTask()
+    → task.agentName = recurring.agent  (e.g., "code-agent")
+    → AgentPool.dispatch()
+        → if (task.agentName) agentEngine.run(task)
+            → AgentTemplateLoader.load(resolveAgentDir(task.agentName))
+            → iterate manifest.pipeline[]
+                → registry.resolve(bead.type).execute(input, context)
+            → aggregate result
+        → else AgentRunner.run(task)  ← generic claude -p (unchanged)
 ```
 
-**Code agent block** (new, optional — no recurring task generated if absent):
+### Bead I/O Passing (new)
+
+The engine maintains a `PipelineContext` object that grows as beads execute:
+
+```
+engine.run(task)
+  context = { task, vars: resolvedVars, agentDir }
+
+  bead[0] = git-clone plugin
+    input:  { repoUrl: vars.repo_url, gitlabToken: env.GITLAB_TOKEN }
+    output: { repoDir: "/tmp/ns-...", handoffDir: "/tmp/ns-handoff-..." }
+    context.repoDir = output.repoDir      ← available to subsequent beads
+    context.handoffDir = output.handoffDir
+
+  bead[1] = standard plugin (analyze.md)
+    input:  { prompt: rendered(analyze.md, context.vars + context.repoDir) }
+    output: { parsed: AnalysisResult from handoff JSON }
+    context.analysisResult = output.parsed
+
+  bead[2] = standard plugin (implement.md)
+    input:  { prompt: rendered(implement.md, context.vars + context.analysisResult) }
+    output: { beadResult: BeadResult }
+    ...
+
+  bead[n] = cleanup (implicit, via engine try/finally)
+    rm -rf context.repoDir, context.handoffDir
+```
+
+This replaces the hardcoded `PipelineContext` in `code-agent-runner.ts`. The context is generic — any agent template can populate whatever fields it needs.
+
+### Config Schema (v1.0 → v2.0)
 
 ```yaml
+# v1.0 nightshift.yaml
 code_agent:
-  repo: "git@gitlab.com:org/repo.git"   # required
-  target_branch: "main"                  # optional, default: main
-  confluence_page_id: "123456"           # required; pre-created page
-  local_log: "./logs/improvements.md"    # optional, default: .nightshift/improvements.md
-  schedule: "0 2 * * *"                  # cron schedule; optional if using recurring[] directly
-  max_budget_usd: 3.00                   # optional
-  timeout: "45m"                         # optional, default: 30m
-  categories:
-    monday: tests
-    tuesday: refactoring
-    wednesday: docs
-    thursday: tests
-    friday: refactoring
-    saturday: docs
-    sunday: tests
+  repo_url: git@gitlab.com:org/repo.git
+  confluence_page_id: "123456"
+  category_schedule: { monday: [tests], ... }
+  prompts: { analyze: ./prompts/analyze.md, ... }
+
+# v2.0 nightshift.yaml
+agents:
+  - name: code-agent
+    path: ./agents/code-agent      # directory containing manifest.yaml + prompts
+    variables:                     # static vars passed to all beads
+      repo_url: git@gitlab.com:org/repo.git
+      confluence_page_id: "123456"
+      reviewer: "jsmith"
+
+recurring:
+  - name: nightly-code-improvement
+    schedule: "0 2 * * *"
+    agent: code-agent              # references agents[].name
+    notify: true
 ```
 
-These two blocks are optional. Night-shift continues to work without them. The code_agent block, when present, generates a recurring task entry programmatically (or the user can define it manually in `recurring[]` with the appropriate prompt template).
+Category rotation (previously `category_schedule` in `code_agent`) moves to a manifest-level decision or a bead-specific variable injected at runtime. The simplest approach: the code-agent manifest reads a `NIGHT_SHIFT_CATEGORY` env var that the engine injects based on a `category_schedule` variable declared in the manifest. This keeps category rotation as a framework concern but makes it explicit in the template rather than hardcoded in scheduler.ts.
 
 ---
 
-## Patterns to Follow
+## manifest.yaml Format
 
-### Pattern 1: Fire-and-Forget Notification Client
+```yaml
+# agents/code-agent/manifest.yaml
+name: code-agent
+description: "Nightly GitLab MR creator"
 
-**What:** NtfyClient is a thin wrapper around `fetch`. It never throws. All errors are logged and swallowed. The daemon's correctness does not depend on notification delivery.
+# Variables this template requires (validated at load time)
+required_variables:
+  - repo_url
+  - confluence_page_id
 
-**When:** Any side-effect that should not block or fail the main workflow.
+# Optional with defaults
+default_variables:
+  max_tokens: "8192"
+  reviewer: ""
+
+# Category rotation declared here (not in nightshift.yaml)
+category_schedule:
+  monday: [tests]
+  tuesday: [refactoring]
+  wednesday: [docs]
+  thursday: [security]
+  friday: [cleanup]
+
+# Bead pipeline (executed in order)
+pipeline:
+  - name: clone
+    type: git-clone
+    # No prompt — this is a harness-side operation
+    env:
+      GITLAB_TOKEN: "{{ env.GITLAB_TOKEN }}"  # forwarded from engine context
+
+  - name: analyze
+    type: standard
+    prompt: ./analyze.md
+    model: claude-opus-4-6
+    tools: [Bash, Read, Write]
+    timeout: inherit           # uses task-level timeout
+    handoff:
+      file: "{{ handoff_dir }}/analysis.json"
+      schema:
+        result: string         # "IMPROVEMENT_FOUND" | "NO_IMPROVEMENT"
+        reason: string?
+        selected: object?
+
+  - name: implement
+    type: standard
+    prompt: ./implement.md
+    model: claude-opus-4-6
+    tools: [Bash, Read, Write]
+    retry:
+      max: 2
+      on_failure: verify       # retry on verify failure
+      reset: git-reset-hard    # repo reset between retries
+
+  - name: verify
+    type: standard
+    prompt: ./verify.md
+    model: claude-sonnet-4-6
+    tools: [Bash, Read, Write]
+    handoff:
+      file: "{{ handoff_dir }}/verify.json"
+      schema:
+        passed: boolean
+        error_details: string?
+
+  - name: mr
+    type: standard
+    prompt: ./mr.md
+    model: claude-sonnet-4-6
+    tools: [Bash, Read, Write]
+    env:
+      GITLAB_TOKEN: "{{ env.GITLAB_TOKEN }}"  # only this bead gets the token
+
+  - name: log
+    type: standard
+    prompt: ./log.md
+    model: claude-sonnet-4-6
+    tools:
+      - mcp__atlassian__getAccessibleAtlassianResources
+      - mcp__atlassian__getConfluencePage
+      - mcp__atlassian__updateConfluencePage
+    mcp_config: "{{ variables.log_mcp_config }}"
+    timeout: 120000
+    optional: true             # log bead failure does not fail the pipeline
+```
+
+This manifest format replaces all the hardcoded logic in `code-agent-runner.ts`. The engine reads it and drives execution generically.
+
+---
+
+## Architectural Patterns
+
+### Pattern 1: Plugin Interface with Typed Context Passing
+
+**What:** Each bead is a plugin that receives a shared mutable `PipelineContext` and returns typed output that is merged into the context for subsequent beads.
+
+**When:** Any multi-step pipeline where steps need to share state without tight coupling.
+
+**Trade-offs:** The context becomes the implicit coupling point — beads depend on earlier beads having populated specific context fields. The manifest must declare dependencies. Without enforcement, this degrades to implicit global state. Mitigation: required_variables validation at load time and explicit handoff declarations in manifest.
 
 **Example:**
-
 ```typescript
-// src/notifications/ntfy-client.ts
-export class NtfyClient {
-  constructor(
-    private readonly topic: string,
-    private readonly baseUrl: string = "https://ntfy.sh",
-    private readonly token?: string,
-  ) {}
+// src/agent/engine/types.ts
+export interface BeadPlugin<TInput, TOutput> {
+  execute(
+    input: TInput,
+    context: PipelineContext,
+    logger: Logger,
+  ): Promise<TOutput>;
+}
 
-  async send(notification: NtfyNotification): Promise<void> {
-    const headers: Record<string, string> = {
-      "Title": notification.title,
-      "Content-Type": "text/plain",
-    };
-    if (notification.tags?.length) {
-      headers["Tags"] = notification.tags.join(",");
-    }
-    if (notification.priority) {
-      headers["Priority"] = notification.priority;
-    }
-    if (notification.click) {
-      headers["Click"] = notification.click;
-    }
-    if (this.token) {
-      headers["Authorization"] = `Bearer ${this.token}`;
-    }
+export interface PipelineContext {
+  task: NightShiftTask;
+  vars: Record<string, string>;
+  agentDir: string;
+  repoDir?: string;          // set by git-clone bead
+  handoffDir?: string;       // set by git-clone bead
+  analysisResult?: unknown;  // set by analyze bead
+  cleanups: Array<() => Promise<void>>; // registered by git-clone bead
+}
+```
 
-    try {
-      const res = await fetch(`${this.baseUrl}/${this.topic}`, {
-        method: "POST",
-        body: notification.message,
-        headers,
-      });
-      if (!res.ok) {
-        this.logger.warn("Ntfy send failed", { status: res.status });
-      }
-    } catch (err) {
-      this.logger.warn("Ntfy send error (ignored)", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-    }
+### Pattern 2: Registry Pattern for Bead Types
+
+**What:** A central registry maps string type names (from manifest.yaml) to plugin factory functions. New bead types can be registered without modifying the engine.
+
+**When:** When the set of step types is open-ended and should be extensible without modifying core code.
+
+**Trade-offs:** Indirection — you cannot statically follow the call chain from manifest entry to plugin implementation. Mitigated by keeping the registry small (only 2-3 built-in types initially) and co-locating registration with each plugin file.
+
+**Example:**
+```typescript
+// src/agent/engine/registry.ts
+export class BeadRegistry {
+  private plugins = new Map<string, BeadPluginFactory>();
+
+  register(type: string, factory: BeadPluginFactory): void {
+    this.plugins.set(type, factory);
+  }
+
+  resolve(type: string): BeadPlugin<unknown, unknown> {
+    const factory = this.plugins.get(type);
+    if (!factory) throw new Error(`Unknown bead type: "${type}"`);
+    return factory();
   }
 }
+
+// src/agent/engine/plugins/standard.ts registers itself:
+registry.register("standard", () => new StandardBeadPlugin());
+registry.register("git-clone", () => new GitCloneBeadPlugin());
 ```
 
-**Key:** Inject logger. Never rethrow. Await inside try/catch.
+### Pattern 3: Manifest-Declared Pipeline (Declarative over Imperative)
 
-### Pattern 2: Notification Hook Points in Orchestrator
+**What:** The agent pipeline is declared in YAML (sequence of bead entries with type, prompt, options) rather than being hardcoded in TypeScript. The engine interprets the manifest.
 
-**What:** Two call sites in Orchestrator. Notifications do not block the tick cycle.
+**When:** The core motivation for this milestone — users should be able to define new agents by creating a directory, not by writing TypeScript.
 
-**When:** Task dispatched (start) and task result handled (end).
+**Trade-offs:** The manifest must be expressive enough to cover real use cases without becoming a programming language. Start minimal — only the fields that code-agent actually uses. Extend incrementally as real templates expose gaps.
 
-**Example diff to Orchestrator:**
+**Constraint:** Do not implement retry logic, category rotation, or optional beads in the generic engine for v2.0 unless the code-agent migration demonstrably requires it. Start with a linear pipeline; add branching only when a concrete use case demands it.
 
-```typescript
-// In tick(), after pool.dispatch(task):
-void this.ntfy?.send({
-  title: task.name,
-  message: `Starting task: ${task.name}`,
-  tags: ["gear"],
-  priority: "default",
-});
+### Pattern 4: Harness-Side vs Agent-Side Operations
 
-// In handleCompleted(), after writeReport():
-void this.ntfy?.send({
-  title: task.name,
-  message: result.isError
-    ? `Failed: ${result.result.slice(0, 200)}`
-    : result.result.slice(0, 300),
-  tags: result.isError ? ["x"] : ["white_check_mark"],
-  priority: result.isError ? "high" : "default",
-  click: extractMrUrl(result.result),
-});
-```
+**What:** Operations that must run outside `claude -p` (clone, cleanup, env setup) are harness-side bead plugins. Operations that require Claude's judgment (analyze, implement, verify) are standard (claude -p) bead plugins.
 
-Note `void` prefix — intentionally not awaited at the call site. NtfyClient.send() internally awaits and swallows errors.
+**When:** Determining which "bead" type to use. Key question: does this step require LLM reasoning, or is it a deterministic operation the TypeScript runtime can perform?
 
-### Pattern 3: Opt-In Per Recurring Task
+**Rule:** If it's deterministic, it's a harness-side plugin. If it requires judgment, it's a standard (claude -p) plugin.
 
-**What:** A `notify` boolean on `RecurringTaskConfig` controls whether a task emits notifications. Defaults to the global ntfy config's presence — if ntfy is configured, all recurring tasks notify by default. Tasks can override with `notify: false`.
-
-**When:** Some tasks may be noisy or low-priority (e.g., scheduled every 5 minutes).
-
-**Config:**
-
-```yaml
-recurring:
-  - name: "code-improvement"
-    schedule: "0 2 * * *"
-    notify: true   # explicit opt-in (or default if ntfy configured)
-```
-
-### Pattern 4: Agent Clone-Analyze-Branch-Commit-Push-MR-Clean Workflow
-
-**What:** The entire git workflow runs inside the claude -p process. The daemon is unaware of git operations. The agent receives a structured prompt with all required context.
-
-**When:** Code improvement agent task.
-
-**Prompt structure (system prompt injected by daemon):**
-
-```
-You are a code improvement agent running as part of night-shift.
-
-Context:
-- Repository: git@gitlab.com:org/repo.git
-- Today's category: TESTS (Monday)
-- Confluence page ID: 123456
-- Local log file: /path/to/improvements.md
-- Date: 2026-02-23
-
-Workflow (follow exactly):
-1. Clone to a temp directory: /tmp/ns-agent-<random>
-2. Analyze the codebase for the category: look for missing test coverage, ...
-3. If nothing meaningful found: output "NO_IMPROVEMENT" and stop.
-4. Create branch: ns/tests/<slug>-2026-02-23
-5. Make ONE focused change
-6. git add -A && git commit -m "test: <message>"
-7. git push origin <branch>
-8. glab mr create --repo org/repo --source-branch <branch> \
-     --target-branch main --title "<title>" \
-     --description "<description>" --label "night-shift,tests" --yes
-9. Capture the MR URL from glab output
-10. Append to local log: | 2026-02-23 | tests | <title> | <mr_url> |
-11. Update Confluence page 123456 via MCP (prepend row to table)
-12. rm -rf /tmp/ns-agent-<random>
-13. Output: "MR created: <mr_url>" or "NO_IMPROVEMENT"
-```
-
-### Pattern 5: MR URL Extraction from Agent Result
-
-**What:** A regex scan of agent result text to extract the GitLab MR URL for the notification click action.
-
-**When:** handleCompleted() for code-improvement tasks.
-
-**Example:**
-
-```typescript
-function extractMrUrl(resultText: string): string | undefined {
-  const match = resultText.match(
-    /https:\/\/gitlab\.com\/[^\s]+\/-\/merge_requests\/\d+/,
-  );
-  return match?.[0];
-}
-```
+**Examples:**
+- `git clone` → harness-side (`git-clone` bead type)
+- `git reset --hard HEAD` between retries → harness-side
+- Analyze which file to improve → standard (claude -p)
+- Verify the build passes → standard (claude -p) with Bash tool
 
 ---
 
 ## Anti-Patterns to Avoid
 
-### Anti-Pattern 1: Await Notification in Tick Path
+### Anti-Pattern 1: Generic Engine Growing Code-Agent-Specific Logic
 
-**What:** `await ntfy.send(...)` blocking the orchestrator tick.
+**What people do:** Add `if bead.name === "mr"` conditionals in the engine to handle special cases like the GITLAB_TOKEN env var injection or the retry-after-verify pattern.
 
-**Why bad:** Ntfy is an external HTTP call. Network latency or downtime blocks the entire daemon tick. Task dispatch stalls. If ntfy.sh is unreachable at 2am, the code-improvement task never starts.
+**Why it's wrong:** Defeats the purpose of the generic engine. Now the engine is coupled to one specific agent template's quirks. Every new agent that needs similar special cases adds more conditionals.
 
-**Instead:** `void ntfy.send(...)` — fire-and-forget with internal error handling inside NtfyClient.
+**Do this instead:** Express special behavior in the manifest. The `env` block in a bead entry controls which env vars are forwarded. The `retry.on_failure` field controls retry behavior. The engine implements the mechanism; the manifest provides the policy.
 
-### Anti-Pattern 2: Persistent Git Checkout in Workspace
+### Anti-Pattern 2: Removing the Generic `AgentRunner` Path
 
-**What:** Keeping a cloned repo in the night-shift workspace directory and pulling updates each run.
+**What people do:** Migrate all tasks to the agent template system, removing the `AgentRunner` code path for plain recurring tasks.
 
-**Why bad:** Merge conflicts, dirty working trees, stale branches, half-applied changes from previous agent runs. Debugging what the agent did becomes hard because workspace state accumulates.
+**Why it's wrong:** Plain recurring tasks (simple `claude -p` with a prompt) are the core value of the generic daemon. They require no template directory. Removing this path means every recurring task now needs a manifest.yaml directory.
 
-**Instead:** Fresh `git clone` into a system temp dir per run (`/tmp/ns-agent-<hex>`). Clean up unconditionally at the end of the prompt instructions. No state survives between runs.
+**Do this instead:** Keep both dispatch paths in `AgentPool.dispatch()`. Tasks without `agentName` continue to use `AgentRunner`. Tasks with `agentName` use `AgentEngine`. This is backward compatible — existing nightshift.yaml configs with only `recurring[]` entries continue to work unchanged.
 
-### Anti-Pattern 3: Agent Creates the Confluence Page
+### Anti-Pattern 3: Hardcoding Category Rotation in the Engine
 
-**What:** Agent receives a space key and creates the page if it doesn't exist.
+**What people do:** Move `resolveCategory()` from `scheduler.ts` into `AgentEngine` as a first-class engine feature, since code-agent needs it.
 
-**Why bad:** Space/permission issues, page appears in wrong location, parent page wrong, title conflicts. Hard to fix after automation has already run.
+**Why it's wrong:** Category rotation is a code-agent concern, not a generic engine concern. Other agent templates may not have categories at all. Making the engine category-aware creates a leaky abstraction.
 
-**Instead:** Pre-create the Confluence page manually. Agent receives the page ID and only appends rows to an existing table. Simpler, safer, recoverable.
+**Do this instead:** Declare the `category_schedule` in the code-agent manifest. The engine resolves it as a standard variable injection before executing the pipeline. The engine's job is "inject vars, run beads" — not "implement code-agent business logic."
 
-### Anti-Pattern 4: Daemon-Level Git Operations
+### Anti-Pattern 4: Manifest Format That Cannot Be Validated
 
-**What:** Orchestrator or a new daemon component performs git clone/push/MR-create operations directly.
+**What people do:** Make the manifest format loose (accept any YAML) so it's easy to add new fields without changing the loader.
 
-**Why bad:** Forces daemon to have git credentials, adds shell execution concerns, makes daemon responsible for workflow correctness. Defeats the purpose of using claude -p.
+**Why it's wrong:** Typos in manifest files cause silent failures at runtime — the wrong tool list is used, a prompt file is silently missing, env vars are not forwarded. These bugs are hard to debug because they show up in agent behavior, not in startup errors.
 
-**Instead:** All git/glab operations happen inside the claude -p prompt. Daemon only knows: task started, task ended, result text (which contains the MR URL).
+**Do this instead:** Validate the manifest with a Zod schema in `AgentTemplateLoader.load()`. Fail loudly at load time with a clear error message if required fields are missing or types are wrong. Use strict mode so unknown fields are rejected.
 
-### Anti-Pattern 5: Category Rotation Inside the Agent
+### Anti-Pattern 5: Baking Prompt Content Into the Engine
 
-**What:** Agent decides which improvement category to work on based on its own analysis or memory.
+**What people do:** The engine has special handling for "inject the security preamble" or "add the category guidance text" because the code-agent needs them.
 
-**Why bad:** Unpredictable rotation, agent may always prefer the same category if that's where it finds easy wins, no external control over balance.
+**Why it's wrong:** Couples the engine to the code-agent's prompt strategy. Other agents may not need a security preamble. They may want to inject it differently.
 
-**Instead:** Daemon reads day-of-week from config map and injects the category into the prompt. Agent is told its category. Config controls the schedule.
-
-### Anti-Pattern 6: Ntfy Topic in Config Without Secret Handling
-
-**What:** Storing the ntfy topic directly in `nightshift.yaml` committed to git.
-
-**Why bad:** The topic name is functionally a password. Anyone who knows it can send notifications to your device.
-
-**Instead:** Support `NIGHT_SHIFT_NTFY_TOPIC` env var override. Document that the topic should be a long random string. Config file should be gitignored for personal configs. The token field (for authenticated servers) is especially sensitive.
+**Do this instead:** The `INJECTION_MITIGATION_PREAMBLE` from `prompt-loader.ts` stays as-is. The `StandardBeadPlugin` always prepends it (current behavior). If a future agent wants different preamble behavior, that is a new bead type, not a manifest option on the standard type.
 
 ---
 
-## Build Order Implications
+## Build Order
 
-Dependencies between components:
+The dependency chain is strict. Each phase has concrete prerequisites.
 
 ```
-1. NtfyClient (new, standalone)
-   - No dependencies on existing code except Logger and NightShiftConfig
-   - Build first; can be tested independently with a curl call
+Phase 1: Type System + Config Schema
+  ├── src/core/types.ts — add AgentConfig, extend RecurringTaskConfig, remove CodeAgentConfig
+  ├── src/core/config.ts — add AgentsSchema, agent field in RecurringTaskSchema
+  └── No behavior change — types only; existing tests still pass
 
-2. Config schema extension (ntfy + code_agent blocks)
-   - Extend Zod schema in config.ts, types.ts
-   - NtfyClient depends on NtfyConfig type
-   - code_agent block feeds the recurring task prompt builder
+Phase 2: Bead Plugin Interfaces + Registry
+  ├── src/agent/engine/types.ts — BeadPlugin interface, PipelineContext, AgentRunResult
+  ├── src/agent/engine/registry.ts — BeadRegistry
+  └── Tests: registry registers/resolves types correctly
 
-3. Orchestrator notification hooks
-   - Depends on NtfyClient
-   - Two-line change at dispatch + handleCompleted
-   - Optional (skips if NtfyConfig not present)
+Phase 3: Agent Template Loader
+  ├── src/agent/engine/loader.ts — reads manifest.yaml, Zod schema validates it
+  ├── Depends on: types from Phase 2
+  └── Tests: load valid manifest, reject invalid manifest (missing required_variables, bad schema)
 
-4. Recurring task prompt template for code improvement
-   - Depends on config schema extension (code_agent block)
-   - Daemon reads code_agent config, builds prompt with injected context
-   - Or: user writes prompt manually in recurring[] using template variables
+Phase 4: Harness-Side Bead Plugins
+  ├── src/agent/engine/plugins/git-clone.ts — wraps cloneRepo() + registers cleanup
+  ├── src/agent/engine/plugins/standard.ts — wraps runBead() from bead-runner.ts
+  ├── Depends on: types (Phase 2), existing git-harness.ts and bead-runner.ts (unchanged)
+  └── Tests: git-clone plugin calls cloneRepo with correct args, registers cleanup
 
-5. Agent workflow validation (integration test)
-   - Clone → branch → commit → push → MR → log
-   - Requires glab auth + target repo access
-   - Test with a scratch repo before pointing at real repo
+Phase 5: AgentEngine
+  ├── src/agent/engine/index.ts — linear pipeline executor
+  ├── Depends on: all of above phases
+  ├── Feature parity target: runs code-agent manifest and produces same output as runCodeAgentPipeline()
+  └── Tests: unit test with mock plugins; integration test running code-agent manifest
+
+Phase 6: Agent Template Migration (code-agent)
+  ├── agents/code-agent/manifest.yaml — declarative pipeline
+  ├── agents/code-agent/analyze.md   — moved from configDir/prompts/analyze.md
+  ├── agents/code-agent/implement.md
+  ├── agents/code-agent/verify.md
+  ├── agents/code-agent/mr.md
+  ├── agents/code-agent/log.md
+  ├── Depends on: AgentEngine can load and run a manifest (Phase 5)
+  └── Tests: diff output of code-agent via new engine vs old runCodeAgentPipeline()
+
+Phase 7: Wiring + Deprecation
+  ├── src/daemon/agent-pool.ts — replace isCodeAgent branch with agentName → AgentEngine
+  ├── src/daemon/orchestrator.ts — construct AgentEngine, pass to pool, remove codeAgent config wiring
+  ├── src/daemon/scheduler.ts — remove isCodeAgent magic string, pass agentName
+  ├── Remove: src/agent/code-agent.ts, src/agent/code-agent-runner.ts (superseded by engine + template)
+  └── Tests: existing integration tests still pass; new dispatch path exercised
+
+Phase 8: nightshift.yaml Migration
+  ├── Update default config template (getDefaultConfigYaml) to use new agents[] + agent: field
+  ├── Add migration note/warning for users with code_agent: in their config
+  └── Update CLI config validation to handle old + new format gracefully
 ```
 
-**Phase ordering recommendation:**
+**Critical constraint:** Do NOT attempt to run the new engine against a real repo until Phase 6 is complete and Phase 5 unit tests pass. The migration is feature-parity-first, then cleanup.
 
-| Phase | What | Why First |
-|-------|------|-----------|
-| 1 | NtfyClient + config schema | Foundation; all other pieces reference it |
-| 2 | Orchestrator hooks | Low risk; two call sites; immediately useful for all tasks |
-| 3 | Code agent config block + prompt | Depends on config schema being stable |
-| 4 | Code agent integration test | Last; requires external services (GitLab, glab) |
+---
+
+## Integration Points
+
+### Internal Boundaries (what calls what across the new boundary)
+
+| Boundary | Communication | Notes |
+|----------|---------------|-------|
+| `AgentPool` → `AgentEngine` | Direct method call: `agentEngine.run(task)` | AgentEngine is injected into AgentPool constructor — same pattern as existing `AgentRunner` |
+| `AgentEngine` → `BeadRegistry` | `registry.resolve(bead.type)` | Registry holds plugin factories; engine instantiates per run |
+| `AgentEngine` → `AgentTemplateLoader` | `loader.load(agentDir)` | Loader is stateless; manifest is re-loaded each run (no caching needed — runs are infrequent) |
+| `StandardBeadPlugin` → `bead-runner.ts:runBead()` | Direct call — no interface change | `runBead()` stays as-is; StandardBeadPlugin is a thin adapter |
+| `GitCloneBeadPlugin` → `git-harness.ts:cloneRepo()` | Direct call — no interface change | `cloneRepo()` stays as-is; plugin registers cleanup callback with engine |
+| `Orchestrator` → `AgentEngine` | Construction + pass to `AgentPool` | Engine needs: config agents[], logger, configDir |
+| `Scheduler` → config `agents[]` | Reads `recurring[].agent` field, copies to `NightShiftTask.agentName` | No resolution at scheduler time — resolution is AgentEngine's job |
+
+### Preserved Interfaces (unchanged — critical for backward compat)
+
+| Interface | Why Preserved |
+|-----------|--------------|
+| `AgentRunner.run(task: NightShiftTask)` | Still used for generic recurring tasks without `agent:` field |
+| `BeadsClient` | No changes — task persistence is unaffected |
+| `Orchestrator.tick()` | Poll loop unchanged; only AgentPool.dispatch() internals change |
+| `writeReport()` in inbox/reporter.ts | Receives `AgentExecutionResult` — engine must emit this same shape |
+| `NightShiftTask` shape (minus isCodeAgent) | Scheduler → Pool interface; removing isCodeAgent is the one breaking change |
 
 ---
 
 ## Scalability Considerations
 
-This is a personal/team tool. Scalability is not a primary concern. The relevant constraints are:
+This is a personal/team tool. Scalability is the agent template ecosystem, not system scale.
 
-| Concern | Current scale | Notes |
-|---------|--------------|-------|
-| Ntfy rate limits | 1 notification per task start/end | ntfy.sh free tier: no hard limits documented for low volume; self-hosted removes concern |
-| Git clone per run | One clone of one repo per night | Typically < 30s; temp dir cleaned up; no disk accumulation concern |
-| Agent token budget | $3-5 per run | Controlled by `max_budget_usd` on the code_agent config |
-| Concurrent tasks | Existing `max_concurrent` cap applies | Code improvement agent counts as one slot |
+| Concern | Today | After v2.0 |
+|---------|-------|------------|
+| Adding a new agent | Requires TypeScript changes to AgentPool + new config schema | Create a directory, write manifest.yaml + prompt files |
+| Sharing an agent | Fork the repo, copy the TS code | Copy the agent/ directory to another nightshift installation |
+| Testing a new bead type | Requires modifying engine source | Implement `BeadPlugin` interface, register in registry |
+| Category rotation for a different agent | Hardcoded in scheduler.ts | Declare `category_schedule` in manifest.yaml |
+| Per-bead timeout tuning | Hardcoded constants in code-agent-runner.ts | `timeout` field in manifest bead entry |
+
+The architecture scales in agent template count, not in concurrent execution. The existing `maxConcurrent` cap and poll-based dispatch remain unchanged.
 
 ---
 
 ## Sources
 
-- Existing codebase (`src/daemon/orchestrator.ts`, `src/daemon/agent-pool.ts`, `src/daemon/agent-runner.ts`, `src/daemon/scheduler.ts`) — HIGH confidence (direct read)
-- Ntfy publish API: https://docs.ntfy.sh/publish/ — HIGH confidence (official docs)
-- Ntfy JSON format: https://docs.ntfy.sh/publish/#publish-with-json — HIGH confidence (official docs)
-- glab mr create flags: https://docs.gitlab.com/cli/mr/create/ — HIGH confidence (official docs)
-- Node.js native fetch for ntfy: confirmed via official Node.js 18+ docs + ntfy examples — HIGH confidence
-- `.planning/PROJECT.md` for feature scope and constraints — HIGH confidence (project document)
+- Night-shift v1.0 codebase (direct read): `src/daemon/agent-pool.ts`, `src/daemon/orchestrator.ts`, `src/daemon/scheduler.ts`, `src/agent/code-agent.ts`, `src/agent/code-agent-runner.ts`, `src/agent/bead-runner.ts`, `src/agent/types.ts`, `src/core/types.ts`, `src/core/config.ts` — HIGH confidence
+- `.planning/codebase/ARCHITECTURE.md` — authoritative architectural description of v1.0 — HIGH confidence
+- `.planning/PROJECT.md` — v2.0 milestone goals and constraints — HIGH confidence
+- Zod v4 documentation (existing usage in config.ts) — for manifest schema validation approach — HIGH confidence
+
+---
+
+*Architecture research for: pluggable agent template system (v2.0 milestone)*
+*Researched: 2026-02-25*
