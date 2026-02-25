@@ -59,6 +59,16 @@ export interface CodeAgentConfig {
   repoUrl: string;
   confluencePageId: string;
   categorySchedule: CategoryScheduleConfig;
+  prompts: {
+    analyze: string;
+    implement: string;
+    verify: string;
+    mr: string;
+  };
+  reviewer?: string;
+  allowedCommands: string[];
+  maxTokens?: number;
+  variables: Record<string, string>;
 }
 
 export interface RecurringTaskConfig {
