@@ -52,9 +52,10 @@ Open items for next milestone validation:
 | 1 | Wire runCodeAgent into daemon | 2026-02-25 | 3e5b733 | [1-wire-runcodeagent-into-daemon](./quick/1-wire-runcodeagent-into-daemon/) |
 | 2 | Implement nightshift run command | 2026-02-25 | acad107 | [2-implement-a-nightshift-command-to-run-a-](./quick/2-implement-a-nightshift-command-to-run-a-/) |
 | 3 | Load GitLab token from .env file | 2026-02-25 | 9fafd83 | [3-load-gitlab-token-from-env-file-if-avail](./quick/3-load-gitlab-token-from-env-file-if-avail/) |
+| 4 | Fix false-positive MR_CREATED outcome when MR bead fails | 2026-02-25 | 6286003 | [4-investigate-why-mr-was-not-created-despi](./quick/4-investigate-why-mr-was-not-created-despi/) |
 
 ## Session Continuity
 
 Last session: 2026-02-25
-Last activity: 2026-02-25 - Completed quick task 3: Load GitLab token from .env file
+Last activity: 2026-02-25 - Completed quick task 4: Fix false-positive MR_CREATED outcome
 Resume file: None
