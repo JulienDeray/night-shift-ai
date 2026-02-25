@@ -93,6 +93,8 @@ export function deriveSummary(result: CodeAgentRunResult): string {
   switch (result.outcome) {
     case "MR_CREATED":
       return result.mrUrl ?? "MR created";
+    case "MR_FAILED":
+      return result.reason ?? "MR creation failed";
     case "NO_IMPROVEMENT":
       return result.reason ?? "No improvement found";
     case "ABANDONED":
