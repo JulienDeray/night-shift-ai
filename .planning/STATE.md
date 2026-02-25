@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Pluggable Agent Architecture
-status: defining_requirements
+status: roadmap_created
 last_updated: "2026-02-25"
 progress:
-  total_phases: 0
+  total_phases: 7
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -18,14 +18,34 @@ progress:
 See: .planning/PROJECT.md (updated 2026-02-25)
 
 **Core value:** Small, focused merge requests that appear in the morning — one coherent improvement per night, easy to review, never overwhelming.
-**Current focus:** v2.0 Pluggable Agent Architecture
+**Current focus:** Phase 5 — Dispatch Foundation
 
 ## Current Position
 
-Phase: Not started (defining requirements)
-Plan: —
-Status: Defining requirements
-Last activity: 2026-02-25 — Milestone v2.0 started
+Phase: 5 of 11 (Dispatch Foundation) — first v2.0 phase
+Plan: — (not yet planned)
+Status: Ready to plan
+Last activity: 2026-02-25 — v2.0 roadmap created (7 phases, 21 requirements mapped)
+
+Progress: [░░░░░░░░░░] 0% (v2.0)
+
+## Performance Metrics
+
+**Velocity (v1.0 baseline):**
+- Total plans completed: 8 (v1.0)
+- Average duration: ~30 min
+- Total execution time: ~4 hours
+
+**By Phase (v1.0):**
+
+| Phase | Plans | Status |
+|-------|-------|--------|
+| 1. Notification Foundation | 2 | Complete |
+| 2. Orchestrator Hooks | 2 | Complete |
+| 3. Agent Prompt and Security | 2 | Complete |
+| 4. Git Harness and Logging | 2 | Complete |
+
+*v2.0 metrics will populate as plans complete*
 
 ## Accumulated Context
 
@@ -33,16 +53,26 @@ Last activity: 2026-02-25 — Milestone v2.0 started
 
 Full decision log in PROJECT.md Key Decisions table.
 
+Key v2.0 design decisions locked in research:
+- `isCodeAgent` retired in Phase 5 before any new agent type is added
+- Manifest schema (Phase 6) must be locked before engine (Phase 8) is written
+- Config migration uses expand-and-contract: both `code_agent:` and `agents:` accepted simultaneously
+- `AgentEngine` must be generic — zero code-agent-specific logic in the engine
+
 ### Pending Todos
 
 None.
 
 ### Blockers/Concerns
 
-Open items for next milestone validation:
-- Skip criteria thresholds in bead prompts need empirical tuning after first real runs
-- GIT_CONFIG_NOSYSTEM=1 credential blocking needs integration test on actual machine config
-- Confluence macro-stripping workaround needs validation against real Confluence instance
+Carried from v1.0 (need empirical validation):
+- Skip criteria thresholds in bead prompts need tuning after first real runs
+- GIT_CONFIG_NOSYSTEM=1 credential blocking needs integration test
+- Confluence macro-stripping workaround needs validation against real instance
+
+Research flags for planning (investigate before finalizing plans):
+- Phase 6: `BeadPlugin<TInput, TOutput>` generic design — read both plugin implementations before finalizing interface
+- Phase 9: Category rotation in manifest — read `resolveCategory()` in `scheduler.ts` before designing manifest representation
 
 ### Quick Tasks Completed
 
@@ -56,5 +86,5 @@ Open items for next milestone validation:
 ## Session Continuity
 
 Last session: 2026-02-25
-Last activity: 2026-02-25 - Completed quick task 4: Fix false-positive MR_CREATED outcome
+Stopped at: v2.0 roadmap created — ready to plan Phase 5
 Resume file: None

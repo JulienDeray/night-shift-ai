@@ -81,33 +81,33 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| FOUN-01 | Pending | Pending |
-| FOUN-02 | Pending | Pending |
-| FOUN-03 | Pending | Pending |
-| MFST-01 | Pending | Pending |
-| MFST-02 | Pending | Pending |
-| MFST-03 | Pending | Pending |
-| PLUG-01 | Pending | Pending |
-| PLUG-02 | Pending | Pending |
-| PLUG-03 | Pending | Pending |
-| PLUG-04 | Pending | Pending |
-| ENGN-01 | Pending | Pending |
-| ENGN-02 | Pending | Pending |
-| ENGN-03 | Pending | Pending |
-| MIGR-01 | Pending | Pending |
-| MIGR-02 | Pending | Pending |
-| WIRE-01 | Pending | Pending |
-| WIRE-02 | Pending | Pending |
-| WIRE-03 | Pending | Pending |
-| DX-01 | Pending | Pending |
-| DX-02 | Pending | Pending |
-| DX-03 | Pending | Pending |
+| FOUN-01 | Phase 5 | Pending |
+| FOUN-02 | Phase 5 | Pending |
+| FOUN-03 | Phase 5 | Pending |
+| MFST-01 | Phase 6 | Pending |
+| MFST-02 | Phase 6 | Pending |
+| MFST-03 | Phase 6 | Pending |
+| PLUG-01 | Phase 6 | Pending |
+| PLUG-02 | Phase 6 | Pending |
+| PLUG-03 | Phase 6 | Pending |
+| PLUG-04 | Phase 6 | Pending |
+| MIGR-02 | Phase 7 | Pending |
+| WIRE-03 | Phase 7 | Pending |
+| ENGN-01 | Phase 8 | Pending |
+| ENGN-02 | Phase 8 | Pending |
+| ENGN-03 | Phase 8 | Pending |
+| MIGR-01 | Phase 9 | Pending |
+| WIRE-01 | Phase 10 | Pending |
+| WIRE-02 | Phase 10 | Pending |
+| DX-01 | Phase 11 | Pending |
+| DX-02 | Phase 11 | Pending |
+| DX-03 | Phase 11 | Pending |
 
 **Coverage:**
 - v2.0 requirements: 21 total
-- Mapped to phases: 0
-- Unmapped: 21 (pending roadmap creation)
+- Mapped to phases: 21
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-02-25*
-*Last updated: 2026-02-25 after initial definition*
+*Last updated: 2026-02-25 after roadmap creation (phases 5-11)*
