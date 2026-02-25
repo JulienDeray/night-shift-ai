@@ -22,7 +22,7 @@ export interface BeadResult {
   timedOut: boolean;
 }
 
-export type CodeAgentOutcome = "MR_CREATED" | "NO_IMPROVEMENT" | "ABANDONED";
+export type CodeAgentOutcome = "MR_CREATED" | "MR_FAILED" | "NO_IMPROVEMENT" | "ABANDONED";
 
 export interface CodeAgentRunResult {
   outcome: CodeAgentOutcome;

@@ -336,7 +336,7 @@ describe("runCodeAgentPipeline", () => {
         .mockResolvedValueOnce(makeBeadResult()) // verify attempt 1 -> fail
         .mockResolvedValueOnce(makeBeadResult()) // implement attempt 2
         .mockResolvedValueOnce(makeBeadResult()) // verify attempt 2 -> pass
-        .mockResolvedValueOnce(makeMrBeadResult("https://gitlab.com/-/mr/5")); // mr
+        .mockResolvedValueOnce(makeMrBeadResult("https://gitlab.com/team/repo/-/merge_requests/5")); // mr
 
       mockFsReadFile
         .mockResolvedValueOnce(makeAnalysisJson("IMPROVEMENT_FOUND") as never) // analyze
@@ -374,7 +374,7 @@ describe("runCodeAgentPipeline", () => {
         .mockResolvedValueOnce(makeBeadResult()) // analyze refactoring
         .mockResolvedValueOnce(makeBeadResult()) // implement refactoring
         .mockResolvedValueOnce(makeBeadResult()) // verify refactoring
-        .mockResolvedValueOnce(makeMrBeadResult("https://gitlab.com/-/mr/99")); // mr
+        .mockResolvedValueOnce(makeMrBeadResult("https://gitlab.com/team/repo/-/merge_requests/99")); // mr
 
       mockFsReadFile
         .mockResolvedValueOnce(makeAnalysisJson("IMPROVEMENT_FOUND") as never) // tests analyze
@@ -407,7 +407,7 @@ describe("runCodeAgentPipeline", () => {
         .mockResolvedValueOnce(makeBeadResult()) // verify 1 -> fail
         .mockResolvedValueOnce(makeBeadResult()) // implement 2
         .mockResolvedValueOnce(makeBeadResult()) // verify 2 -> pass
-        .mockResolvedValueOnce(makeMrBeadResult("https://gitlab.com/-/mr/1")); // mr
+        .mockResolvedValueOnce(makeMrBeadResult("https://gitlab.com/team/repo/-/merge_requests/1")); // mr
 
       mockFsReadFile
         .mockResolvedValueOnce(makeAnalysisJson("IMPROVEMENT_FOUND") as never)
@@ -442,7 +442,7 @@ describe("runCodeAgentPipeline", () => {
         .mockResolvedValueOnce(makeBeadResult()) // analyze refactoring
         .mockResolvedValueOnce(makeBeadResult()) // implement refactoring
         .mockResolvedValueOnce(makeBeadResult()) // verify refactoring pass
-        .mockResolvedValueOnce(makeMrBeadResult("https://gitlab.com/-/mr/2")); // mr
+        .mockResolvedValueOnce(makeMrBeadResult("https://gitlab.com/team/repo/-/merge_requests/2")); // mr
 
       mockFsReadFile
         .mockResolvedValueOnce(makeAnalysisJson("IMPROVEMENT_FOUND") as never)
@@ -471,7 +471,7 @@ describe("runCodeAgentPipeline", () => {
         .mockResolvedValueOnce(makeBeadResult()) // analyze
         .mockResolvedValueOnce(makeBeadResult()) // implement
         .mockResolvedValueOnce(makeBeadResult()) // verify
-        .mockResolvedValueOnce(makeMrBeadResult("https://gitlab.com/-/mr/1"));
+        .mockResolvedValueOnce(makeMrBeadResult("https://gitlab.com/team/repo/-/merge_requests/1"));
 
       mockFsReadFile
         .mockResolvedValueOnce(makeAnalysisJson("IMPROVEMENT_FOUND") as never)
@@ -495,7 +495,7 @@ describe("runCodeAgentPipeline", () => {
         .mockResolvedValueOnce(makeBeadResult())
         .mockResolvedValueOnce(makeBeadResult())
         .mockResolvedValueOnce(makeBeadResult())
-        .mockResolvedValueOnce(makeMrBeadResult("https://gitlab.com/-/mr/1"));
+        .mockResolvedValueOnce(makeMrBeadResult("https://gitlab.com/team/repo/-/merge_requests/1"));
 
       mockFsReadFile
         .mockResolvedValueOnce(makeAnalysisJson("IMPROVEMENT_FOUND") as never)
@@ -519,7 +519,7 @@ describe("runCodeAgentPipeline", () => {
         .mockResolvedValueOnce(makeBeadResult())
         .mockResolvedValueOnce(makeBeadResult())
         .mockResolvedValueOnce(makeBeadResult())
-        .mockResolvedValueOnce(makeMrBeadResult("https://gitlab.com/-/mr/1"));
+        .mockResolvedValueOnce(makeMrBeadResult("https://gitlab.com/team/repo/-/merge_requests/1"));
 
       mockFsReadFile
         .mockResolvedValueOnce(makeAnalysisJson("IMPROVEMENT_FOUND") as never)
@@ -545,7 +545,7 @@ describe("runCodeAgentPipeline", () => {
         .mockResolvedValueOnce(makeBeadResult())
         .mockResolvedValueOnce(makeBeadResult())
         .mockResolvedValueOnce(makeBeadResult())
-        .mockResolvedValueOnce(makeMrBeadResult("https://gitlab.com/-/mr/1"));
+        .mockResolvedValueOnce(makeMrBeadResult("https://gitlab.com/team/repo/-/merge_requests/1"));
 
       mockFsReadFile
         .mockResolvedValueOnce(makeAnalysisJson("IMPROVEMENT_FOUND") as never)
@@ -636,7 +636,7 @@ describe("runCodeAgentPipeline", () => {
         .mockResolvedValueOnce(makeBeadResult()) // analyze tests -> IMPROVEMENT_FOUND
         .mockResolvedValueOnce(makeBeadResult()) // implement
         .mockResolvedValueOnce(makeBeadResult()) // verify
-        .mockResolvedValueOnce(makeMrBeadResult("https://gitlab.com/-/mr/3"));
+        .mockResolvedValueOnce(makeMrBeadResult("https://gitlab.com/team/repo/-/merge_requests/3"));
 
       mockFsReadFile
         .mockResolvedValueOnce(makeAnalysisJson("NO_IMPROVEMENT") as never)

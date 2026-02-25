@@ -234,6 +234,7 @@ async function runVerifyBead(
 
 interface MrBeadResult {
   mrUrl: string | undefined;
+  exitCode: number;
   cost: number;
   duration: number;
 }
@@ -300,6 +301,7 @@ async function runMrBead(
 
   return {
     mrUrl,
+    exitCode: beadResult.exitCode,
     cost: beadResult.costUsd,
     duration: beadResult.durationMs,
   };
@@ -439,6 +441,25 @@ export async function runCodeAgentPipeline(
     const mrResult = await runMrBead(ctx, category, guidance, actualCategory);
     totalCost += mrResult.cost;
     totalDuration += mrResult.duration;
+
+    // Validate MR was actually created (exit code 0 AND URL extracted)
+    if (mrResult.exitCode !== 0 || !mrResult.mrUrl) {
+      ctx.logger.warn("MR bead completed but MR was not created", {
+        exitCode: mrResult.exitCode,
+        hasUrl: !!mrResult.mrUrl,
+      });
+      return {
+        outcome: "MR_FAILED",
+        mrUrl: mrResult.mrUrl,
+        categoryUsed: actualCategory,
+        isFallback,
+        reason: mrResult.mrUrl
+          ? undefined
+          : `MR bead exited with code ${mrResult.exitCode} and no MR URL was found`,
+        totalCostUsd: totalCost,
+        totalDurationMs: totalDuration,
+      };
+    }
 
     return {
       outcome: "MR_CREATED",
