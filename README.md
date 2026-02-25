@@ -12,6 +12,8 @@ Night-shift turns day to day tasks into fire-and-forget jobs that execute while 
 
 The system is **local-first** by design. No cloud infrastructure, no servers, no accounts. A background daemon on your machine polls for ready tasks, spawns `claude -p` processes with your existing MCP server connections (Jira, Confluence, filesystem, etc.), and writes results as markdown files you can read in the morning.
 
+Night-shift ships with a **code improvement agent** that clones a GitLab repo each night, finds one small, reviewable improvement based on a config-driven category rotation (tests, refactoring, docs, etc.), and creates a merge request. Results are logged to a local file and a Confluence page. Push notifications via [Ntfy](https://ntfy.sh) keep you informed of task starts, successes, and failures.
+
 Night-shift requires the [Claude CLI](https://claude.ai/download) — all agent execution goes through `claude -p`.
 
 Task tracking uses [beads](https://github.com/steveyegge/beads) for dependency graphs and atomic claiming, but falls back to a simple file-based queue when beads is unavailable.
@@ -20,6 +22,7 @@ Task tracking uses [beads](https://github.com/steveyegge/beads) for dependency g
 
 - **Node.js >= 20**
 - **[Claude CLI](https://claude.ai/download)** — the agent runtime (`claude -p`)
+- **[glab](https://gitlab.com/gitlab-org/cli)** (for code improvement agent) — GitLab CLI, pre-authenticated
 - **[beads](https://github.com/steveyegge/beads)** (optional) — enables dependency graphs and atomic task claiming; falls back to a file-based queue without it
 
 ## Quick Start
@@ -155,14 +158,17 @@ nightshift stop
 User ──► CLI (nightshift submit/schedule/inbox/...)
               │
               ▼
-         Config (nightshift.yaml)  ◄── recurring tasks + settings
+         Config (nightshift.yaml)  ◄── recurring tasks + settings + ntfy + code_agent
               │
               ▼
          Daemon (background process)
            ├── Scheduler ── evaluates cron → creates tasks for due recurring jobs
            ├── Orchestrator ── main poll loop: schedule → poll → dispatch → collect
+           │     └── NtfyClient ── fire-and-forget push notifications (start/end)
            ├── AgentPool ── manages concurrent claude -p processes
-           │     └── AgentRunner ── single claude -p lifecycle (spawn, timeout, collect)
+           │     ├── AgentRunner ── single claude -p lifecycle (generic tasks)
+           │     └── runCodeAgent ── 4-bead pipeline (code improvement tasks)
+           │           clone → analyze → implement → verify → MR → log
            └── Reporter ── generates markdown inbox reports from results
               │
               ▼
@@ -214,6 +220,17 @@ night-shift/
 │   │   ├── client.ts                  # Wrapper around bd CLI (spawn-based, no shell)
 │   │   ├── types.ts                   # BeadEntry, create/update options
 │   │   └── mapper.ts                 # NightShiftTask ↔ bead mapping
+│   ├── agent/
+│   │   ├── code-agent.ts             # Top-level runCodeAgent harness (clone → pipeline → log → cleanup)
+│   │   ├── code-agent-runner.ts      # 4-bead pipeline orchestrator (analyze → implement → verify → MR)
+│   │   ├── bead-runner.ts            # Single bead execution (env isolation, tool restriction)
+│   │   ├── prompt-loader.ts          # Template loader with injection mitigation preamble
+│   │   ├── git-harness.ts            # Git clone lifecycle with unconditional cleanup
+│   │   ├── run-logger.ts             # JSONL run log appender
+│   │   ├── types.ts                  # Agent pipeline types (BeadResult, CodeAgentRunResult, etc.)
+│   │   └── prompts/                  # Bead prompt templates (analyze, implement, verify, mr, log)
+│   ├── notifications/
+│   │   └── ntfy-client.ts            # Fire-and-forget Ntfy push notifications
 │   ├── inbox/
 │   │   └── reporter.ts               # Markdown report generation with YAML frontmatter
 │   └── utils/
@@ -221,7 +238,8 @@ night-shift/
 │       ├── fs.ts                      # Atomic writes, JSON read/write
 │       └── template.ts               # {{date}}, {{name}} substitution
 ├── tests/
-│   ├── unit/                          # config, process, template, reporter, mapper, scheduler, health
+│   ├── unit/                          # config, process, template, reporter, mapper, scheduler, health,
+│   │                                  # ntfy-client, prompt-loader, code-agent-runner, agent-pool, etc.
 │   └── integration/                   # CLI init + config flow
 ├── nightshift.yaml                    # Created by `nightshift init`
 └── .nightshift/                       # Created by `nightshift init`
@@ -307,6 +325,7 @@ recurring:                        # Recurring tasks evaluated by cron schedule
     output: "inbox/standup-prep-{{date}}.md"   # Optional custom output path
     timeout: "15m"                # Override default timeout
     max_budget_usd: 2.00          # Cost cap for this task
+    notify: true                  # Send Ntfy push notifications for this task
     # model: "sonnet"             # Optional model override
     # mcp_config: "./custom.json" # Optional per-task MCP config
 
@@ -314,6 +333,33 @@ one_off_defaults:
   timeout: "30m"                  # Default timeout for submitted tasks
   max_budget_usd: 5.00            # Default budget for submitted tasks
   # model: "sonnet"               # Default model for submitted tasks
+
+# Push notifications (optional)
+ntfy:
+  topic: "https://ntfy.sh/my-nightshift"   # Ntfy topic URL
+  # token: "tk_..."                         # Optional bearer auth token
+  # base_url: "https://ntfy.sh"            # Override for self-hosted ntfy
+
+# Code improvement agent (optional)
+code_agent:
+  repo_url: "git@gitlab.com:team/project.git"  # SSH URL of target repo
+  confluence_page_id: "12345678"                # Pre-existing Confluence page ID for run log
+  category_schedule:                            # Day-of-week → improvement category
+    monday: [tests]
+    tuesday: [refactoring]
+    wednesday: [docs]
+    thursday: [security]
+    friday: [performance]
+  # prompts:                                    # Override default bead prompt templates
+  #   analyze: "./prompts/analyze.md"
+  #   implement: "./prompts/implement.md"
+  #   verify: "./prompts/verify.md"
+  #   mr: "./prompts/mr.md"
+  #   log: "./prompts/log.md"
+  # reviewer: "username"                        # GitLab reviewer for MRs
+  # allowed_commands: ["npm test", "npm run build"]  # Commands the agent can run
+  # max_tokens: 50000                           # Token budget per bead
+  # log_mcp_config: "./mcp-atlassian.json"      # MCP config for Confluence log bead
 ```
 
 ### Timeout Format
@@ -334,6 +380,35 @@ Output paths support `{{variable}}` substitution:
 | `{{month}}` | `02`             |
 | `{{day}}`   | `19`             |
 | `{{name}}`  | task name        |
+
+## Code Improvement Agent
+
+When `code_agent` is configured in `nightshift.yaml` and a recurring task named `"code-agent"` is defined, the daemon automatically routes it through the code improvement pipeline instead of the generic `AgentRunner`.
+
+The pipeline runs a **4-bead sequence** — each bead is a focused `claude -p` invocation with restricted tools:
+
+1. **Analyze** — scans the repo for improvement candidates in the day's category, outputs a ranked list or `NO_IMPROVEMENT`
+2. **Implement** — applies the selected improvement (up to 3 attempts with `git reset --hard` between retries)
+3. **Verify** — runs build + tests to confirm the change doesn't break anything
+4. **MR** — creates a feature branch, squash-commits, pushes, and opens a merge request via `glab`
+
+After the pipeline, results are logged to a local JSONL file (`.nightshift/logs/code-agent-runs.jsonl`) and optionally to a Confluence page via a **log bead** using MCP Atlassian tools.
+
+**Security**: `GITLAB_TOKEN` is passed only to the MR bead via an explicit environment allowlist. All other beads receive a minimal safe env (`HOME`, `PATH`, `USER`, `LANG`, `SHELL`, `TERM`). The prompt loader prepends a hardcoded injection mitigation preamble to every bead prompt.
+
+**Category fallback**: if the day's category yields `NO_IMPROVEMENT`, the agent tries remaining categories in order (tests, refactoring, docs, security, performance) until one produces a candidate or all are exhausted.
+
+Example recurring task config:
+
+```yaml
+recurring:
+  - name: "code-agent"
+    schedule: "0 2 * * 1-5"        # 2 AM on weekdays
+    prompt: "Run the code improvement agent"
+    notify: true                    # Push notification on start/end
+    timeout: "30m"
+    max_budget_usd: 5.00
+```
 
 ## Agent Execution
 
@@ -436,9 +511,9 @@ npm run build                  # compile to dist/
 
 ### Tests
 
-134 tests across 15 test files:
+244 tests across 21 test files:
 
-- **Unit**: config loading/validation, timeout parsing, process spawning, template rendering, report generation, beads mapper, scheduler cron evaluation, daemon health checks
+- **Unit**: config loading/validation, timeout parsing, process spawning, template rendering, report generation, beads mapper, scheduler cron evaluation, daemon health checks, ntfy client, prompt loader, bead runner, code-agent runner, agent pool dispatch, git harness, run logger
 - **Integration**: full CLI flow for `init`, `config validate`, `config show`
 
 ### Key Design Decisions
@@ -458,6 +533,8 @@ npm run build                  # compile to dist/
 - **Task dependencies**: beads supports dependency graphs (`bd dep add`), but no CLI command exposes this
 - **Per-task MCP config**: the `mcp_config` field is plumbed through types and agent-runner args, but no CLI flag for `submit`
 - **Model flag in recurring tasks**: plumbed through but not exposed in schedule display
+- **Hot-reload of ntfy config**: changes to `ntfy` or `code_agent` config require a daemon restart
+- **Multi-category arrays**: `resolveCategory()` uses only the first element of a category array; multi-value arrays silently drop all but `[0]`
 
 ## Contributing
 
