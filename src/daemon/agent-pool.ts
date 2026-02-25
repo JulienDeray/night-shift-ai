@@ -166,6 +166,8 @@ export class AgentPool {
     switch (result.outcome) {
       case "MR_CREATED":
         return `MR created: ${result.mrUrl ?? "unknown URL"} (category: ${result.categoryUsed})`;
+      case "MR_FAILED":
+        return `MR creation failed (category: ${result.categoryUsed}). ${result.reason ?? ""}`.trim();
       case "NO_IMPROVEMENT":
         return `No improvement found (category: ${result.categoryUsed}). ${result.reason ?? ""}`.trim();
       case "ABANDONED":
