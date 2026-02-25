@@ -19,6 +19,7 @@ export interface NightShiftTask {
   recurringName?: string;
   notify?: boolean;
   category?: string;
+  isCodeAgent?: boolean;
 }
 
 export interface AgentExecutionResult {
