@@ -50,9 +50,10 @@ Open items for next milestone validation:
 | # | Description | Date | Commit | Directory |
 |---|-------------|------|--------|-----------|
 | 1 | Wire runCodeAgent into daemon | 2026-02-25 | 3e5b733 | [1-wire-runcodeagent-into-daemon](./quick/1-wire-runcodeagent-into-daemon/) |
+| 2 | Implement nightshift run command | 2026-02-25 | acad107 | [2-implement-a-nightshift-command-to-run-a-](./quick/2-implement-a-nightshift-command-to-run-a-/) |
 
 ## Session Continuity
 
 Last session: 2026-02-25
-Last activity: 2026-02-25 - Completed quick task 1: Wire runCodeAgent into daemon
+Last activity: 2026-02-25 - Completed quick task 2: Implement nightshift run command
 Resume file: None
