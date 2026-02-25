@@ -284,11 +284,25 @@ async function runMrBead(
   if (beadResult.stdout) {
     try {
       const parsed = JSON.parse(beadResult.stdout) as ClaudeJsonOutput;
+      ctx.logger.info("MR bead JSON output", {
+        resultLength: parsed.result?.length ?? 0,
+        resultPreview: parsed.result?.slice(0, 500),
+        isError: parsed.is_error,
+        sessionId: parsed.session_id,
+      });
       const urlMatch = parsed.result?.match(/https?:\/\/[^\s]+\/merge_requests\/\d+/);
       if (urlMatch) {
         mrUrl = urlMatch[0];
+      } else {
+        ctx.logger.warn("MR URL regex did not match in parsed result", {
+          resultPreview: parsed.result?.slice(0, 1000),
+        });
       }
     } catch {
+      ctx.logger.warn("MR bead stdout was not valid JSON, trying raw match", {
+        stdoutLength: beadResult.stdout.length,
+        stdoutPreview: beadResult.stdout.slice(0, 500),
+      });
       // Try matching URL directly in stdout if JSON parse fails
       const urlMatch = beadResult.stdout.match(
         /https?:\/\/[^\s]+\/merge_requests\/\d+/,
@@ -297,6 +311,14 @@ async function runMrBead(
         mrUrl = urlMatch[0];
       }
     }
+  } else {
+    ctx.logger.warn("MR bead produced no stdout");
+  }
+
+  if (beadResult.stderr) {
+    ctx.logger.info("MR bead stderr", {
+      stderrPreview: beadResult.stderr.slice(0, 500),
+    });
   }
 
   return {
