@@ -650,4 +650,140 @@ describe("runCodeAgentPipeline", () => {
       expect(result.isFallback).toBe(true);
     });
   });
+
+  describe("MR bead failure handling", () => {
+    it("returns MR_FAILED when MR bead exits non-zero", async () => {
+      mockResolveCategory.mockReturnValue("tests");
+
+      // MR bead returns non-zero exit code with no URL
+      const failedMrBead = makeBeadResult({
+        exitCode: 1,
+        stdout: JSON.stringify({
+          session_id: "sess-mr-fail",
+          duration_ms: 1500,
+          total_cost_usd: 0.02,
+          result: "Failed to create MR: authentication error",
+          is_error: true,
+          num_turns: 2,
+        }),
+        durationMs: 1500,
+        costUsd: 0.02,
+      });
+
+      mockRunBead
+        .mockResolvedValueOnce(makeBeadResult()) // analyze
+        .mockResolvedValueOnce(makeBeadResult()) // implement
+        .mockResolvedValueOnce(makeBeadResult()) // verify
+        .mockResolvedValueOnce(failedMrBead); // mr -> fails with exit code 1
+
+      mockFsReadFile
+        .mockResolvedValueOnce(makeAnalysisJson("IMPROVEMENT_FOUND") as never)
+        .mockResolvedValueOnce(makeVerifyJson(true) as never)
+        .mockResolvedValueOnce(makeAnalysisJson("IMPROVEMENT_FOUND") as never);
+
+      const ctx = makeCtx();
+      const result = await runCodeAgentPipeline(ctx);
+
+      expect(result.outcome).toBe("MR_FAILED");
+      expect(result.mrUrl).toBeUndefined();
+      expect(result.categoryUsed).toBe("tests");
+      expect(result.isFallback).toBe(false);
+    });
+
+    it("returns MR_FAILED when MR bead exits 0 but stdout contains no MR URL", async () => {
+      mockResolveCategory.mockReturnValue("tests");
+
+      // MR bead exits 0 but result field has no MR URL
+      const noUrlMrBead = makeBeadResult({
+        exitCode: 0,
+        stdout: JSON.stringify({
+          session_id: "sess-mr-nourl",
+          duration_ms: 1200,
+          total_cost_usd: 0.02,
+          result: "Pushed branch but could not create MR — branch already has an open MR",
+          is_error: false,
+          num_turns: 3,
+        }),
+        durationMs: 1200,
+        costUsd: 0.02,
+      });
+
+      mockRunBead
+        .mockResolvedValueOnce(makeBeadResult()) // analyze
+        .mockResolvedValueOnce(makeBeadResult()) // implement
+        .mockResolvedValueOnce(makeBeadResult()) // verify
+        .mockResolvedValueOnce(noUrlMrBead); // mr -> exits 0 but no URL
+
+      mockFsReadFile
+        .mockResolvedValueOnce(makeAnalysisJson("IMPROVEMENT_FOUND") as never)
+        .mockResolvedValueOnce(makeVerifyJson(true) as never)
+        .mockResolvedValueOnce(makeAnalysisJson("IMPROVEMENT_FOUND") as never);
+
+      const ctx = makeCtx();
+      const result = await runCodeAgentPipeline(ctx);
+
+      expect(result.outcome).toBe("MR_FAILED");
+      expect(result.mrUrl).toBeUndefined();
+    });
+
+    it("returns MR_CREATED only when MR bead exits 0 AND URL is present", async () => {
+      mockResolveCategory.mockReturnValue("tests");
+
+      const mrUrl = "https://gitlab.com/team/repo/-/merge_requests/77";
+
+      mockRunBead
+        .mockResolvedValueOnce(makeBeadResult()) // analyze
+        .mockResolvedValueOnce(makeBeadResult()) // implement
+        .mockResolvedValueOnce(makeBeadResult()) // verify
+        .mockResolvedValueOnce(makeMrBeadResult(mrUrl)); // mr -> exits 0 with valid URL
+
+      mockFsReadFile
+        .mockResolvedValueOnce(makeAnalysisJson("IMPROVEMENT_FOUND") as never)
+        .mockResolvedValueOnce(makeVerifyJson(true) as never)
+        .mockResolvedValueOnce(makeAnalysisJson("IMPROVEMENT_FOUND") as never);
+
+      const ctx = makeCtx();
+      const result = await runCodeAgentPipeline(ctx);
+
+      expect(result.outcome).toBe("MR_CREATED");
+      expect(result.mrUrl).toBe(mrUrl);
+    });
+
+    it("MR_FAILED result includes reason explaining the failure when no URL found", async () => {
+      mockResolveCategory.mockReturnValue("tests");
+
+      const failedMrBead = makeBeadResult({
+        exitCode: 1,
+        stdout: JSON.stringify({
+          session_id: "sess-mr-reason",
+          duration_ms: 1000,
+          total_cost_usd: 0.01,
+          result: "glab mr create: exit status 1",
+          is_error: true,
+          num_turns: 1,
+        }),
+        durationMs: 1000,
+        costUsd: 0.01,
+      });
+
+      mockRunBead
+        .mockResolvedValueOnce(makeBeadResult()) // analyze
+        .mockResolvedValueOnce(makeBeadResult()) // implement
+        .mockResolvedValueOnce(makeBeadResult()) // verify
+        .mockResolvedValueOnce(failedMrBead); // mr -> fails
+
+      mockFsReadFile
+        .mockResolvedValueOnce(makeAnalysisJson("IMPROVEMENT_FOUND") as never)
+        .mockResolvedValueOnce(makeVerifyJson(true) as never)
+        .mockResolvedValueOnce(makeAnalysisJson("IMPROVEMENT_FOUND") as never);
+
+      const ctx = makeCtx();
+      const result = await runCodeAgentPipeline(ctx);
+
+      expect(result.outcome).toBe("MR_FAILED");
+      expect(result.reason).toBeDefined();
+      expect(result.reason).toContain("MR bead exited with code 1");
+      expect(result.reason).toContain("no MR URL was found");
+    });
+  });
 });
