@@ -64,7 +64,9 @@ export interface CodeAgentConfig {
     implement: string;
     verify: string;
     mr: string;
+    log: string;
   };
+  logMcpConfig?: string;
   reviewer?: string;
   allowedCommands: string[];
   maxTokens?: number;
