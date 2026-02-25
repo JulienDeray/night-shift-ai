@@ -1,8 +1,24 @@
 # Feature Research
 
-**Domain:** Notification-enabled autonomous code improvement daemon
-**Researched:** 2026-02-23
-**Confidence:** HIGH (for notification patterns), MEDIUM (for agent improvement UX), LOW (for some differentiator claims)
+**Domain:** Pluggable agent template system with composable bead pipeline and generic engine
+**Researched:** 2026-02-25
+**Confidence:** HIGH (table stakes derived from existing codebase + ecosystem patterns), MEDIUM (differentiators), LOW (agent sharing UX without prior art in this exact domain)
+
+---
+
+## Context
+
+This is a **subsequent milestone** (v2.0) on top of shipped v1.0. The existing system has:
+- A hardcoded 4-bead pipeline (analyze/implement/verify/mr) in `src/agent/`
+- A single `codeAgent` config block in `nightshift.yaml` wired to `runCodeAgent()`
+- Beads = task-tracking units in the external `bd` CLI (NOT pipeline stages), plus "bead" is reused in v1.0 as the term for each pipeline stage invocation of `claude -p`
+- Zero plugin architecture — pipeline stages, prompts, and runner are all tightly coupled
+
+The v2.0 goal: transform the hardcoded code-agent pipeline into a directory-based agent template system where prompts, bead definitions (pipeline stages), and agent metadata live together in a copyable directory, and `nightshift.yaml` lists multiple such agents by path.
+
+**Important terminology note:** The word "bead" in this codebase carries two meanings:
+1. External beads CLI (`bd` tool) — task tracking and queue management. This is unchanged.
+2. v1.0 "bead" = a single `claude -p` subprocess invocation in the pipeline. This is the "composable bead" the v2.0 feature extends.
 
 ---
 
@@ -10,128 +26,122 @@
 
 ### Table Stakes (Users Expect These)
 
-These are features users assume exist in any notification-enabled automated agent system. Missing these makes the product feel incomplete or broken.
+Features that the v2.0 pluggable architecture must have to be considered complete. Missing any of these means the architecture is still hardcoded.
 
 | Feature | Why Expected | Complexity | Notes |
 |---------|--------------|------------|-------|
-| Task-start notification | Any automated job sends a signal it began — confirms the cron fired and nothing was silently skipped | LOW | POST to ntfy.sh with task name, category, timestamp. Negligible implementation. |
-| Task-end notification (success) | Users need to know work is ready to review in the morning — the entire value prop requires this signal | LOW | Include MR link, category, cost, brief summary. Key field: the MR URL as a clickable action. |
-| Task-end notification (failure or skip) | Silent failures are worse than no automation — user must know if the agent found nothing or errored | LOW | "No improvement found" vs "agent errored" are distinct cases — both need distinct notifications. |
-| Notification opt-in per task via config | Platform convention: not all tasks need notifications; coupling notifications to a specific task type is an anti-pattern | LOW | Add `notify: true/false` to `RecurringTaskSchema` in config.ts, with per-task topic override option. |
-| MR link in completion notification | Developers check the notification, tap it, see the MR — without the link, the notification is noise | LOW | ntfy `X-Click` header carries the MR URL. The agent must surface the URL in its result output. |
-| Distinct success vs failure notification priority | Failures should be higher priority (interrupt), successes can be low/default (informational) | LOW | Use ntfy priority 4 (high) for failure, priority 2 (low) for success — no noise on success. |
-| Config-driven day-to-category mapping | Users want to control what the agent works on each day — without this, the agent is unpredictable | MEDIUM | Map weekday integer (0-6) to category string (tests, refactoring, docs, etc.) in nightshift.yaml. |
-| Fresh repo clone per run | Any persistent checkout accumulates stale state, merge conflicts, and dirty working dirs — a fresh clone is the only reliable approach | MEDIUM | Clone to a temp dir, run the agent, clean up on exit (success or failure). |
-| Agent creates branch + MR | The entire value prop is a ready-to-review MR in the morning — the agent must own the full git workflow | HIGH | `glab` CLI handles branch creation, push, MR creation. Agent receives glab invocations via allowed tools. |
-| Zero-or-one MR constraint | Flooding the repo with half-baked MRs destroys trust in the automation — reviewers will turn it off | MEDIUM | Prompt engineering: agent is explicitly instructed to create an MR only if the improvement is meaningful and self-contained. |
-| Confluence log update | Team visibility into what the agent did over time — without this, the automation is a black box | MEDIUM | Agent appends to a pre-existing Confluence page via MCP. The page ID comes from config. |
-| Local log file | Safety net when Confluence is unavailable or the MCP call fails | LOW | Append a structured line per run to a local JSONL/Markdown file in the inbox directory. |
+| Agent defined as a directory | Any plugin/template system is directory-based — this is the universal pattern (ADK, Claude Skills, .agents spec, Semantic Kernel all use directory-based templates). Without this, agents cannot be shared or versioned independently. | MEDIUM | Directory = `manifest.yaml` + prompt files. Similar to Claude's `.claude/skills/` structure. |
+| `manifest.yaml` declares bead pipeline | The manifest is the contract between the agent directory and the engine. It lists which beads exist, in what order, with what prompt file, model, tools, and output schema. Without this, the engine cannot load an agent without hardcoded knowledge of it. | MEDIUM | Mirrors Semantic Kernel YAML template format and Google ADK agent config. |
+| Generic engine that loads and executes any agent directory | Without a generic engine, you still have a hardcoded runner. The engine must accept a path to an agent directory and drive the pipeline based on the manifest — not based on code knowledge of what analyze/implement/verify/mr means. | HIGH | This is the core architectural shift. The existing `code-agent-runner.ts` becomes a manifest-driven engine. |
+| Code-agent migrated from hardcoded to directory-based | Migration is proof that the architecture works. If code-agent cannot be expressed as a directory template without loss of functionality, the architecture has gaps. | HIGH | All hardcoded CATEGORY_GUIDANCE, FALLBACK_ORDER, prompt paths, bead names must move to the directory or manifest. |
+| `nightshift.yaml` updated to reference agent directories | The config file is the user's control surface. Multi-agent scheduling means listing multiple agent directories with their schedules. Without config schema change, users cannot add new agents. | MEDIUM | `codeAgent:` block replaced with `agents:` list. Each agent entry has `path:`, `schedule:`, and agent-specific vars. |
+| Typed bead input/output via handoff files | Beads already communicate via JSON handoff files (analysis.json, verify.json). This must be formalized: the manifest declares the output schema of each bead, so the engine can validate handoffs and the next bead knows what it receives. Without typing, every bead has implicit contracts that break silently when the agent is refactored. | MEDIUM | JSON Schema or Zod inline schema in manifest. Runtime validation on handoff file content. |
+| Prompt template variable injection from manifest | Prompt files already use `{{variable}}` substitution (via `src/utils/template.ts`). The manifest must declare which variables a bead expects, and the engine must supply built-in vars plus agent-specific vars from config. | LOW | Already exists in `buildBuiltInVars()`. Formalize what is built-in vs manifest-declared vs user-provided. |
+| Agent shareable as a copyable directory | This is the distribution UX. A user should be able to `cp -r agents/code-agent ~/my-agents/my-custom-agent` and point nightshift at it. The agent must be self-contained — no references to absolute paths in the install, no reliance on code constants. | LOW | No npm publish needed. Just directory copy + path reference in config. This is the minimum viable sharing story. |
 
 ---
 
 ### Differentiators (Competitive Advantage)
 
-Features that set this product apart from generic cron-based automation or basic notification scripts. Not required for the core to work, but meaningfully improve the experience.
+Features that make this system meaningfully better than "just restructure the code."
 
 | Feature | Value Proposition | Complexity | Notes |
 |---------|-------------------|------------|-------|
-| Rich ntfy notification with category tag | Lets users filter/route notifications by improvement type on their phone (e.g. mute "docs" nights, never mute "security") | LOW | Use ntfy `X-Tags` with the category name. Tag maps to emoji on Android. |
-| ntfy action button linking to MR | One-tap from notification to MR review — eliminates the friction of finding the link | LOW | ntfy `X-Actions: view, Review MR, https://gitlab.com/...` — only possible when MR was created. |
-| Cost reporting in notification | Transparency builds trust — knowing each run costs $1.20 lets users tune budget caps confidently | LOW | `totalCostUsd` from `AgentExecutionResult` is already available — include in notification body. |
-| Category rotation with override support | Lets users override a specific night (e.g. "force tests tonight") by editing config | LOW | Allow an optional `override_category` field in the code-improvement task config block. |
-| Notification summary includes agent's own words | Instead of generic "improvement found," surface the first sentence of the agent's result — tells users what the improvement actually is | LOW | Parse first 150 chars of `AgentExecutionResult.result` for the notification body. |
-| "No improvement found" as explicit signal, not silence | Distinguishes "ran and found nothing" from "failed" from "never ran" — three different states that all need distinct notifications | LOW | Agent returns a specific exit phrase when skipping. Orchestrator detects it and sends a distinct ntfy message. |
-| Persistent run history in structured local log | JSONL format makes it easy to `jq` the log to see which categories produce the most MRs, what runs cost, etc. | LOW | One JSON line per run with: date, category, mrUrl (nullable), costUsd, durationMs, agentSummary. |
-| Well-crafted system prompt for focused MRs | The quality of the MR is entirely determined by prompt quality — a poor prompt produces unfocused, large, or useless MRs | HIGH | Research shows AI MRs have 1.7x more defects than human ones when not carefully scoped. Investing in prompt quality is the highest-leverage differentiator. |
-| Timeout handling with notification | If the agent times out, user gets a notification explaining what was being attempted — no silent hang | LOW | Orchestrator already tracks `timed-out` status. Extend notification hook to fire on timeout too. |
+| Bead-level retry and fallback declared in manifest | Category fallback (try tests → refactoring → docs) is currently hardcoded in `code-agent-runner.ts`. If this is manifest-configurable, any agent can define its own fallback chain without writing TypeScript. | HIGH | This is complex because fallback is stateful — the engine must track which categories were tried and reset repo state between attempts. Expressing this declaratively in YAML is not trivial. |
+| Per-bead model selection in manifest | v1.0 hardcodes opus-4-6 for analyze/implement and sonnet-4-6 for verify/mr/log. Making this manifest-configurable lets users trade cost vs quality per bead. | LOW | Simple manifest field: `model: claude-sonnet-4-6`. Engine reads it. Big user value, tiny implementation cost. |
+| Per-bead allowed tools declared in manifest | Different beads need different tool sets (analyze: Bash+Read; mr: Bash+Read+Write+glab; log: MCP Atlassian tools). Manifest-declared tools mean the engine enforces isolation without hardcoding it in TypeScript. | LOW | Just moves `allowedTools` arrays from constants in code to manifest YAML. High security value. |
+| Per-bead timeout declared in manifest | Some beads (analyze, implement) need longer timeouts than others (verify, log). Currently all beads share the task-level timeout. Manifest-level per-bead timeout gives agents fine-grained control. | LOW | Manifest field: `timeoutMs: 120000`. Engine applies it per bead. |
+| Env var allowlist declared in manifest | `buildBeadEnv()` currently has a hardcoded allowlist + special-case for GITLAB_TOKEN on mr bead. Manifest can declare `env` per bead, keeping the security invariant without hardcoded bead-name conditionals. | MEDIUM | Security-critical: must preserve the invariant that tokens only reach the bead that needs them. Engine must validate against manifest allowlist, not bead name. |
+| Category schedule inherited from agent manifest | The `categorySchedule` config is currently inside the `codeAgent` block. For multi-agent, each agent in `nightshift.yaml` may want its own schedule. Manifest can declare category-related defaults while the config overrides per-deployment. | LOW | Separation: manifest declares supported categories, config declares the rotation schedule. |
+| Plugin-style bead composition (reuse beads across agents) | An agent can reference a bead type defined elsewhere (e.g., a shared `log-bead` that handles Confluence updates for any agent, not just code-agent). This prevents copy-pasting prompt files across agent directories. | HIGH | This is a v3 feature. The cost of getting shared-bead reference resolution right (path resolution, variable contract compatibility) is high. Start with self-contained agent directories, add cross-agent bead references later. Flag as DEFER. |
+| `nightshift agents list` CLI command | Users with multiple agents configured need to see what agents are loaded, their bead counts, schedule, and last run outcome at a glance. | LOW | Reads `agents:` list from config, resolves manifests, formats a table. Low code cost, high discoverability value. |
 
 ---
 
 ### Anti-Features (Commonly Requested, Often Problematic)
 
-Features that seem useful but create problems that outweigh their value. Explicitly NOT building these.
-
 | Feature | Why Requested | Why Problematic | Alternative |
 |---------|---------------|-----------------|-------------|
-| Multiple MRs per night | "More improvements = more value" | Floods the review queue; each MR competes for reviewer attention; trust erodes quickly when volume overwhelms humans | Hard limit of one MR per run. Quality over quantity. |
-| Agent-chosen category | "The agent knows what the code needs most" | Unpredictable; makes the schedule feel random; harder to explain to teammates; removes user control | Config-driven day-to-category mapping. User controls the schedule. |
-| Persistent repo checkout between runs | "Faster startup; agent can see its own history" | Stale state, merge conflicts from main branch drift, dirty working dirs that confuse the agent | Fresh clone per run. Stateless by design. |
-| Notification for every agent tool call | "Full observability" | Notification spam kills the value of notifications — users stop reading them entirely | Notify on start and end only. Logs capture the detail. |
-| Real-time progress notifications mid-run | "I want to know if it's stuck" | ntfy.sh free tier rate limits; worse: creates false urgency for a background process; users can check daemon status via CLI | Single start notification. End notification carries all relevant info. |
-| Interactive approval before MR creation | "I want to review before it's public" | Defeats the purpose of overnight automation; requires the user to be awake; turns async into sync | Fully autonomous. MR is the review artifact. User reviews the MR on GitLab at their convenience. |
-| Custom MCP server config per improvement task | "Different categories need different tools" | Every task already inherits the user's Claude CLI MCP config; adding per-task MCP config creates maintenance burden and security surface | Use `--allowedTools` to scope which MCP tools the agent can use per category. |
-| Database for run history | "Better querying than log files" | Adds operational complexity (migrations, backups, schema evolution) for a personal/team tool; overkill | JSONL local log + Confluence page. Both are human-readable and `jq`-queryable. |
-| Auto-merge of agent MRs | "If CI passes, merge automatically" | AI-generated code has 1.7x more defects than human code (2025 research); auto-merge removes the human safety valve that justifies autonomous MR creation | Always require a human to merge. The MR is the review step, not an obstacle. |
-| Multi-repo support | "I want to improve all my repos" | Scope creep; different repos have different contexts, standards, glab configs; hardcoded single-repo keeps the system predictable and debuggable | One repo, configured in nightshift.yaml. |
+| npm-publish agent packages | "Make agents installable like npm packages." Looks like a clean distribution story. | Adds version management complexity, registry maintenance, and `node_modules` bloat. Most agents are personal tools or team-specific. Premature abstraction before the format is stable. | Directory copy + path reference in config. Let the format stabilize over 5+ real agents before standardizing on a registry. |
+| Agent runtime isolation (Docker/VM) | "Each agent runs in its own sandbox for security." | Enormous operational complexity. The existing `buildBeadEnv()` allowlist + `GIT_CONFIG_NOSYSTEM=1` already provides meaningful isolation without containers. Containers add startup latency (10-60s) that undermines the nightly run budget. | `--allowedTools` restriction + env var allowlist declared in manifest. This is the right isolation boundary for a local tool. |
+| GUI for building agent templates | "I don't want to write YAML." | A GUI generates YAML that users don't understand and can't debug. The user base for night-shift is engineers who are comfortable with YAML config. A GUI adds a frontend build surface for near-zero marginal users. | Good documentation with examples. A `nightshift agent init <name>` scaffold CLI command that writes a starter directory is sufficient. |
+| Dynamic bead registration at runtime | "Load new bead types from npm without restarting." | Hot-loading arbitrary code at runtime is a security surface. Night-shift runs with the user's full credentials. Any bead loaded dynamically has those credentials. | Manifests declare known, static bead pipelines. New bead types require a night-shift version bump. |
+| Agent-to-agent communication mid-pipeline | "Have the analyze agent ask the implement agent a question." | Cross-agent communication during a pipeline run requires message-passing infrastructure (queues, shared state) that massively exceeds the complexity budget of a personal tool. | Handoff files are sufficient: beads communicate via structured JSON files in the handoff directory. No real-time messaging needed. |
+| LLM-driven bead ordering | "Let the model decide which beads to run and in what order." | This is the orchestration trap: using LLMs for what YAML is good at — sequencing, counting, routing. Non-deterministic ordering makes debugging impossible and breaks the manifest contract. | Fixed sequential bead order declared in the manifest, with optional per-bead skip conditions (e.g., "skip implement if analyze returns NO_IMPROVEMENT"). |
+| Parallel bead execution | "Run verify and analyze simultaneously for speed." | The existing pipeline is sequential by design: each bead's output is the next bead's input. Parallel execution with handoff dependencies requires a DAG executor, which is overkill. | Keep sequential pipeline. If a future agent genuinely needs parallel stages, that's a separate feature request backed by evidence. |
 
 ---
 
 ## Feature Dependencies
 
 ```
-[Ntfy platform integration (config + HTTP client)]
-    └──required by──> [Task-start notification]
-    └──required by──> [Task-end notification (success/failure/skip/timeout)]
-                          └──requires──> [Agent result parsing (MR URL extraction)]
+[manifest.yaml format]
+    └──required by──> [Generic engine]
+                          └──required by──> [Code-agent migration]
+                          └──required by──> [Multi-agent config in nightshift.yaml]
 
-[Config-driven day-to-category mapping]
-    └──required by──> [Code improvement agent prompt construction]
-                          └──required by──> [Fresh clone + branch + MR creation]
-                                               └──required by──> [Confluence log update]
-                                               └──required by──> [Local log file]
+[Typed handoff schema in manifest]
+    └──required by──> [Runtime handoff validation]
+    └──required by──> [Next-bead input contract]
 
-[MR URL available in agent result]
-    └──enables──> [ntfy action button to MR] (enhances end notification)
-    └──enables──> [MR link in Confluence log row]
+[Per-bead env allowlist in manifest]
+    └──replaces──> [buildBeadEnv() hardcoded GITLAB_TOKEN logic]
+    └──required by──> [Security invariant preserved in generic engine]
 
-[Agent result summary text]
-    └──enables──> [Notification body with agent's own words] (enhances end notification)
-    └──enables──> [Local log file entry]
+[Per-bead model in manifest]
+    └──replaces──> [hardcoded "claude-opus-4-6" / "claude-sonnet-4-6" in code-agent-runner.ts]
+
+[Per-bead allowed tools in manifest]
+    └──replaces──> [hardcoded LOG_BEAD_ALLOWED_TOOLS, default ["Bash", "Read", "Write"]]
+
+[Code-agent migrated to directory]
+    └──enables──> [Agent shareable as copyable directory]
+    └──validates──> [Generic engine works end-to-end]
+
+[nightshift.yaml agents: list]
+    └──requires──> [Generic engine]
+    └──enables──> [Multiple agents with different schedules]
+    └──enables──> [nightshift agents list CLI command]
 ```
 
 ### Dependency Notes
 
-- **Ntfy integration requires config first:** The topic URL, optional token, and per-task opt-in must be in `nightshift.yaml` before any notification can fire. Ntfy config block is a prerequisite for all notification features.
-- **MR URL extraction requires agent output parsing:** The agent's result text must contain the MR URL in a parseable location. Prompt must instruct the agent to output the URL on its own line or in a structured format.
-- **Action button depends on MR URL availability:** The ntfy `X-Actions` view button can only be set if an MR was actually created. On skip/failure, the action button should be omitted.
-- **Confluence update depends on MR outcome:** The log entry should record whether an MR was created, its URL, or that the run was skipped — requires parsing the agent result before calling Confluence MCP.
-- **Category rotation is independent:** Day-to-category mapping does not depend on notifications — it feeds the prompt only. It can be built and tested without ntfy being in place.
+- **manifest.yaml is the keystone:** Every other v2.0 feature either reads from or is validated by the manifest. It must be designed first and the schema locked before the engine is written.
+- **Generic engine requires manifest to be stable:** If the manifest schema changes during engine development, both must be updated together. Lock the schema in Phase 1, implement the engine in Phase 2.
+- **Code-agent migration is the integration test for the engine:** Do not ship the engine without migrating code-agent. Migration validates that no information is lost when going from hardcoded to manifest-driven.
+- **nightshift.yaml schema change is a breaking change:** The existing `codeAgent:` block must either be deprecated with a migration path, or the old schema accepted alongside the new `agents:` list. Migration strategy must be decided before Phase 1.
+- **Per-bead env allowlist replaces a security-critical code path:** The current `buildBeadEnv()` bead-name conditional is tested by 4 unit tests. Any manifest-driven replacement must have equivalent test coverage.
 
 ---
 
 ## MVP Definition
 
-### Launch With (v1)
+### Launch With (v2.0)
 
-Minimum to make the milestone useful and trustworthy.
+Minimum to validate the pluggable architecture and migrate the existing code-agent.
 
-- [ ] Ntfy config block in `nightshift.yaml` (`topic`, `token` optional, per-task `notify: true/false`) — without this, nothing else can be built
-- [ ] HTTP client wrapper around ntfy.sh POST (reusable across all tasks) — platform feature, not task-specific
-- [ ] Task-start notification with task name and category — confirms the cron fired
-- [ ] Task-end notification (success) with MR link, category, cost, brief summary — the morning signal
-- [ ] Task-end notification (failure/skip) with distinct message and high priority — required for trust
-- [ ] Config-driven day-to-category mapping in nightshift.yaml — controls what runs each night
-- [ ] Code improvement agent: fresh clone, find improvement, create branch + commit + MR via glab — the core value
-- [ ] Zero-or-one MR constraint enforced via prompt — quality gate
-- [ ] Local log file appended per run — safety net if Confluence is down
+- [ ] `manifest.yaml` schema — declares bead pipeline (ordered list of beads with name, prompt file, model, allowedTools, env vars, timeoutMs, output schema) — this is the format everything else depends on
+- [ ] Generic engine (`src/agent/engine.ts`) — loads a manifest from a directory, drives beads in order, handles handoff files, accumulates cost/duration — replaces hardcoded `code-agent-runner.ts`
+- [ ] Code-agent directory (`agents/code-agent/`) — manifest + prompt files + category guidance — migration of the existing hardcoded implementation
+- [ ] Handoff file validation — engine validates bead output against manifest-declared schema before passing to next bead; invalid output is logged and treated as bead failure
+- [ ] nightshift.yaml `agents:` list — replaces `codeAgent:` block; each entry has `path`, `schedule`, and agent-specific variables; Zod schema validates
+- [ ] `nightshift.yaml` migration compatibility — old `codeAgent:` block accepted with a deprecation warning; users get a clear message pointing to the new format
 
-### Add After Validation (v1.x)
+### Add After Validation (v2.x)
 
-Add once core is working and run history shows the agent is producing quality MRs.
+After the first real run with the migrated code-agent confirms end-to-end operation.
 
-- [ ] Rich ntfy notification with category emoji tag — after confirming basic notifications work reliably
-- [ ] ntfy action button linking to MR — add once MR URL extraction from agent output is confirmed reliable
-- [ ] Confluence log update — add after local log is confirmed working; Confluence MCP adds external dependency
-- [ ] Cost reporting in notification body — easy add-on once core notification is stable
-- [ ] Notification on timeout — extend existing hook once the happy path is solid
+- [ ] `nightshift agent init <name>` scaffold command — creates a starter agent directory with manifest.yaml and placeholder prompt files
+- [ ] `nightshift agents list` CLI command — lists configured agents with bead count, schedule, and last run outcome
+- [ ] Per-bead fallback categories in manifest — moves the `FALLBACK_ORDER` constant from TypeScript to manifest YAML; configurable per agent
 
-### Future Consideration (v2+)
+### Future Consideration (v3+)
 
-Defer until the tool has proven its value over weeks of real runs.
+Defer until multiple real agents have been built and the format has stabilized.
 
-- [ ] Category override support in config — "force tests tonight" — only needed if users actually want to deviate from the weekly schedule
-- [ ] Notification summary from agent's own words — requires reliable parsing; better done after studying real agent outputs
-- [ ] Structured run analytics (success rate per category, avg cost, MR acceptance rate) — only meaningful after 20+ runs of data
+- [ ] Cross-agent bead reuse — reference a shared bead definition from multiple agent directories; requires path resolution and variable contract compatibility
+- [ ] Agent registry / discovery — a way to find and install community agent templates; only justified after 10+ community agents exist
+- [ ] Bead output caching — cache analyze bead output across runs to avoid re-analysis when implementation failed; adds state management complexity
 
 ---
 
@@ -139,58 +149,59 @@ Defer until the tool has proven its value over weeks of real runs.
 
 | Feature | User Value | Implementation Cost | Priority |
 |---------|------------|---------------------|----------|
-| Ntfy config + HTTP client | HIGH | LOW | P1 |
-| Task-start notification | MEDIUM | LOW | P1 |
-| Task-end notification (success + fail) | HIGH | LOW | P1 |
-| Day-to-category config mapping | HIGH | LOW | P1 |
-| Fresh clone per run | HIGH | MEDIUM | P1 |
-| Agent creates branch + MR via glab | HIGH | HIGH | P1 |
-| Zero-or-one MR constraint (prompt) | HIGH | MEDIUM | P1 |
-| Local log file | MEDIUM | LOW | P1 |
-| Well-crafted system prompt | HIGH | HIGH | P1 |
-| Confluence log update | MEDIUM | MEDIUM | P2 |
-| ntfy action button (MR link) | MEDIUM | LOW | P2 |
-| Rich tags + emoji in notification | LOW | LOW | P2 |
-| Cost in notification body | LOW | LOW | P2 |
-| Timeout notification | MEDIUM | LOW | P2 |
-| Category override support | LOW | LOW | P3 |
-| Notification body from agent text | LOW | MEDIUM | P3 |
-| Run analytics / reporting | LOW | HIGH | P3 |
+| manifest.yaml schema design | HIGH | LOW | P1 |
+| Generic engine | HIGH | HIGH | P1 |
+| Code-agent migrated to directory | HIGH | MEDIUM | P1 |
+| nightshift.yaml `agents:` list | HIGH | MEDIUM | P1 |
+| nightshift.yaml migration compat | HIGH | LOW | P1 |
+| Typed handoff schema + validation | MEDIUM | MEDIUM | P1 |
+| Per-bead model in manifest | HIGH | LOW | P1 |
+| Per-bead allowedTools in manifest | HIGH | LOW | P1 |
+| Per-bead env allowlist in manifest | HIGH | MEDIUM | P1 |
+| Per-bead timeout in manifest | MEDIUM | LOW | P2 |
+| `nightshift agent init` scaffold | MEDIUM | LOW | P2 |
+| `nightshift agents list` command | MEDIUM | LOW | P2 |
+| Manifest-configurable fallback order | MEDIUM | MEDIUM | P2 |
+| Cross-agent bead reuse | LOW | HIGH | P3 |
+| Agent registry / discovery | LOW | HIGH | P3 |
 
 **Priority key:**
-- P1: Must have for milestone launch
-- P2: Should have, add when possible
-- P3: Nice to have, future consideration
+- P1: Must have for v2.0 milestone launch
+- P2: Should have, add after core pipeline is validated
+- P3: Nice to have, defer to v3+
 
 ---
 
-## Competitor Feature Analysis
+## Ecosystem Analysis
 
-No direct competitors exist for this exact combination (personal daemon + ntfy + autonomous MR creation). Closest analogies are:
+No direct competitors exist for this exact combination (local daemon + directory-based agent templates + composable bead pipeline). Relevant analogies:
 
-| Feature | Healthchecks.io / Cronitor (cron monitors) | CodeRabbit / Qodo (AI code review bots) | Our Approach |
-|---------|---------------------------------------------|------------------------------------------|--------------|
-| Task lifecycle notifications | Start + end ping, email/Slack on failure | PR comment on trigger, no proactive push | Ntfy push (mobile), start+end, actionable |
-| Notification fatigue prevention | Alert deduplication, configurable thresholds | Comment batching | Low priority for success, high for failure |
-| MR/PR creation | None (monitoring only) | Review comments on existing PRs | Fully autonomous: clone, branch, commit, push, MR |
-| Category/scope control | None | Prompt in PR trigger | Config-driven day-to-category rotation |
-| History/audit | Dashboard, 12-month retention | PR history | Local JSONL + Confluence page |
-| Human-in-the-loop gate | None needed (monitoring) | Human triggers review | Human reviews and merges MR; never auto-merge |
+| Feature | Google ADK (plugins) | Semantic Kernel (templates) | Claude Skills | Our Approach |
+|---------|---------------------|----------------------------|---------------|--------------|
+| Agent definition format | Python class + YAML config | YAML with template vars | `SKILL.md` with YAML frontmatter | `manifest.yaml` + prompt files directory |
+| Plugin/bead composition | Runner-registered callbacks applied globally | Kernel function chaining | Single-skill invocations | Sequential bead pipeline declared in manifest |
+| Typed IO between stages | OpenTelemetry traces, Zod params | KernelArguments typed | Not specified | JSON handoff files with manifest-declared schema |
+| Distribution | Python packages / Vertex AI | NuGet / pip | Copy `.claude/skills/` directory | Copy agent directory, reference in config |
+| Model per stage | Not native (per-agent config) | Yes, per-function model override | Yes, frontmatter `model:` | Yes, per-bead `model:` in manifest |
+| Tool restrictions per stage | ADK plugin hooks | No native per-function restriction | Yes, frontmatter `allowed-tools:` | Yes, per-bead `allowedTools:` in manifest |
+
+**Key insight from ecosystem analysis:** Claude's own Skills system (directory + SKILL.md + YAML frontmatter) is the closest analogy and validates the directory-based approach. The critical difference: night-shift beads are autonomous subprocess invocations of `claude -p`, not interactive skill activations. The manifest must encode the subprocess configuration that `SKILL.md` frontmatter encodes for interactive sessions.
 
 ---
 
 ## Sources
 
-- ntfy.sh official docs (publish API, priorities, actions): https://docs.ntfy.sh/publish/ — HIGH confidence
-- ntfy.sh integrations list: https://docs.ntfy.sh/integrations/ — HIGH confidence
-- State of AI code quality 2025, Qodo: https://www.qodo.ai/reports/state-of-ai-code-quality/ — MEDIUM confidence (industry report)
-- Best AI coding agents 2026, Faros AI: https://www.faros.ai/blog/best-ai-coding-agents-2026 — MEDIUM confidence (aggregated reviews)
-- Cron job monitoring patterns 2026, Better Stack: https://betterstack.com/community/comparisons/cronjob-monitoring-tools/ — MEDIUM confidence
-- Agent Experience best practices, marmelab: https://marmelab.com/blog/2026/01/21/agent-experience.html — MEDIUM confidence
-- Enhancing code quality at scale with AI, Microsoft Engineering: https://devblogs.microsoft.com/engineering-at-microsoft/enhancing-code-quality-at-scale-with-ai-powered-code-reviews/ — HIGH confidence
-- night-shift codebase (types.ts, config.ts, orchestrator.ts, agent-runner.ts): direct inspection — HIGH confidence
+- Existing night-shift v1.0 codebase: `src/agent/bead-runner.ts`, `src/agent/code-agent-runner.ts`, `src/agent/code-agent.ts`, `src/core/types.ts` — HIGH confidence (direct analysis)
+- Claude Agent Skills spec: [Claude Agent Skills: A First Principles Deep Dive](https://leehanchung.github.io/blogs/2025/10/26/claude-skills-deep-dive/) — MEDIUM confidence
+- `.agents/` folder specification: [github.com/agentsfolder/spec](https://github.com/agentsfolder/spec) — MEDIUM confidence (emerging standard)
+- Semantic Kernel agent templates: [learn.microsoft.com/semantic-kernel/frameworks/agent/agent-templates](https://learn.microsoft.com/en-us/semantic-kernel/frameworks/agent/agent-templates) — HIGH confidence (official docs)
+- Google ADK plugin architecture: [google.github.io/adk-docs/plugins](https://google.github.io/adk-docs/plugins/) — HIGH confidence (official docs)
+- Composable agent pipelines, Tribe AI: [Inside the Machine: How Composable Agents Are Rewiring AI Architecture in 2025](https://www.tribe.ai/applied-ai/inside-the-machine-how-composable-agents-are-rewiring-ai-architecture-in-2025) — MEDIUM confidence
+- Orkes Conductor schema validation: [Input/Output Schema Validation](https://orkes.io/content/developer-guides/schema-validation) — MEDIUM confidence
+- Multi-agent orchestration patterns: [AI Agent Orchestration Patterns, Azure Architecture Center](https://learn.microsoft.com/en-us/azure/architecture/ai-ml/guide/ai-agent-design-patterns) — HIGH confidence (official Microsoft docs)
+- Skywork AI handoff best practices: [Best Practices for Multi-Agent Orchestration and Reliable Handoffs](https://skywork.ai/blog/ai-agent-orchestration-best-practices-handoffs/) — MEDIUM confidence
 
 ---
 
-*Feature research for: notification-enabled autonomous code improvement daemon (night-shift milestone)*
-*Researched: 2026-02-23*
+*Feature research for: pluggable agent template system, composable bead pipeline, generic engine (night-shift v2.0 milestone)*
+*Researched: 2026-02-25*
