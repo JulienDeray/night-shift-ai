@@ -2,7 +2,7 @@
 
 ## What This Is
 
-An extension of the night-shift framework that ships push notifications (Ntfy) as a reusable platform feature and a nightly code improvement agent. The agent clones a specific GitLab repo each night, finds one small, reviewable improvement (tests, refactoring, docs, etc.) based on a config-driven category rotation, creates a merge request via `glab` CLI, and logs results to both a local JSONL file and a Confluence page via MCP.
+A configurable nightly agent platform. Users define agents as directories (prompt files + manifest), compose reusable bead plugins with typed inputs/outputs, add them to nightshift.yaml, and schedule them to run overnight. The built-in code-agent clones a GitLab repo, finds one small improvement per category rotation, and creates a merge request — but any agent can be built and shared the same way.
 
 ## Core Value
 
@@ -34,7 +34,24 @@ Small, focused merge requests that appear in the morning — one coherent improv
 
 ### Active
 
-(No active requirements — next milestone not yet planned)
+<!-- v2.0 Pluggable Agent Architecture — requirements in REQUIREMENTS.md -->
+
+- [ ] Agents defined as directories with prompt files and manifest
+- [ ] Beads are composable plugins with typed inputs and outputs
+- [ ] Code-agent migrated from hardcoded to configured agent template
+- [ ] nightshift.yaml updated for generic agent references
+- [ ] Agents shareable as copyable directories
+
+## Current Milestone: v2.0 Pluggable Agent Architecture
+
+**Goal:** Transform night-shift from a hardcoded code-improvement tool into a configurable agent platform where agents are directories, beads are composable plugins, and code-agent is just one configured template among many.
+
+**Target features:**
+- Agent template format (directory + manifest.yaml + prompt files)
+- Composable bead system with typed inputs/outputs
+- Generic engine that loads and executes any configured agent
+- Code-agent migrated as proof of architecture
+- Config schema updated for multi-agent scheduling
 
 ### Out of Scope
 
@@ -82,4 +99,4 @@ Known areas needing empirical validation after first real runs:
 | buildBeadEnv from allowlist (not process.env filter) | Cannot leak token even if deletion logic has a bug | ✓ Good — structurally safe |
 
 ---
-*Last updated: 2026-02-25 after v1.0 milestone*
+*Last updated: 2026-02-25 after v2.0 milestone start*
