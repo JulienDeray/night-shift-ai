@@ -2,13 +2,13 @@
 gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Pluggable Agent Architecture
-status: roadmap_created
+status: in_progress
 last_updated: "2026-02-25"
 progress:
   total_phases: 7
   completed_phases: 0
-  total_plans: 0
-  completed_plans: 0
+  total_plans: 21
+  completed_plans: 1
 ---
 
 # Project State
@@ -23,11 +23,11 @@ See: .planning/PROJECT.md (updated 2026-02-25)
 ## Current Position
 
 Phase: 5 of 11 (Dispatch Foundation) — first v2.0 phase
-Plan: — (not yet planned)
-Status: Ready to plan
-Last activity: 2026-02-25 — v2.0 roadmap created (7 phases, 21 requirements mapped)
+Plan: 1 of 3 complete
+Status: In progress
+Last activity: 2026-02-25 — completed 05-01 (agent-types.ts + agentName dispatch migration)
 
-Progress: [░░░░░░░░░░] 0% (v2.0)
+Progress: [█░░░░░░░░░] ~5% (v2.0, 1/21 plans complete)
 
 ## Performance Metrics
 
@@ -59,6 +59,11 @@ Key v2.0 design decisions locked in research:
 - Config migration uses expand-and-contract: both `code_agent:` and `agents:` accepted simultaneously
 - `AgentEngine` must be generic — zero code-agent-specific logic in the engine
 
+Phase 5 Plan 01 decisions (2026-02-25):
+- `agentName` optional on NightShiftTask until Phase 10 migration makes it required
+- AgentRunResult import kept live in agent-pool.ts via private field until Phase 10
+- validateAgentName regex handles single-char and multi-char kebab names separately (no trailing hyphens)
+
 ### Pending Todos
 
 None.
@@ -86,5 +91,5 @@ Research flags for planning (investigate before finalizing plans):
 ## Session Continuity
 
 Last session: 2026-02-25
-Stopped at: v2.0 roadmap created — ready to plan Phase 5
+Stopped at: Completed 05-01-PLAN.md (agent-types + agentName dispatch migration)
 Resume file: None
