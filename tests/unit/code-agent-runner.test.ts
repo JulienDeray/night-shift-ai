@@ -75,6 +75,7 @@ function makeCtx(overrides: Partial<PipelineContext> = {}): PipelineContext {
     configDir: "/config",
     repoDir: "/tmp/repo",
     handoffDir: os.tmpdir(),
+    taskId: "abc123",
     gitlabToken: "glpat-test-token-12345",
     timeoutMs: 60000,
     logger,
@@ -140,6 +141,30 @@ function makeVerifyJson(passed: boolean, errorDetails = ""): string {
   });
 }
 
+/**
+ * Returns the structured handoff file content after runAnalyzeBead rewrites it.
+ * Shape: { analysis: <AnalysisResult> }
+ */
+function makeStructuredAnalysisJson(result: "IMPROVEMENT_FOUND" | "NO_IMPROVEMENT", overrides = {}): string {
+  return JSON.stringify({ analysis: JSON.parse(makeAnalysisJson(result, overrides)) });
+}
+
+/**
+ * Returns the structured handoff file content after runVerifyBead runs.
+ * Shape: { analysis: <AnalysisResult>, verify: { passed, error_details } }
+ */
+function makeStructuredVerifyJson(
+  result: "IMPROVEMENT_FOUND" | "NO_IMPROVEMENT",
+  passed: boolean,
+  errorDetails = "",
+  analysisOverrides = {},
+): string {
+  return JSON.stringify({
+    analysis: JSON.parse(makeAnalysisJson(result, analysisOverrides)),
+    verify: { passed, error_details: errorDetails },
+  });
+}
+
 function makeMrBeadResult(mrUrl: string): ReturnType<typeof makeBeadResult> {
   return makeBeadResult({
     stdout: JSON.stringify({
@@ -194,9 +219,10 @@ describe("runCodeAgentPipeline", () => {
         .mockResolvedValueOnce(makeMrBeadResult(mrUrl)); // mr
 
       mockFsReadFile
-        .mockResolvedValueOnce(makeAnalysisJson("IMPROVEMENT_FOUND") as never) // analyze handoff
-        .mockResolvedValueOnce(makeVerifyJson(true) as never) // verify handoff
-        .mockResolvedValueOnce(makeAnalysisJson("IMPROVEMENT_FOUND") as never); // mr reads analysis for short_description
+        .mockResolvedValueOnce(makeAnalysisJson("IMPROVEMENT_FOUND") as never) // analyze: raw agent output
+        .mockResolvedValueOnce(makeStructuredAnalysisJson("IMPROVEMENT_FOUND") as never) // verify pre-read: existing data
+        .mockResolvedValueOnce(makeStructuredVerifyJson("IMPROVEMENT_FOUND", true) as never) // verify post-bead
+        .mockResolvedValueOnce(makeStructuredAnalysisJson("IMPROVEMENT_FOUND") as never); // mr reads analysis
 
       const ctx = makeCtx();
       const result = await runCodeAgentPipeline(ctx);
@@ -219,9 +245,10 @@ describe("runCodeAgentPipeline", () => {
         .mockResolvedValueOnce(makeBeadResult({ costUsd: 0.02, durationMs: 2000 })); // mr
 
       mockFsReadFile
-        .mockResolvedValueOnce(makeAnalysisJson("IMPROVEMENT_FOUND") as never)
-        .mockResolvedValueOnce(makeVerifyJson(true) as never)
-        .mockResolvedValueOnce(makeAnalysisJson("IMPROVEMENT_FOUND") as never);
+        .mockResolvedValueOnce(makeAnalysisJson("IMPROVEMENT_FOUND") as never) // analyze: raw agent output
+        .mockResolvedValueOnce(makeStructuredAnalysisJson("IMPROVEMENT_FOUND") as never) // verify pre-read
+        .mockResolvedValueOnce(makeStructuredVerifyJson("IMPROVEMENT_FOUND", true) as never) // verify post-bead
+        .mockResolvedValueOnce(makeStructuredAnalysisJson("IMPROVEMENT_FOUND") as never); // mr reads analysis
 
       const ctx = makeCtx();
       const result = await runCodeAgentPipeline(ctx);
@@ -245,13 +272,18 @@ describe("runCodeAgentPipeline", () => {
         .mockResolvedValueOnce(makeMrBeadResult(mrUrl)); // mr
 
       mockFsReadFile
-        .mockResolvedValueOnce(makeAnalysisJson("NO_IMPROVEMENT") as never) // tests analyze handoff
+        .mockResolvedValueOnce(makeAnalysisJson("NO_IMPROVEMENT") as never) // tests analyze: raw agent output
         .mockResolvedValueOnce(
           makeAnalysisJson("IMPROVEMENT_FOUND", { categoryUsed: "refactoring" }) as never,
-        ) // refactoring analyze handoff
-        .mockResolvedValueOnce(makeVerifyJson(true) as never) // verify handoff
+        ) // refactoring analyze: raw agent output
         .mockResolvedValueOnce(
-          makeAnalysisJson("IMPROVEMENT_FOUND", { categoryUsed: "refactoring" }) as never,
+          makeStructuredAnalysisJson("IMPROVEMENT_FOUND", { categoryUsed: "refactoring" }) as never,
+        ) // verify pre-read: existing data
+        .mockResolvedValueOnce(
+          makeStructuredVerifyJson("IMPROVEMENT_FOUND", true, "", { categoryUsed: "refactoring" }) as never,
+        ) // verify post-bead
+        .mockResolvedValueOnce(
+          makeStructuredAnalysisJson("IMPROVEMENT_FOUND", { categoryUsed: "refactoring" }) as never,
         ); // mr reads analysis
 
       const ctx = makeCtx();
@@ -274,10 +306,11 @@ describe("runCodeAgentPipeline", () => {
         .mockResolvedValueOnce(makeMrBeadResult("https://gitlab.com/r/-/merge_requests/1"));
 
       mockFsReadFile
-        .mockResolvedValueOnce(makeAnalysisJson("NO_IMPROVEMENT") as never)
-        .mockResolvedValueOnce(makeAnalysisJson("IMPROVEMENT_FOUND") as never)
-        .mockResolvedValueOnce(makeVerifyJson(true) as never)
-        .mockResolvedValueOnce(makeAnalysisJson("IMPROVEMENT_FOUND") as never);
+        .mockResolvedValueOnce(makeAnalysisJson("NO_IMPROVEMENT") as never) // security analyze: raw
+        .mockResolvedValueOnce(makeAnalysisJson("IMPROVEMENT_FOUND") as never) // tests analyze: raw
+        .mockResolvedValueOnce(makeStructuredAnalysisJson("IMPROVEMENT_FOUND") as never) // verify pre-read
+        .mockResolvedValueOnce(makeStructuredVerifyJson("IMPROVEMENT_FOUND", true) as never) // verify post-bead
+        .mockResolvedValueOnce(makeStructuredAnalysisJson("IMPROVEMENT_FOUND") as never); // mr reads analysis
 
       const result = await runCodeAgentPipeline(makeCtx());
 
@@ -339,10 +372,12 @@ describe("runCodeAgentPipeline", () => {
         .mockResolvedValueOnce(makeMrBeadResult("https://gitlab.com/team/repo/-/merge_requests/5")); // mr
 
       mockFsReadFile
-        .mockResolvedValueOnce(makeAnalysisJson("IMPROVEMENT_FOUND") as never) // analyze
-        .mockResolvedValueOnce(makeVerifyJson(false, "sbt test failed") as never) // verify 1 -> fail
-        .mockResolvedValueOnce(makeVerifyJson(true) as never) // verify 2 -> pass
-        .mockResolvedValueOnce(makeAnalysisJson("IMPROVEMENT_FOUND") as never); // mr reads analysis
+        .mockResolvedValueOnce(makeAnalysisJson("IMPROVEMENT_FOUND") as never) // analyze: raw
+        .mockResolvedValueOnce(makeStructuredAnalysisJson("IMPROVEMENT_FOUND") as never) // verify 1 pre-read
+        .mockResolvedValueOnce(makeStructuredVerifyJson("IMPROVEMENT_FOUND", false, "sbt test failed") as never) // verify 1 post-bead -> fail
+        .mockResolvedValueOnce(makeStructuredAnalysisJson("IMPROVEMENT_FOUND") as never) // verify 2 pre-read
+        .mockResolvedValueOnce(makeStructuredVerifyJson("IMPROVEMENT_FOUND", true) as never) // verify 2 post-bead -> pass
+        .mockResolvedValueOnce(makeStructuredAnalysisJson("IMPROVEMENT_FOUND") as never); // mr reads analysis
 
       const result = await runCodeAgentPipeline(makeCtx());
 
@@ -377,16 +412,24 @@ describe("runCodeAgentPipeline", () => {
         .mockResolvedValueOnce(makeMrBeadResult("https://gitlab.com/team/repo/-/merge_requests/99")); // mr
 
       mockFsReadFile
-        .mockResolvedValueOnce(makeAnalysisJson("IMPROVEMENT_FOUND") as never) // tests analyze
-        .mockResolvedValueOnce(makeVerifyJson(false, "error 1") as never) // verify 1
-        .mockResolvedValueOnce(makeVerifyJson(false, "error 2") as never) // verify 2
-        .mockResolvedValueOnce(makeVerifyJson(false, "error 3") as never) // verify 3
+        .mockResolvedValueOnce(makeAnalysisJson("IMPROVEMENT_FOUND") as never) // tests analyze: raw
+        .mockResolvedValueOnce(makeStructuredAnalysisJson("IMPROVEMENT_FOUND") as never) // verify 1 pre-read
+        .mockResolvedValueOnce(makeStructuredVerifyJson("IMPROVEMENT_FOUND", false, "error 1") as never) // verify 1 post-bead
+        .mockResolvedValueOnce(makeStructuredAnalysisJson("IMPROVEMENT_FOUND") as never) // verify 2 pre-read
+        .mockResolvedValueOnce(makeStructuredVerifyJson("IMPROVEMENT_FOUND", false, "error 2") as never) // verify 2 post-bead
+        .mockResolvedValueOnce(makeStructuredAnalysisJson("IMPROVEMENT_FOUND") as never) // verify 3 pre-read
+        .mockResolvedValueOnce(makeStructuredVerifyJson("IMPROVEMENT_FOUND", false, "error 3") as never) // verify 3 post-bead
         .mockResolvedValueOnce(
           makeAnalysisJson("IMPROVEMENT_FOUND", { categoryUsed: "refactoring" }) as never,
-        ) // refactoring analyze
-        .mockResolvedValueOnce(makeVerifyJson(true) as never) // refactoring verify
+        ) // refactoring analyze: raw
         .mockResolvedValueOnce(
-          makeAnalysisJson("IMPROVEMENT_FOUND", { categoryUsed: "refactoring" }) as never,
+          makeStructuredAnalysisJson("IMPROVEMENT_FOUND", { categoryUsed: "refactoring" }) as never,
+        ) // refactoring verify pre-read
+        .mockResolvedValueOnce(
+          makeStructuredVerifyJson("IMPROVEMENT_FOUND", true, "", { categoryUsed: "refactoring" }) as never,
+        ) // refactoring verify post-bead
+        .mockResolvedValueOnce(
+          makeStructuredAnalysisJson("IMPROVEMENT_FOUND", { categoryUsed: "refactoring" }) as never,
         ); // mr reads analysis
 
       const result = await runCodeAgentPipeline(makeCtx());
@@ -410,10 +453,12 @@ describe("runCodeAgentPipeline", () => {
         .mockResolvedValueOnce(makeMrBeadResult("https://gitlab.com/team/repo/-/merge_requests/1")); // mr
 
       mockFsReadFile
-        .mockResolvedValueOnce(makeAnalysisJson("IMPROVEMENT_FOUND") as never)
-        .mockResolvedValueOnce(makeVerifyJson(false, "compile error") as never)
-        .mockResolvedValueOnce(makeVerifyJson(true) as never)
-        .mockResolvedValueOnce(makeAnalysisJson("IMPROVEMENT_FOUND") as never);
+        .mockResolvedValueOnce(makeAnalysisJson("IMPROVEMENT_FOUND") as never) // analyze: raw
+        .mockResolvedValueOnce(makeStructuredAnalysisJson("IMPROVEMENT_FOUND") as never) // verify 1 pre-read
+        .mockResolvedValueOnce(makeStructuredVerifyJson("IMPROVEMENT_FOUND", false, "compile error") as never) // verify 1 post-bead
+        .mockResolvedValueOnce(makeStructuredAnalysisJson("IMPROVEMENT_FOUND") as never) // verify 2 pre-read
+        .mockResolvedValueOnce(makeStructuredVerifyJson("IMPROVEMENT_FOUND", true) as never) // verify 2 post-bead
+        .mockResolvedValueOnce(makeStructuredAnalysisJson("IMPROVEMENT_FOUND") as never); // mr reads analysis
 
       const ctx = makeCtx();
       await runCodeAgentPipeline(ctx);
@@ -445,13 +490,17 @@ describe("runCodeAgentPipeline", () => {
         .mockResolvedValueOnce(makeMrBeadResult("https://gitlab.com/team/repo/-/merge_requests/2")); // mr
 
       mockFsReadFile
-        .mockResolvedValueOnce(makeAnalysisJson("IMPROVEMENT_FOUND") as never)
-        .mockResolvedValueOnce(makeVerifyJson(false) as never)
-        .mockResolvedValueOnce(makeVerifyJson(false) as never)
-        .mockResolvedValueOnce(makeVerifyJson(false) as never)
-        .mockResolvedValueOnce(makeAnalysisJson("IMPROVEMENT_FOUND") as never)
-        .mockResolvedValueOnce(makeVerifyJson(true) as never)
-        .mockResolvedValueOnce(makeAnalysisJson("IMPROVEMENT_FOUND") as never);
+        .mockResolvedValueOnce(makeAnalysisJson("IMPROVEMENT_FOUND") as never) // tests analyze: raw
+        .mockResolvedValueOnce(makeStructuredAnalysisJson("IMPROVEMENT_FOUND") as never) // verify 1 pre-read
+        .mockResolvedValueOnce(makeStructuredVerifyJson("IMPROVEMENT_FOUND", false) as never) // verify 1 post-bead
+        .mockResolvedValueOnce(makeStructuredAnalysisJson("IMPROVEMENT_FOUND") as never) // verify 2 pre-read
+        .mockResolvedValueOnce(makeStructuredVerifyJson("IMPROVEMENT_FOUND", false) as never) // verify 2 post-bead
+        .mockResolvedValueOnce(makeStructuredAnalysisJson("IMPROVEMENT_FOUND") as never) // verify 3 pre-read
+        .mockResolvedValueOnce(makeStructuredVerifyJson("IMPROVEMENT_FOUND", false) as never) // verify 3 post-bead
+        .mockResolvedValueOnce(makeAnalysisJson("IMPROVEMENT_FOUND") as never) // refactoring analyze: raw
+        .mockResolvedValueOnce(makeStructuredAnalysisJson("IMPROVEMENT_FOUND") as never) // refactoring verify pre-read
+        .mockResolvedValueOnce(makeStructuredVerifyJson("IMPROVEMENT_FOUND", true) as never) // refactoring verify post-bead
+        .mockResolvedValueOnce(makeStructuredAnalysisJson("IMPROVEMENT_FOUND") as never); // mr reads analysis
 
       await runCodeAgentPipeline(makeCtx());
 
@@ -475,8 +524,9 @@ describe("runCodeAgentPipeline", () => {
 
       mockFsReadFile
         .mockResolvedValueOnce(makeAnalysisJson("IMPROVEMENT_FOUND") as never)
-        .mockResolvedValueOnce(makeVerifyJson(true) as never)
-        .mockResolvedValueOnce(makeAnalysisJson("IMPROVEMENT_FOUND") as never);
+        .mockResolvedValueOnce(makeStructuredAnalysisJson("IMPROVEMENT_FOUND") as never)
+        .mockResolvedValueOnce(makeStructuredVerifyJson("IMPROVEMENT_FOUND", true) as never)
+        .mockResolvedValueOnce(makeStructuredAnalysisJson("IMPROVEMENT_FOUND") as never);
 
       const ctx = makeCtx({ gitlabToken: "glpat-secret-token" });
       await runCodeAgentPipeline(ctx);
@@ -499,8 +549,9 @@ describe("runCodeAgentPipeline", () => {
 
       mockFsReadFile
         .mockResolvedValueOnce(makeAnalysisJson("IMPROVEMENT_FOUND") as never)
-        .mockResolvedValueOnce(makeVerifyJson(true) as never)
-        .mockResolvedValueOnce(makeAnalysisJson("IMPROVEMENT_FOUND") as never);
+        .mockResolvedValueOnce(makeStructuredAnalysisJson("IMPROVEMENT_FOUND") as never)
+        .mockResolvedValueOnce(makeStructuredVerifyJson("IMPROVEMENT_FOUND", true) as never)
+        .mockResolvedValueOnce(makeStructuredAnalysisJson("IMPROVEMENT_FOUND") as never);
 
       const ctx = makeCtx({ gitlabToken: "glpat-secret-token" });
       await runCodeAgentPipeline(ctx);
@@ -523,8 +574,9 @@ describe("runCodeAgentPipeline", () => {
 
       mockFsReadFile
         .mockResolvedValueOnce(makeAnalysisJson("IMPROVEMENT_FOUND") as never)
-        .mockResolvedValueOnce(makeVerifyJson(true) as never)
-        .mockResolvedValueOnce(makeAnalysisJson("IMPROVEMENT_FOUND") as never);
+        .mockResolvedValueOnce(makeStructuredAnalysisJson("IMPROVEMENT_FOUND") as never)
+        .mockResolvedValueOnce(makeStructuredVerifyJson("IMPROVEMENT_FOUND", true) as never)
+        .mockResolvedValueOnce(makeStructuredAnalysisJson("IMPROVEMENT_FOUND") as never);
 
       const ctx = makeCtx({ gitlabToken: "glpat-secret-token" });
       await runCodeAgentPipeline(ctx);
@@ -549,8 +601,9 @@ describe("runCodeAgentPipeline", () => {
 
       mockFsReadFile
         .mockResolvedValueOnce(makeAnalysisJson("IMPROVEMENT_FOUND") as never)
-        .mockResolvedValueOnce(makeVerifyJson(true) as never)
-        .mockResolvedValueOnce(makeAnalysisJson("IMPROVEMENT_FOUND") as never);
+        .mockResolvedValueOnce(makeStructuredAnalysisJson("IMPROVEMENT_FOUND") as never)
+        .mockResolvedValueOnce(makeStructuredVerifyJson("IMPROVEMENT_FOUND", true) as never)
+        .mockResolvedValueOnce(makeStructuredAnalysisJson("IMPROVEMENT_FOUND") as never);
 
       const ctx = makeCtx({ gitlabToken: token });
       await runCodeAgentPipeline(ctx);
@@ -639,10 +692,11 @@ describe("runCodeAgentPipeline", () => {
         .mockResolvedValueOnce(makeMrBeadResult("https://gitlab.com/team/repo/-/merge_requests/3"));
 
       mockFsReadFile
-        .mockResolvedValueOnce(makeAnalysisJson("NO_IMPROVEMENT") as never)
-        .mockResolvedValueOnce(makeAnalysisJson("IMPROVEMENT_FOUND") as never)
-        .mockResolvedValueOnce(makeVerifyJson(true) as never)
-        .mockResolvedValueOnce(makeAnalysisJson("IMPROVEMENT_FOUND") as never);
+        .mockResolvedValueOnce(makeAnalysisJson("NO_IMPROVEMENT") as never) // performance analyze: raw
+        .mockResolvedValueOnce(makeAnalysisJson("IMPROVEMENT_FOUND") as never) // tests analyze: raw
+        .mockResolvedValueOnce(makeStructuredAnalysisJson("IMPROVEMENT_FOUND") as never) // verify pre-read
+        .mockResolvedValueOnce(makeStructuredVerifyJson("IMPROVEMENT_FOUND", true) as never) // verify post-bead
+        .mockResolvedValueOnce(makeStructuredAnalysisJson("IMPROVEMENT_FOUND") as never); // mr reads analysis
 
       const result = await runCodeAgentPipeline(makeCtx());
 
@@ -678,8 +732,9 @@ describe("runCodeAgentPipeline", () => {
 
       mockFsReadFile
         .mockResolvedValueOnce(makeAnalysisJson("IMPROVEMENT_FOUND") as never)
-        .mockResolvedValueOnce(makeVerifyJson(true) as never)
-        .mockResolvedValueOnce(makeAnalysisJson("IMPROVEMENT_FOUND") as never);
+        .mockResolvedValueOnce(makeStructuredAnalysisJson("IMPROVEMENT_FOUND") as never)
+        .mockResolvedValueOnce(makeStructuredVerifyJson("IMPROVEMENT_FOUND", true) as never)
+        .mockResolvedValueOnce(makeStructuredAnalysisJson("IMPROVEMENT_FOUND") as never);
 
       const ctx = makeCtx();
       const result = await runCodeAgentPipeline(ctx);
@@ -716,8 +771,9 @@ describe("runCodeAgentPipeline", () => {
 
       mockFsReadFile
         .mockResolvedValueOnce(makeAnalysisJson("IMPROVEMENT_FOUND") as never)
-        .mockResolvedValueOnce(makeVerifyJson(true) as never)
-        .mockResolvedValueOnce(makeAnalysisJson("IMPROVEMENT_FOUND") as never);
+        .mockResolvedValueOnce(makeStructuredAnalysisJson("IMPROVEMENT_FOUND") as never)
+        .mockResolvedValueOnce(makeStructuredVerifyJson("IMPROVEMENT_FOUND", true) as never)
+        .mockResolvedValueOnce(makeStructuredAnalysisJson("IMPROVEMENT_FOUND") as never);
 
       const ctx = makeCtx();
       const result = await runCodeAgentPipeline(ctx);
@@ -739,8 +795,9 @@ describe("runCodeAgentPipeline", () => {
 
       mockFsReadFile
         .mockResolvedValueOnce(makeAnalysisJson("IMPROVEMENT_FOUND") as never)
-        .mockResolvedValueOnce(makeVerifyJson(true) as never)
-        .mockResolvedValueOnce(makeAnalysisJson("IMPROVEMENT_FOUND") as never);
+        .mockResolvedValueOnce(makeStructuredAnalysisJson("IMPROVEMENT_FOUND") as never)
+        .mockResolvedValueOnce(makeStructuredVerifyJson("IMPROVEMENT_FOUND", true) as never)
+        .mockResolvedValueOnce(makeStructuredAnalysisJson("IMPROVEMENT_FOUND") as never);
 
       const ctx = makeCtx();
       const result = await runCodeAgentPipeline(ctx);
@@ -774,8 +831,9 @@ describe("runCodeAgentPipeline", () => {
 
       mockFsReadFile
         .mockResolvedValueOnce(makeAnalysisJson("IMPROVEMENT_FOUND") as never)
-        .mockResolvedValueOnce(makeVerifyJson(true) as never)
-        .mockResolvedValueOnce(makeAnalysisJson("IMPROVEMENT_FOUND") as never);
+        .mockResolvedValueOnce(makeStructuredAnalysisJson("IMPROVEMENT_FOUND") as never)
+        .mockResolvedValueOnce(makeStructuredVerifyJson("IMPROVEMENT_FOUND", true) as never)
+        .mockResolvedValueOnce(makeStructuredAnalysisJson("IMPROVEMENT_FOUND") as never);
 
       const ctx = makeCtx();
       const result = await runCodeAgentPipeline(ctx);
