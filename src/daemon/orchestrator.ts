@@ -1,6 +1,6 @@
 import path from "node:path";
 import { loadConfig } from "../core/config.js";
-import { getWorkspaceDir, ensureNightShiftDirs } from "../core/paths.js";
+import { getWorkspaceDir, ensureNightShiftDirs, getConfigPath } from "../core/paths.js";
 import { Logger } from "../core/logger.js";
 import { BeadsClient } from "../beads/client.js";
 import { fromBead } from "../beads/mapper.js";
@@ -45,6 +45,8 @@ export class Orchestrator {
       maxConcurrent: this.config.maxConcurrent,
       workspaceDir,
       logger: this.logger,
+      codeAgentConfig: this.config.codeAgent,
+      configDir: path.dirname(getConfigPath()),
     });
 
     this.ntfy = this.config.ntfy ? new NtfyClient(this.config.ntfy) : null;
@@ -130,6 +132,7 @@ export class Orchestrator {
       this.config.recurring = freshConfig.recurring;
       this.config.defaultTimeout = freshConfig.defaultTimeout;
       this.scheduler.updateConfig(this.config);
+      this.pool.updateCodeAgentConfig(freshConfig.codeAgent);
     } catch (err) {
       this.logger.warn("Failed to reload config, continuing with previous", {
         error: err instanceof Error ? err.message : String(err),
