@@ -19,7 +19,7 @@ export interface NightShiftTask {
   recurringName?: string;
   notify?: boolean;
   category?: string;
-  isCodeAgent?: boolean;
+  agentName?: string;  // kebab-case agent name; required after Phase 10 migration
 }
 
 export interface AgentExecutionResult {
