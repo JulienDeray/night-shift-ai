@@ -76,6 +76,11 @@ Phase 6 Plan 01 decisions (2026-02-26):
 - AgentPipelineContext named explicitly to avoid shadowing two existing PipelineContext types in codebase
 - BeadPlugin.execute() single-method interface — no lifecycle hooks per locked CONTEXT.md decision
 
+Phase 6 Plan 02 decisions (2026-02-26):
+- z.fromJSONSchema() used directly without (z as any) cast — confirmed exported from zod v4 TypeScript types
+- extractLastJsonBlock regex matches both ```json and ``` (no language tag) blocks
+- assertContained() exported for runtime engine use in Phase 8 (path containment at both load and run time)
+
 Phase 6 Plan 03 decisions (2026-02-26):
 - src/utils/template.ts left entirely unchanged — no import relationship between old and new modules
 - resolveNestedValue normalises [N] bracket syntax to .N before splitting on dots
@@ -108,5 +113,5 @@ Research flags for planning (investigate before finalizing plans):
 ## Session Continuity
 
 Last session: 2026-02-26
-Stopped at: Completed 06-03-PLAN.md (agent template variable system)
+Stopped at: Completed 06-02-PLAN.md (manifest loader with path containment, inheritance, output validation)
 Resume file: None
