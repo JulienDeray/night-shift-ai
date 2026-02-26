@@ -15,14 +15,14 @@ Requirements for the Pluggable Agent Architecture milestone. Each maps to roadma
 
 ### Manifest
 
-- [ ] **MFST-01**: `manifest.yaml` schema declares the full bead pipeline (name, type, prompt file, model, allowedTools, env vars, timeout, output schema)
+- [x] **MFST-01**: `manifest.yaml` schema declares the full bead pipeline (name, type, prompt file, model, allowedTools, env vars, timeout, output schema)
 - [ ] **MFST-02**: Agent template loader reads and Zod-validates manifest from an agent directory with `realpath()` path containment
 - [ ] **MFST-03**: Engine injects built-in variables and agent-specific variables into prompt templates, with built-ins taking precedence on collision
 
 ### Plugin
 
-- [ ] **PLUG-01**: `BeadPlugin<TInput, TOutput>` interface defines typed plugin contract with shared `PipelineContext`
-- [ ] **PLUG-02**: `BeadRegistry` maps bead type strings from manifests to plugin factory functions
+- [x] **PLUG-01**: `BeadPlugin<TInput, TOutput>` interface defines typed plugin contract with shared `PipelineContext`
+- [x] **PLUG-02**: `BeadRegistry` maps bead type strings from manifests to plugin factory functions
 - [ ] **PLUG-03**: Engine validates bead output against manifest-declared schema before passing to next bead
 - [ ] **PLUG-04**: Per-bead model, allowedTools, env vars, and timeout are declared in manifest and enforced by engine
 
@@ -84,11 +84,11 @@ Which phases cover which requirements. Updated during roadmap creation.
 | FOUN-01 | Phase 5 | Complete |
 | FOUN-02 | Phase 5 | Complete |
 | FOUN-03 | Phase 5 | Complete |
-| MFST-01 | Phase 6 | Pending |
+| MFST-01 | Phase 6 | Complete |
 | MFST-02 | Phase 6 | Pending |
 | MFST-03 | Phase 6 | Pending |
-| PLUG-01 | Phase 6 | Pending |
-| PLUG-02 | Phase 6 | Pending |
+| PLUG-01 | Phase 6 | Complete |
+| PLUG-02 | Phase 6 | Complete |
 | PLUG-03 | Phase 6 | Pending |
 | PLUG-04 | Phase 6 | Pending |
 | MIGR-02 | Phase 7 | Pending |
