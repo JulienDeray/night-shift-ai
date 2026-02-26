@@ -41,7 +41,7 @@ Requirements for the Pluggable Agent Architecture milestone. Each maps to roadma
 
 - [ ] **WIRE-01**: `AgentPool.dispatch()` routes tasks with `agentName` to `AgentEngine` instead of hardcoded `runCodeAgent`
 - [ ] **WIRE-02**: Legacy `code-agent.ts` and `code-agent-runner.ts` are removed after migration is validated
-- [ ] **WIRE-03**: Daemon validates all referenced agent manifests at startup and fails with actionable error if any are broken
+- [x] **WIRE-03**: Daemon validates all referenced agent manifests at startup and fails with actionable error if any are broken
 
 ### Developer Experience
 
@@ -92,7 +92,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | PLUG-03 | Phase 6 | Complete |
 | PLUG-04 | Phase 6 | Complete |
 | MIGR-02 | Phase 7 | Complete |
-| WIRE-03 | Phase 7 | Pending |
+| WIRE-03 | Phase 7 | Complete |
 | ENGN-01 | Phase 8 | Pending |
 | ENGN-02 | Phase 8 | Pending |
 | ENGN-03 | Phase 8 | Pending |
