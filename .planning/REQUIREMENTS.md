@@ -35,7 +35,7 @@ Requirements for the Pluggable Agent Architecture milestone. Each maps to roadma
 ### Migration
 
 - [ ] **MIGR-01**: Code-agent exists as `agents/code-agent/` directory with manifest.yaml and prompt files — no functionality lost from v1.0
-- [ ] **MIGR-02**: `nightshift.yaml` uses `agents:` array where each entry references an agent by name with schedule and variables
+- [x] **MIGR-02**: `nightshift.yaml` uses `agents:` array where each entry references an agent by name with schedule and variables
 
 ### Wiring
 
@@ -91,7 +91,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | PLUG-02 | Phase 6 | Complete |
 | PLUG-03 | Phase 6 | Complete |
 | PLUG-04 | Phase 6 | Complete |
-| MIGR-02 | Phase 7 | Pending |
+| MIGR-02 | Phase 7 | Complete |
 | WIRE-03 | Phase 7 | Pending |
 | ENGN-01 | Phase 8 | Pending |
 | ENGN-02 | Phase 8 | Pending |
