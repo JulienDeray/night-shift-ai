@@ -4,6 +4,10 @@ import path from "node:path";
 import os from "node:os";
 import { loadConfig, validateConfig, getDefaultConfigYaml } from "../../src/core/config.js";
 
+async function writeConfig(dir: string, yaml: string): Promise<void> {
+  await fs.writeFile(path.join(dir, "nightshift.yaml"), yaml);
+}
+
 describe("config", () => {
   let tmpDir: string;
 
@@ -16,10 +20,7 @@ describe("config", () => {
   });
 
   it("loads default config from YAML", async () => {
-    await fs.writeFile(
-      path.join(tmpDir, "nightshift.yaml"),
-      getDefaultConfigYaml(),
-    );
+    await writeConfig(tmpDir, getDefaultConfigYaml());
 
     const config = await loadConfig(tmpDir);
 
@@ -31,45 +32,57 @@ describe("config", () => {
     expect(config.daemon.pollIntervalMs).toBe(30000);
     expect(config.daemon.heartbeatIntervalMs).toBe(10000);
     expect(config.daemon.logRetentionDays).toBe(30);
-    expect(config.recurring).toEqual([]);
+    expect(config.agents).toEqual([]);
+    expect(config.schedule).toEqual([]);
+    expect(config.agentsDir).toBe("./agents");
     expect(config.oneOffDefaults.timeout).toBe("30m");
     expect(config.oneOffDefaults.maxBudgetUsd).toBe(5.0);
   });
 
-  it("loads config with recurring tasks", async () => {
+  it("loads config with agents and schedule", async () => {
     const yaml = `
 workspace: ./work
-max_concurrent: 4
-recurring:
-  - name: "test-task"
-    schedule: "0 6 * * *"
-    prompt: "Do something"
-    allowed_tools:
-      - "Read"
-      - "Write"
-    timeout: "15m"
-    max_budget_usd: 2.00
+agents:
+  - name: code-agent
+    notify: true
+    variables:
+      repo_url: "git@gitlab.com:team/repo.git"
+  - name: doc-agent
+schedule:
+  - agent: code-agent
+    cron: "0 2 * * 1-5"
+    enabled: true
+    variables:
+      category: "refactoring"
+  - agent: doc-agent
+    cron: "0 3 * * 6"
+    enabled: false
 `;
-    await fs.writeFile(path.join(tmpDir, "nightshift.yaml"), yaml);
+    await writeConfig(tmpDir, yaml);
 
     const config = await loadConfig(tmpDir);
 
-    expect(config.workspace).toBe("./work");
-    expect(config.maxConcurrent).toBe(4);
-    expect(config.recurring).toHaveLength(1);
-    expect(config.recurring[0].name).toBe("test-task");
-    expect(config.recurring[0].schedule).toBe("0 6 * * *");
-    expect(config.recurring[0].prompt).toBe("Do something");
-    expect(config.recurring[0].allowedTools).toEqual(["Read", "Write"]);
-    expect(config.recurring[0].timeout).toBe("15m");
-    expect(config.recurring[0].maxBudgetUsd).toBe(2.0);
+    expect(config.agents).toHaveLength(2);
+    expect(config.agents[0].name).toBe("code-agent");
+    expect(config.agents[0].notify).toBe(true);
+    expect(config.agents[0].variables).toEqual({ repo_url: "git@gitlab.com:team/repo.git" });
+    expect(config.agents[1].name).toBe("doc-agent");
+
+    expect(config.schedule).toHaveLength(2);
+    expect(config.schedule[0].agent).toBe("code-agent");
+    expect(config.schedule[0].cron).toBe("0 2 * * 1-5");
+    expect(config.schedule[0].enabled).toBe(true);
+    expect(config.schedule[0].variables).toEqual({ category: "refactoring" });
+    expect(config.schedule[1].agent).toBe("doc-agent");
+    expect(config.schedule[1].cron).toBe("0 3 * * 6");
+    expect(config.schedule[1].enabled).toBe(false);
   });
 
   it("applies defaults for missing optional fields", async () => {
     const yaml = `
 workspace: ./w
 `;
-    await fs.writeFile(path.join(tmpDir, "nightshift.yaml"), yaml);
+    await writeConfig(tmpDir, yaml);
 
     const config = await loadConfig(tmpDir);
 
@@ -78,6 +91,9 @@ workspace: ./w
     expect(config.defaultTimeout).toBe("30m");
     expect(config.beads.enabled).toBe(true);
     expect(config.daemon.pollIntervalMs).toBe(30000);
+    expect(config.agentsDir).toBe("./agents");
+    expect(config.agents).toEqual([]);
+    expect(config.schedule).toEqual([]);
   });
 
   it("throws on missing config file", async () => {
@@ -85,7 +101,7 @@ workspace: ./w
   });
 
   it("throws on invalid YAML", async () => {
-    await fs.writeFile(path.join(tmpDir, "nightshift.yaml"), "{{invalid");
+    await writeConfig(tmpDir, "{{invalid");
 
     await expect(loadConfig(tmpDir)).rejects.toThrow("Invalid YAML");
   });
@@ -94,16 +110,95 @@ workspace: ./w
     const yaml = `
 max_concurrent: -1
 `;
-    await fs.writeFile(path.join(tmpDir, "nightshift.yaml"), yaml);
+    await writeConfig(tmpDir, yaml);
 
     await expect(loadConfig(tmpDir)).rejects.toThrow("Invalid config");
   });
 
+  it("rejects unknown top-level keys (strict mode)", async () => {
+    const yaml = `
+workspace: ./w
+code_agent:
+  repo_url: git@gitlab.com:team/repo.git
+  confluence_page_id: "123"
+  category_schedule:
+    monday: [tests]
+`;
+    await writeConfig(tmpDir, yaml);
+
+    await expect(loadConfig(tmpDir)).rejects.toThrow(/Invalid config.*Unrecognized key/s);
+  });
+
+  it("rejects unknown top-level key recurring:", async () => {
+    const yaml = `
+workspace: ./w
+recurring:
+  - name: test-task
+    schedule: "0 6 * * *"
+    prompt: "Do something"
+`;
+    await writeConfig(tmpDir, yaml);
+
+    await expect(loadConfig(tmpDir)).rejects.toThrow(/Invalid config.*Unrecognized key/s);
+  });
+
+  it("rejects duplicate agent names", async () => {
+    const yaml = `
+workspace: ./w
+agents:
+  - name: my-agent
+  - name: my-agent
+`;
+    await writeConfig(tmpDir, yaml);
+
+    await expect(loadConfig(tmpDir)).rejects.toThrow("Duplicate agent name");
+  });
+
+  it("rejects schedule referencing unknown agent", async () => {
+    const yaml = `
+workspace: ./w
+agents:
+  - name: a
+schedule:
+  - agent: b
+    cron: "0 2 * * *"
+`;
+    await writeConfig(tmpDir, yaml);
+
+    await expect(loadConfig(tmpDir)).rejects.toThrow("Schedule references unknown agent 'b'");
+  });
+
+  it("rejects invalid cron expression", async () => {
+    const yaml = `
+workspace: ./w
+agents:
+  - name: a
+schedule:
+  - agent: a
+    cron: "not a cron"
+`;
+    await writeConfig(tmpDir, yaml);
+
+    await expect(loadConfig(tmpDir)).rejects.toThrow("Invalid cron expression");
+  });
+
+  it("skips cron validation for disabled schedule entries", async () => {
+    const yaml = `
+workspace: ./w
+agents:
+  - name: a
+schedule:
+  - agent: a
+    cron: "not a cron"
+    enabled: false
+`;
+    await writeConfig(tmpDir, yaml);
+
+    await expect(loadConfig(tmpDir)).resolves.toBeDefined();
+  });
+
   it("validates valid config", async () => {
-    await fs.writeFile(
-      path.join(tmpDir, "nightshift.yaml"),
-      getDefaultConfigYaml(),
-    );
+    await writeConfig(tmpDir, getDefaultConfigYaml());
 
     const result = await validateConfig(tmpDir);
     expect(result.valid).toBe(true);
@@ -111,7 +206,7 @@ max_concurrent: -1
   });
 
   it("validates invalid config", async () => {
-    await fs.writeFile(path.join(tmpDir, "nightshift.yaml"), "max_concurrent: -1");
+    await writeConfig(tmpDir, "max_concurrent: -1");
 
     const result = await validateConfig(tmpDir);
     expect(result.valid).toBe(false);
@@ -126,7 +221,7 @@ ntfy:
   token: tk_abc
   base_url: https://custom.ntfy.sh
 `;
-    await fs.writeFile(path.join(tmpDir, "nightshift.yaml"), yaml);
+    await writeConfig(tmpDir, yaml);
 
     const config = await loadConfig(tmpDir);
 
@@ -142,7 +237,7 @@ workspace: ./w
 ntfy:
   topic: test
 `;
-    await fs.writeFile(path.join(tmpDir, "nightshift.yaml"), yaml);
+    await writeConfig(tmpDir, yaml);
 
     const config = await loadConfig(tmpDir);
 
@@ -153,110 +248,73 @@ ntfy:
     const yaml = `
 workspace: ./w
 `;
-    await fs.writeFile(path.join(tmpDir, "nightshift.yaml"), yaml);
+    await writeConfig(tmpDir, yaml);
 
     const config = await loadConfig(tmpDir);
 
     expect(config.ntfy).toBeUndefined();
   });
 
-  it("loads config with code_agent block", async () => {
+  it("agent name must be kebab-case", async () => {
     const yaml = `
 workspace: ./w
-code_agent:
-  repo_url: git@gitlab.com:team/repo.git
-  confluence_page_id: "123456"
-  category_schedule:
-    monday: [tests]
-    tuesday: [refactoring]
+agents:
+  - name: "My Agent"
 `;
-    await fs.writeFile(path.join(tmpDir, "nightshift.yaml"), yaml);
+    await writeConfig(tmpDir, yaml);
+
+    await expect(loadConfig(tmpDir)).rejects.toThrow("must be kebab-case");
+  });
+
+  it("schedule entry with variable overrides", async () => {
+    const yaml = `
+workspace: ./w
+agents:
+  - name: code-agent
+schedule:
+  - agent: code-agent
+    cron: "0 2 * * 1-5"
+    variables:
+      category: "tests"
+`;
+    await writeConfig(tmpDir, yaml);
 
     const config = await loadConfig(tmpDir);
 
-    expect(config.codeAgent).toBeDefined();
-    expect(config.codeAgent!.repoUrl).toBe("git@gitlab.com:team/repo.git");
-    expect(config.codeAgent!.confluencePageId).toBe("123456");
-    expect(config.codeAgent!.categorySchedule.monday).toEqual(["tests"]);
+    expect(config.schedule[0].variables?.category).toBe("tests");
   });
 
-  it("rejects invalid repo_url (not SSH)", async () => {
+  it("same agent in multiple schedule entries", async () => {
     const yaml = `
 workspace: ./w
-code_agent:
-  repo_url: https://gitlab.com/team/repo.git
-  confluence_page_id: "123"
-  category_schedule:
-    monday: [tests]
+agents:
+  - name: code-agent
+schedule:
+  - agent: code-agent
+    cron: "0 2 * * 1-5"
+    variables:
+      category: "refactoring"
+  - agent: code-agent
+    cron: "0 3 * * 6"
+    variables:
+      category: "tests"
 `;
-    await fs.writeFile(path.join(tmpDir, "nightshift.yaml"), yaml);
-
-    await expect(loadConfig(tmpDir)).rejects.toThrow("Invalid config");
-  });
-
-  it("rejects unknown day name in category_schedule", async () => {
-    const yaml = `
-workspace: ./w
-code_agent:
-  repo_url: git@gitlab.com:team/repo.git
-  confluence_page_id: "123"
-  category_schedule:
-    munday: [tests]
-`;
-    await fs.writeFile(path.join(tmpDir, "nightshift.yaml"), yaml);
-
-    await expect(loadConfig(tmpDir)).rejects.toThrow();
-  });
-
-  it("loads recurring task with notify flag", async () => {
-    const yaml = `
-workspace: ./w
-recurring:
-  - name: "test-task"
-    schedule: "0 6 * * *"
-    prompt: "Do something"
-    notify: true
-`;
-    await fs.writeFile(path.join(tmpDir, "nightshift.yaml"), yaml);
+    await writeConfig(tmpDir, yaml);
 
     const config = await loadConfig(tmpDir);
 
-    expect(config.recurring[0].notify).toBe(true);
+    expect(config.schedule).toHaveLength(2);
+    expect(config.schedule[0].cron).toBe("0 2 * * 1-5");
+    expect(config.schedule[0].variables?.category).toBe("refactoring");
+    expect(config.schedule[1].cron).toBe("0 3 * * 6");
+    expect(config.schedule[1].variables?.category).toBe("tests");
   });
 
-  it("notify defaults to undefined when not specified", async () => {
-    const yaml = `
-workspace: ./w
-recurring:
-  - name: "test-task"
-    schedule: "0 6 * * *"
-    prompt: "Do something"
-`;
-    await fs.writeFile(path.join(tmpDir, "nightshift.yaml"), yaml);
-
-    const config = await loadConfig(tmpDir);
-
-    expect(config.recurring[0].notify).toBeUndefined();
-  });
-
-  it("loads config without code_agent block", async () => {
-    const yaml = `
-workspace: ./w
-`;
-    await fs.writeFile(path.join(tmpDir, "nightshift.yaml"), yaml);
-
-    const config = await loadConfig(tmpDir);
-
-    expect(config.codeAgent).toBeUndefined();
-  });
-
-  it("getDefaultConfigYaml includes ntfy and code_agent examples", () => {
+  it("getDefaultConfigYaml includes agents and schedule examples", () => {
     const yaml = getDefaultConfigYaml();
 
-    expect(yaml).toContain("ntfy:");
-    expect(yaml).toContain("topic:");
-    expect(yaml).toContain("code_agent:");
-    expect(yaml).toContain("repo_url:");
-    expect(yaml).toContain("category_schedule:");
+    expect(yaml).toContain("agents:");
+    expect(yaml).toContain("schedule:");
+    expect(yaml).toContain("agents_dir:");
   });
 });
