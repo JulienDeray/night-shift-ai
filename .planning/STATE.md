@@ -18,16 +18,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-02-25)
 
 **Core value:** Small, focused merge requests that appear in the morning — one coherent improvement per night, easy to review, never overwhelming.
-**Current focus:** Phase 6 — Plugin Interfaces and Manifest Schema
+**Current focus:** Phase 7 — Config Schema Migration and Startup Validation
 
 ## Current Position
 
-Phase: 6 of 11 (Plugin Interfaces and Manifest Schema)
-Plan: 3 of 3 complete
+Phase: 7 of 11 (Config Schema Migration and Startup Validation)
+Plan: 1 of 2 complete
 Status: In progress
-Last activity: 2026-02-26 — completed 06-03 (agent template variable system: dot notation, array indexing, built-in precedence, load-time validation)
+Last activity: 2026-02-26 — completed 07-01 (config schema rewrite: agents+schedule model, .strict(), .superRefine() cross-validations)
 
-Progress: [█░░░░░░░░░] ~24% (v2.0, 5/21 plans complete)
+Progress: [█░░░░░░░░░] ~29% (v2.0, 6/21 plans complete)
 
 ## Performance Metrics
 
@@ -87,6 +87,12 @@ Phase 6 Plan 03 decisions (2026-02-26):
 - renderAgentTemplate leaves unknown placeholders as-is; validateTemplateVars does the hard error at load time
 - beads.* variables skipped at load-time validation — those paths only exist at pipeline runtime
 
+Phase 7 Plan 01 decisions (2026-02-26):
+- CodeAgentConfig and CategoryScheduleConfig moved to src/agent/types.ts (not deleted) — code-agent pipeline still compiles
+- resolveCategory() moved inline to code-agent-runner.ts — removed from scheduler since scheduler no longer iterates recurring tasks
+- scheduler.evaluateSchedules() returns [] stub — Phase 10 will wire the new schedule format
+- Config migration uses hard break (.strict()) not expand-and-contract — old code_agent:/recurring: keys immediately rejected
+
 ### Pending Todos
 
 None.
@@ -99,7 +105,7 @@ Carried from v1.0 (need empirical validation):
 - Confluence macro-stripping workaround needs validation against real instance
 
 Research flags for planning (investigate before finalizing plans):
-- Phase 9: Category rotation in manifest — read `resolveCategory()` in `scheduler.ts` before designing manifest representation
+- Phase 9: Category rotation in manifest — resolveCategory() is now in src/agent/code-agent-runner.ts (moved from scheduler.ts in Phase 7)
 
 ### Quick Tasks Completed
 
@@ -113,5 +119,5 @@ Research flags for planning (investigate before finalizing plans):
 ## Session Continuity
 
 Last session: 2026-02-26
-Stopped at: Completed 06-02-PLAN.md (manifest loader with path containment, inheritance, output validation)
+Stopped at: Completed 07-01-PLAN.md (config schema migration: agents+schedule model with .strict() and .superRefine())
 Resume file: None
