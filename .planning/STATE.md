@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: Pluggable Agent Architecture
 status: unknown
-last_updated: "2026-02-25T22:41:46.083Z"
+last_updated: "2026-02-26T15:26:37Z"
 progress:
   total_phases: 1
   completed_phases: 1
-  total_plans: 2
-  completed_plans: 2
+  total_plans: 3
+  completed_plans: 3
 ---
 
 # Project State
@@ -18,16 +18,16 @@ progress:
 See: .planning/PROJECT.md (updated 2026-02-25)
 
 **Core value:** Small, focused merge requests that appear in the morning — one coherent improvement per night, easy to review, never overwhelming.
-**Current focus:** Phase 5 — Dispatch Foundation
+**Current focus:** Phase 6 — Plugin Interfaces and Manifest Schema
 
 ## Current Position
 
-Phase: 5 of 11 (Dispatch Foundation) — first v2.0 phase
-Plan: 2 of 3 complete
+Phase: 6 of 11 (Plugin Interfaces and Manifest Schema)
+Plan: 1 of 3 complete
 Status: In progress
-Last activity: 2026-02-25 — completed 05-02 (taskId suffix + per-agent handoff subdirectory)
+Last activity: 2026-02-26 — completed 06-01 (error classes, manifest Zod schema, manifest types, BeadPlugin, BeadRegistry)
 
-Progress: [█░░░░░░░░░] ~10% (v2.0, 2/21 plans complete)
+Progress: [█░░░░░░░░░] ~14% (v2.0, 3/21 plans complete)
 
 ## Performance Metrics
 
@@ -70,6 +70,12 @@ Phase 5 Plan 02 decisions (2026-02-25):
 - Verify bead pre-reads existing file before writing stub to preserve analysis key
 - runAnalyzeBead rewrites handoff file as { analysis: <result> } after parsing agent output
 
+Phase 6 Plan 01 decisions (2026-02-26):
+- KNOWN_CLAUDE_TOOLS list hardcoded in manifest-schema.ts — unknown tools rejected at schema parse time
+- BeadRegistry is a DI instance (not singleton) — passed to engine constructor, allows clean testing
+- AgentPipelineContext named explicitly to avoid shadowing two existing PipelineContext types in codebase
+- BeadPlugin.execute() single-method interface — no lifecycle hooks per locked CONTEXT.md decision
+
 ### Pending Todos
 
 None.
@@ -82,7 +88,6 @@ Carried from v1.0 (need empirical validation):
 - Confluence macro-stripping workaround needs validation against real instance
 
 Research flags for planning (investigate before finalizing plans):
-- Phase 6: `BeadPlugin<TInput, TOutput>` generic design — read both plugin implementations before finalizing interface
 - Phase 9: Category rotation in manifest — read `resolveCategory()` in `scheduler.ts` before designing manifest representation
 
 ### Quick Tasks Completed
@@ -96,6 +101,6 @@ Research flags for planning (investigate before finalizing plans):
 
 ## Session Continuity
 
-Last session: 2026-02-25
-Stopped at: Completed 05-02-PLAN.md (taskId suffix + per-agent handoff subdirectory)
+Last session: 2026-02-26
+Stopped at: Completed 06-01-PLAN.md (error classes, manifest schema, manifest types, BeadPlugin, BeadRegistry)
 Resume file: None
