@@ -66,7 +66,9 @@
   1. A `nightshift.yaml` with only the old `code_agent:` block loads successfully and logs a deprecation warning — no error, no silent failure
   2. A `nightshift.yaml` with `agents:` array schedules agents correctly with their declared variables and schedules
   3. `nightshift daemon start` with a reference to a non-existent or invalid agent manifest exits with a non-zero code and an error message naming the broken manifest before the first poll tick runs
-**Plans**: TBD
+**Plans**: 2 plans
+  - [ ] 07-01-PLAN.md — Config schema rewrite: agents: + schedule: Zod schema, type updates, daemon/CLI dead code removal
+  - [ ] 07-02-PLAN.md — Startup validation gate: validateAgentsAtStartup wired into Orchestrator.start()
 
 ### Phase 8: AgentEngine and Bead Plugin Implementations
 **Goal**: The `AgentEngine` drives any agent directory's bead pipeline from its manifest with no agent-specific logic — using thin plugin wrappers over the existing `runBead()` and `cloneRepo()` functions
@@ -122,7 +124,7 @@
 | 4. Git Harness and Logging | v1.0 | 2/2 | Complete | 2026-02-25 |
 | 5. Dispatch Foundation | 2/2 | Complete   | 2026-02-25 | - |
 | 6. Plugin Interfaces and Manifest Schema | 3/3 | Complete   | 2026-02-26 | - |
-| 7. Config Schema Migration and Startup Validation | v2.0 | 0/? | Not started | - |
+| 7. Config Schema Migration and Startup Validation | v2.0 | 0/2 | Not started | - |
 | 8. AgentEngine and Bead Plugin Implementations | v2.0 | 0/? | Not started | - |
 | 9. Code-Agent Migration | v2.0 | 0/? | Not started | - |
 | 10. Daemon Wiring and Legacy Cleanup | v2.0 | 0/? | Not started | - |
