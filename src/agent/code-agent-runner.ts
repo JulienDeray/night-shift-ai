@@ -3,11 +3,23 @@ import path from "node:path";
 import { spawnWithTimeout } from "../utils/process.js";
 import { loadBeadPrompt } from "./prompt-loader.js";
 import { runBead } from "./bead-runner.js";
-import { resolveCategory } from "../daemon/scheduler.js";
-import type { CodeAgentConfig } from "../core/types.js";
-import type { AnalysisResult, BeadResult, CodeAgentRunResult } from "./types.js";
+import type { CodeAgentConfig, CategoryScheduleConfig, AnalysisResult, BeadResult, CodeAgentRunResult } from "./types.js";
 import type { Logger } from "../core/logger.js";
 import type { ClaudeJsonOutput } from "../core/types.js";
+
+// Day-of-week category resolver (moved from scheduler.ts during Phase 7 config migration)
+const DAYS: (keyof CategoryScheduleConfig)[] = [
+  "sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday",
+];
+
+function resolveCategory(
+  schedule: CategoryScheduleConfig | undefined,
+): string | undefined {
+  if (!schedule) return undefined;
+  const todayKey = DAYS[new Date().getDay()];
+  const categories = schedule[todayKey];
+  return categories?.length ? categories[0] : undefined;
+}
 
 // Fixed fallback priority order per locked CONTEXT.md decision
 const FALLBACK_ORDER = [

@@ -6,8 +6,7 @@ import { appendRunLog, type RunLogEntry } from "./run-logger.js";
 import { loadBeadPrompt } from "./prompt-loader.js";
 import { runBead } from "./bead-runner.js";
 import { ensureDir } from "../core/paths.js";
-import type { CodeAgentConfig } from "../core/types.js";
-import type { CodeAgentRunResult } from "./types.js";
+import type { CodeAgentConfig, CodeAgentRunResult } from "./types.js";
 import type { Logger } from "../core/logger.js";
 
 // Fixed 2-minute timeout for the log bead (per RESEARCH.md recommendation)
