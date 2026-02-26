@@ -46,3 +46,38 @@ export class TimeoutError extends NightShiftError {
     this.name = "TimeoutError";
   }
 }
+
+export class ManifestError extends NightShiftError {
+  constructor(message: string) {
+    super(message);
+    this.name = "ManifestError";
+  }
+}
+
+export class ManifestSecurityError extends NightShiftError {
+  constructor(message: string) {
+    super(message);
+    this.name = "ManifestSecurityError";
+  }
+}
+
+export class BeadContractViolationError extends NightShiftError {
+  constructor(message: string) {
+    super(message);
+    this.name = "BeadContractViolationError";
+  }
+}
+
+export class BeadOutputMissingError extends NightShiftError {
+  constructor(message: string) {
+    super(message);
+    this.name = "BeadOutputMissingError";
+  }
+}
+
+export class RegistryError extends NightShiftError {
+  constructor(message: string) {
+    super(message);
+    this.name = "RegistryError";
+  }
+}
