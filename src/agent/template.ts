@@ -1,0 +1,140 @@
+import { format } from "date-fns";
+import { ManifestError } from "../core/errors.js";
+
+export const BUILT_IN_VARS = [
+  "task_id",
+  "run_date",
+  "agent_name",
+  "repo_path",
+] as const;
+
+type BuiltInVar = (typeof BUILT_IN_VARS)[number];
+
+/**
+ * Validates that user-defined variable names do not collide with built-in names.
+ * Throws ManifestError if any collision is found — hard error, not a warning.
+ */
+export function validateVariableNames(userVarNames: string[]): void {
+  const collisions = userVarNames.filter((name) =>
+    (BUILT_IN_VARS as readonly string[]).includes(name),
+  );
+  if (collisions.length > 0) {
+    throw new ManifestError(
+      `Variable name collision with built-ins: ${collisions.join(", ")}. ` +
+        `Built-in names are reserved: ${BUILT_IN_VARS.join(", ")}`,
+    );
+  }
+}
+
+/**
+ * Merges variables with the following precedence (highest to lowest):
+ *   built-ins > nightshift.yaml config overrides > manifest defaults
+ * Bead outputs are nested under the "beads" namespace.
+ */
+export function buildTemplateVars(
+  builtIns: Record<BuiltInVar, string>,
+  manifestVars: Record<string, string>,
+  configOverrides: Record<string, string>,
+  beadOutputs: Record<string, { output: unknown; rawOutput: string }>,
+): Record<string, unknown> {
+  // Start with lowest precedence, overwrite with higher
+  const merged: Record<string, unknown> = { ...manifestVars, ...configOverrides };
+
+  // Bead outputs accessible under "beads" namespace
+  const beads: Record<string, unknown> = {};
+  for (const [beadName, result] of Object.entries(beadOutputs)) {
+    beads[beadName] = { output: result.output, rawOutput: result.rawOutput };
+  }
+  merged.beads = beads;
+
+  // Built-ins have highest precedence — overwrite anything
+  for (const [key, value] of Object.entries(builtIns)) {
+    merged[key] = value;
+  }
+
+  return merged;
+}
+
+/**
+ * Resolves a dot-notation / array-index path through a nested object.
+ * Example: "beads.analyze.output.results[0].name"
+ */
+export function resolveNestedValue(
+  obj: Record<string, unknown>,
+  pathStr: string,
+): unknown {
+  // Normalize array indexing: foo[0].bar → foo.0.bar
+  const normalized = pathStr.replace(/\[(\d+)\]/g, ".$1");
+  const parts = normalized.split(".");
+  let curr: unknown = obj;
+  for (const part of parts) {
+    if (curr == null || typeof curr !== "object") return undefined;
+    curr = (curr as Record<string, unknown>)[part];
+  }
+  return curr;
+}
+
+/**
+ * Renders an agent prompt template, substituting all {{placeholder}} patterns.
+ * Supports dot notation and array indexing.
+ * Arrays and objects are JSON-serialized when injected.
+ * Undefined placeholders are left as-is (validateTemplateVars catches these at load time).
+ */
+export function renderAgentTemplate(
+  template: string,
+  vars: Record<string, unknown>,
+): string {
+  return template.replace(
+    /\{\{([a-zA-Z0-9_.[\]]+)\}\}/g,
+    (match, key: string) => {
+      const value = resolveNestedValue(vars, key);
+      if (value === undefined) return match; // leave placeholder
+      if (value === null) return "null";
+      if (typeof value === "object") return JSON.stringify(value);
+      return String(value);
+    },
+  );
+}
+
+/**
+ * Validates at load time that all non-beads.* placeholders in the template
+ * are present in vars. Throws ManifestError if any are undefined.
+ * beads.* references are skipped — they are only resolved at runtime.
+ */
+export function validateTemplateVars(
+  template: string,
+  vars: Record<string, unknown>,
+): void {
+  const placeholders = [
+    ...template.matchAll(/\{\{([a-zA-Z0-9_.[\]]+)\}\}/g),
+  ].map((m) => m[1]);
+
+  const unresolved = placeholders.filter((key) => {
+    // Skip beads.* references — only resolved at runtime
+    if (key.startsWith("beads.")) return false;
+    return resolveNestedValue(vars, key) === undefined;
+  });
+
+  if (unresolved.length > 0) {
+    throw new ManifestError(
+      `Prompt references undefined variables: ${unresolved.join(", ")}`,
+    );
+  }
+}
+
+/**
+ * Constructs the built-in variables map for a given agent run.
+ * run_date is computed at call time.
+ */
+export function buildBuiltIns(
+  taskId: string,
+  agentName: string,
+  repoPath: string,
+): Record<BuiltInVar, string> {
+  return {
+    task_id: taskId,
+    run_date: format(new Date(), "yyyy-MM-dd"),
+    agent_name: agentName,
+    repo_path: repoPath,
+  };
+}
