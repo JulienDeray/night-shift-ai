@@ -46,44 +46,17 @@ export interface NtfyConfig {
   baseUrl: string;
 }
 
-export interface CategoryScheduleConfig {
-  monday?: string[];
-  tuesday?: string[];
-  wednesday?: string[];
-  thursday?: string[];
-  friday?: string[];
-  saturday?: string[];
-  sunday?: string[];
-}
-
-export interface CodeAgentConfig {
-  repoUrl: string;
-  confluencePageId: string;
-  categorySchedule: CategoryScheduleConfig;
-  prompts: {
-    analyze: string;
-    implement: string;
-    verify: string;
-    mr: string;
-    log: string;
-  };
-  logMcpConfig?: string;
-  reviewer?: string;
-  allowedCommands: string[];
-  maxTokens?: number;
-  variables: Record<string, string>;
-}
-
-export interface RecurringTaskConfig {
+export interface AgentDeclaration {
   name: string;
-  schedule: string;
-  prompt: string;
-  allowedTools?: string[];
-  output?: string;
-  timeout?: string;
-  maxBudgetUsd?: number;
-  model?: string;
-  mcpConfig?: string;
+  notify?: boolean;
+  variables?: Record<string, string>;
+}
+
+export interface ScheduleEntry {
+  agent: string;
+  cron: string;
+  variables?: Record<string, string>;
+  enabled: boolean;
   notify?: boolean;
 }
 
@@ -110,10 +83,11 @@ export interface NightShiftConfig {
   defaultTimeout: string;
   beads: BeadsConfig;
   daemon: DaemonConfig;
-  recurring: RecurringTaskConfig[];
+  agentsDir: string;
+  agents: AgentDeclaration[];
+  schedule: ScheduleEntry[];
   oneOffDefaults: OneOffDefaults;
   ntfy?: NtfyConfig;
-  codeAgent?: CodeAgentConfig;
 }
 
 export interface DaemonState {

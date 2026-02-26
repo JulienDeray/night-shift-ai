@@ -45,7 +45,6 @@ export class Orchestrator {
       maxConcurrent: this.config.maxConcurrent,
       workspaceDir,
       logger: this.logger,
-      codeAgentConfig: this.config.codeAgent,
       configDir: path.dirname(getConfigPath()),
     });
 
@@ -61,7 +60,8 @@ export class Orchestrator {
       maxConcurrent: this.config.maxConcurrent,
       pollInterval: this.config.daemon.pollIntervalMs,
       beadsEnabled: this.config.beads.enabled,
-      recurringTasks: this.config.recurring.length,
+      agents: this.config.agents.length,
+      scheduleEntries: this.config.schedule.length,
     });
 
     // Start heartbeat
@@ -126,13 +126,11 @@ export class Orchestrator {
   }
 
   private async tick(): Promise<void> {
-    // 0. Hot-reload recurring tasks and defaultTimeout from config
+    // 0. Hot-reload defaultTimeout from config
     try {
       const freshConfig = await loadConfig();
-      this.config.recurring = freshConfig.recurring;
       this.config.defaultTimeout = freshConfig.defaultTimeout;
       this.scheduler.updateConfig(this.config);
-      this.pool.updateCodeAgentConfig(freshConfig.codeAgent);
     } catch (err) {
       this.logger.warn("Failed to reload config, continuing with previous", {
         error: err instanceof Error ? err.message : String(err),

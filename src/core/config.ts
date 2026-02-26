@@ -1,21 +1,10 @@
 import fs from "node:fs/promises";
 import { parse as parseYaml } from "yaml";
 import { z } from "zod";
+import { Cron } from "croner";
 import { getConfigPath } from "./paths.js";
 import { ConfigError } from "./errors.js";
 import type { NightShiftConfig } from "./types.js";
-
-const CategoryScheduleSchema = z
-  .object({
-    monday: z.array(z.string().min(1)).optional(),
-    tuesday: z.array(z.string().min(1)).optional(),
-    wednesday: z.array(z.string().min(1)).optional(),
-    thursday: z.array(z.string().min(1)).optional(),
-    friday: z.array(z.string().min(1)).optional(),
-    saturday: z.array(z.string().min(1)).optional(),
-    sunday: z.array(z.string().min(1)).optional(),
-  })
-  .strict();
 
 const NtfyConfigSchema = z
   .object({
@@ -25,86 +14,97 @@ const NtfyConfigSchema = z
   })
   .optional();
 
-const CodeAgentSchema = z
+const AgentDeclarationSchema = z
   .object({
-    repo_url: z
-      .string()
-      .regex(
-        /^git@[a-zA-Z0-9._-]+:[a-zA-Z0-9._\/-]+\.git$/,
-        "repo_url must be an SSH git URL (git@host:org/repo.git)",
-      ),
-    confluence_page_id: z.string().min(1),
-    category_schedule: CategoryScheduleSchema,
-    prompts: z
-      .object({
-        analyze: z.string().default("./prompts/analyze.md"),
-        implement: z.string().default("./prompts/implement.md"),
-        verify: z.string().default("./prompts/verify.md"),
-        mr: z.string().default("./prompts/mr.md"),
-        log: z.string().default("./prompts/log.md"),
-      })
-      .default(() => ({
-        analyze: "./prompts/analyze.md",
-        implement: "./prompts/implement.md",
-        verify: "./prompts/verify.md",
-        mr: "./prompts/mr.md",
-        log: "./prompts/log.md",
-      })),
-    log_mcp_config: z.string().optional(),
-    reviewer: z.string().optional(),
-    allowed_commands: z
-      .array(z.string())
-      .default(() => ["git", "glab", "sbt compile", "sbt test", "sbt fmtCheck", "sbt fmt"]),
-    max_tokens: z.number().int().positive().optional(),
-    variables: z.record(z.string(), z.string()).default(() => ({})),
+    name: z.string().regex(/^[a-z][a-z0-9-]*$/, "must be kebab-case"),
+    notify: z.boolean().optional(),
+    variables: z.record(z.string(), z.string()).optional(),
   })
-  .optional();
+  .strict();
 
-const RecurringTaskSchema = z.object({
-  name: z.string().min(1),
-  schedule: z.string().min(1),
-  prompt: z.string().min(1),
-  allowed_tools: z.array(z.string()).optional(),
-  output: z.string().optional(),
-  timeout: z.string().optional(),
-  max_budget_usd: z.number().positive().optional(),
-  model: z.string().optional(),
-  mcp_config: z.string().optional(),
-  notify: z.boolean().optional(),
-});
+const ScheduleEntrySchema = z
+  .object({
+    agent: z.string().min(1),
+    cron: z.string().min(1),
+    variables: z.record(z.string(), z.string()).optional(),
+    enabled: z.boolean().default(true),
+    notify: z.boolean().optional(),
+  })
+  .strict();
 
-const ConfigSchema = z.object({
-  workspace: z.string().default("./workspace"),
-  inbox: z.string().default("./inbox"),
-  max_concurrent: z.number().int().positive().default(2),
-  default_timeout: z.string().default("30m"),
-  beads: z
-    .object({
-      enabled: z.boolean().default(true),
-    })
-    .default({ enabled: true }),
-  daemon: z
-    .object({
-      poll_interval_ms: z.number().int().positive().default(30000),
-      heartbeat_interval_ms: z.number().int().positive().default(10000),
-      log_retention_days: z.number().int().positive().default(30),
-    })
-    .default({
-      poll_interval_ms: 30000,
-      heartbeat_interval_ms: 10000,
-      log_retention_days: 30,
-    }),
-  recurring: z.array(RecurringTaskSchema).default([]),
-  one_off_defaults: z
-    .object({
-      timeout: z.string().default("30m"),
-      max_budget_usd: z.number().positive().optional(),
-      model: z.string().optional(),
-    })
-    .default({ timeout: "30m" }),
-  ntfy: NtfyConfigSchema,
-  code_agent: CodeAgentSchema,
-});
+const ConfigSchema = z
+  .object({
+    workspace: z.string().default("./workspace"),
+    inbox: z.string().default("./inbox"),
+    max_concurrent: z.number().int().positive().default(2),
+    default_timeout: z.string().default("30m"),
+    beads: z
+      .object({
+        enabled: z.boolean().default(true),
+      })
+      .default({ enabled: true }),
+    daemon: z
+      .object({
+        poll_interval_ms: z.number().int().positive().default(30000),
+        heartbeat_interval_ms: z.number().int().positive().default(10000),
+        log_retention_days: z.number().int().positive().default(30),
+      })
+      .default({
+        poll_interval_ms: 30000,
+        heartbeat_interval_ms: 10000,
+        log_retention_days: 30,
+      }),
+    agents_dir: z.string().default("./agents"),
+    agents: z.array(AgentDeclarationSchema).default(() => []),
+    schedule: z.array(ScheduleEntrySchema).default(() => []),
+    one_off_defaults: z
+      .object({
+        timeout: z.string().default("30m"),
+        max_budget_usd: z.number().positive().optional(),
+        model: z.string().optional(),
+      })
+      .default({ timeout: "30m" }),
+    ntfy: NtfyConfigSchema,
+  })
+  .strict()
+  .superRefine((data, ctx) => {
+    // a. Duplicate agent names
+    const agentNames = data.agents.map((a) => a.name);
+    const seen = new Set<string>();
+    for (const name of agentNames) {
+      if (seen.has(name)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `Duplicate agent name: '${name}'`,
+        });
+      }
+      seen.add(name);
+    }
+
+    // b. Schedule references unknown agent
+    const agentNameSet = new Set(agentNames);
+    for (const entry of data.schedule) {
+      if (!agentNameSet.has(entry.agent)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `Schedule references unknown agent '${entry.agent}'`,
+        });
+      }
+    }
+
+    // c. Cron validation for enabled schedule entries
+    for (const entry of data.schedule) {
+      if (!entry.enabled) continue;
+      try {
+        new Cron(entry.cron);
+      } catch {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `Invalid cron expression: '${entry.cron}'`,
+        });
+      }
+    }
+  });
 
 type RawConfig = z.infer<typeof ConfigSchema>;
 
@@ -122,17 +122,18 @@ function mapConfig(raw: RawConfig): NightShiftConfig {
       heartbeatIntervalMs: raw.daemon.heartbeat_interval_ms,
       logRetentionDays: raw.daemon.log_retention_days,
     },
-    recurring: raw.recurring.map((r) => ({
-      name: r.name,
-      schedule: r.schedule,
-      prompt: r.prompt,
-      allowedTools: r.allowed_tools,
-      output: r.output,
-      timeout: r.timeout,
-      maxBudgetUsd: r.max_budget_usd,
-      model: r.model,
-      mcpConfig: r.mcp_config,
-      notify: r.notify,
+    agentsDir: raw.agents_dir,
+    agents: raw.agents.map((a) => ({
+      name: a.name,
+      notify: a.notify,
+      variables: a.variables,
+    })),
+    schedule: raw.schedule.map((s) => ({
+      agent: s.agent,
+      cron: s.cron,
+      variables: s.variables,
+      enabled: s.enabled,
+      notify: s.notify,
     })),
     oneOffDefaults: {
       timeout: raw.one_off_defaults.timeout,
@@ -144,19 +145,6 @@ function mapConfig(raw: RawConfig): NightShiftConfig {
           topic: raw.ntfy.topic,
           token: raw.ntfy.token,
           baseUrl: raw.ntfy.base_url,
-        }
-      : undefined,
-    codeAgent: raw.code_agent
-      ? {
-          repoUrl: raw.code_agent.repo_url,
-          confluencePageId: raw.code_agent.confluence_page_id,
-          categorySchedule: raw.code_agent.category_schedule,
-          prompts: raw.code_agent.prompts,
-          logMcpConfig: raw.code_agent.log_mcp_config,
-          reviewer: raw.code_agent.reviewer,
-          allowedCommands: raw.code_agent.allowed_commands,
-          maxTokens: raw.code_agent.max_tokens,
-          variables: raw.code_agent.variables,
         }
       : undefined,
   };
@@ -223,54 +211,29 @@ daemon:
   heartbeat_interval_ms: 10000
   log_retention_days: 30
 
-recurring: []
-# Example recurring task:
-# - name: "daily-standup-prep"
-#   schedule: "0 6 * * 1-5"
-#   prompt: |
-#     Check Jira for my team's recent updates and prepare
-#     standup notes for today's meeting.
-#   allowed_tools:
-#     - "mcp__jira__*"
-#     - "Read"
-#     - "Write"
-#   output: "inbox/standup-prep-{{date}}.md"
-#   timeout: "15m"
-#   max_budget_usd: 2.00
+agents_dir: ./agents
+
+agents: []
+# agents:
+#   - name: code-agent
+#     variables:
+#       repo_url: "git@gitlab.com:team/repo.git"
+
+schedule: []
+# schedule:
+#   - agent: code-agent
+#     cron: "0 2 * * 1-5"
+#     variables:
+#       category: "refactoring"
+#   - agent: code-agent
+#     cron: "0 2 * * 6"
+#     variables:
+#       category: "tests"
 
 # ntfy:
 #   topic: night-shift
 #   token: tk_abc123        # optional
 #   base_url: https://ntfy.sh  # optional, defaults to ntfy.sh
-
-# code_agent:
-#   repo_url: git@gitlab.com:team/repo.git
-#   confluence_page_id: "123456"
-#   category_schedule:
-#     monday: [tests]
-#     tuesday: [refactoring]
-#     wednesday: [docs]
-#     thursday: [error_handling]
-#     friday: [cleanup]
-#   # Optional: override default prompt templates (paths relative to this config file)
-#   # prompts:
-#   #   analyze: ./prompts/analyze.md
-#   #   implement: ./prompts/implement.md
-#   #   verify: ./prompts/verify.md
-#   #   mr: ./prompts/mr.md
-#   #   log: ./prompts/log.md
-#   # Optional: MCP config for the Confluence log bead
-#   # log_mcp_config: /path/to/mcp-config.json
-#   # Optional: assign MRs to a reviewer by username
-#   # reviewer: "jsmith"
-#   # Optional: override default allowed shell commands
-#   # allowed_commands: [git, glab, sbt compile, sbt test, sbt fmtCheck, sbt fmt]
-#   # Optional: max tokens per bead invocation
-#   # max_tokens: 8192
-#   # Optional: custom template variables passed to all bead prompts
-#   # variables:
-#   #   project_name: "MyApp"
-#   #   team_name: "Backend"
 
 one_off_defaults:
   timeout: "30m"

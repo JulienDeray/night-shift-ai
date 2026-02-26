@@ -1,3 +1,31 @@
+export interface CategoryScheduleConfig {
+  monday?: string[];
+  tuesday?: string[];
+  wednesday?: string[];
+  thursday?: string[];
+  friday?: string[];
+  saturday?: string[];
+  sunday?: string[];
+}
+
+export interface CodeAgentConfig {
+  repoUrl: string;
+  confluencePageId: string;
+  categorySchedule: CategoryScheduleConfig;
+  prompts: {
+    analyze: string;
+    implement: string;
+    verify: string;
+    mr: string;
+    log: string;
+  };
+  logMcpConfig?: string;
+  reviewer?: string;
+  allowedCommands: string[];
+  maxTokens?: number;
+  variables: Record<string, string>;
+}
+
 export interface AnalysisCandidate {
   rank: number;
   files: string[];
