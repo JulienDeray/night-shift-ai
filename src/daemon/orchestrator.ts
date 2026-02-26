@@ -13,6 +13,95 @@ import { getQueueDir } from "../core/paths.js";
 import type { AgentExecutionResult, DaemonState, NightShiftConfig, NightShiftTask } from "../core/types.js";
 import { NtfyClient } from "../notifications/ntfy-client.js";
 import fs from "node:fs/promises";
+import { loadManifest } from "../agent/manifest-loader.js";
+import { BUILT_IN_VARS, validateTemplateVars } from "../agent/template.js";
+import { ConfigError } from "../core/errors.js";
+
+/**
+ * Validates all declared agents at daemon startup before the first poll tick.
+ * Collects ALL errors across all agents and reports them together.
+ * Throws ConfigError if any validation fails.
+ * Is a no-op when config.agents is empty.
+ */
+export async function validateAgentsAtStartup(
+  config: NightShiftConfig,
+  configDir: string,
+): Promise<void> {
+  if (config.agents.length === 0) return;
+
+  const agentsRoot = path.resolve(configDir, config.agentsDir);
+
+  // Collect all schedule-level variable overrides per agent
+  const scheduleVarsByAgent = new Map<string, Record<string, string>[]>();
+  for (const entry of config.schedule) {
+    if (!scheduleVarsByAgent.has(entry.agent)) {
+      scheduleVarsByAgent.set(entry.agent, []);
+    }
+    if (entry.variables) {
+      scheduleVarsByAgent.get(entry.agent)!.push(entry.variables);
+    }
+  }
+
+  const errors: string[] = [];
+
+  for (const agent of config.agents) {
+    const agentDir = path.join(agentsRoot, agent.name);
+    try {
+      // Load and validate manifest (handles path containment, Zod validation, env var resolution)
+      const manifest = await loadManifest(agentDir, agentsRoot);
+
+      // For each bead, validate prompt file exists and template vars resolve
+      for (const bead of manifest.beads) {
+        const promptPath = path.join(manifest.agentDir, bead.prompt);
+        let promptContent: string;
+        try {
+          promptContent = await fs.readFile(promptPath, "utf-8");
+        } catch {
+          errors.push(
+            `Agent '${agent.name}', bead '${bead.name}': prompt file not found: ${promptPath}`,
+          );
+          continue; // Skip template validation for missing prompt
+        }
+
+        // Build full variable map for template validation:
+        // built-in placeholders + manifest vars + agent-level config overrides + all schedule-level overrides
+        const builtInPlaceholders: Record<string, string> = Object.fromEntries(
+          BUILT_IN_VARS.map((v) => [v, `<${v}>`]),
+        );
+        const allKnownVars: Record<string, unknown> = {
+          ...manifest.variables,
+          ...(agent.variables ?? {}),
+          ...builtInPlaceholders,
+        };
+        // Merge all schedule-level overrides for this agent
+        const scheduleOverrides = scheduleVarsByAgent.get(agent.name) ?? [];
+        for (const overrides of scheduleOverrides) {
+          Object.assign(allKnownVars, overrides);
+        }
+
+        try {
+          validateTemplateVars(promptContent, allKnownVars);
+        } catch (err) {
+          errors.push(
+            `Agent '${agent.name}', bead '${bead.name}': ${err instanceof Error ? err.message : String(err)}`,
+          );
+        }
+      }
+    } catch (err) {
+      // loadManifest can throw ManifestError, ManifestSecurityError, etc.
+      errors.push(
+        `Agent '${agent.name}': ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  }
+
+  if (errors.length > 0) {
+    const msg =
+      `Startup validation failed — ${errors.length} error(s) across agent(s):\n\n` +
+      errors.map((e, i) => `  [${i + 1}] ${e}`).join("\n\n");
+    throw new ConfigError(msg);
+  }
+}
 
 export class Orchestrator {
   private config!: NightShiftConfig;
@@ -54,6 +143,9 @@ export class Orchestrator {
     await this.scheduler.loadState();
     await writePidFile(process.pid);
     await this.writeHeartbeat();
+
+    // Validate all agent manifests before entering poll loop
+    await validateAgentsAtStartup(this.config, path.dirname(getConfigPath()));
 
     this.logger.info("Daemon started", {
       pid: process.pid,
