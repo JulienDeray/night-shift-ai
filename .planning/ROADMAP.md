@@ -25,7 +25,7 @@
 
 - [x] **Phase 5: Dispatch Foundation** — Retire `isCodeAgent`, define `AgentConfig` types, fix concurrent handoff naming (completed 2026-02-25)
 - [x] **Phase 6: Plugin Interfaces and Manifest Schema** — `BeadPlugin` interface, `BeadRegistry`, `AgentTemplateLoader`, full manifest Zod schema, security contracts (completed 2026-02-26)
-- [ ] **Phase 7: Config Schema Migration and Startup Validation** — `nightshift.yaml` accepts `agents:` array, deprecation shim for `code_agent:`, manifest validation at daemon start
+- [x] **Phase 7: Config Schema Migration and Startup Validation** — `nightshift.yaml` accepts `agents:` array, deprecation shim for `code_agent:`, manifest validation at daemon start (completed 2026-02-26)
 - [ ] **Phase 8: AgentEngine and Bead Plugin Implementations** — Generic `AgentEngine`, `StandardBeadPlugin`, `GitCloneBeadPlugin`
 - [ ] **Phase 9: Code-Agent Migration** — `agents/code-agent/` directory with manifest and prompt files, parity with v1.0 pipeline
 - [ ] **Phase 10: Daemon Wiring and Legacy Cleanup** — Route `agentName` tasks to `AgentEngine`, remove `code-agent.ts` and `code-agent-runner.ts`
@@ -124,7 +124,7 @@
 | 4. Git Harness and Logging | v1.0 | 2/2 | Complete | 2026-02-25 |
 | 5. Dispatch Foundation | 2/2 | Complete   | 2026-02-25 | - |
 | 6. Plugin Interfaces and Manifest Schema | 3/3 | Complete   | 2026-02-26 | - |
-| 7. Config Schema Migration and Startup Validation | 1/2 | In Progress|  | - |
+| 7. Config Schema Migration and Startup Validation | 2/2 | Complete   | 2026-02-26 | - |
 | 8. AgentEngine and Bead Plugin Implementations | v2.0 | 0/? | Not started | - |
 | 9. Code-Agent Migration | v2.0 | 0/? | Not started | - |
 | 10. Daemon Wiring and Legacy Cleanup | v2.0 | 0/? | Not started | - |

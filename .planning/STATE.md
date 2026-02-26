@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: Pluggable Agent Architecture
 status: unknown
-last_updated: "2026-02-26T15:35:37.861Z"
+last_updated: "2026-02-26T16:36:07.368Z"
 progress:
-  total_phases: 2
-  completed_phases: 2
-  total_plans: 5
-  completed_plans: 5
+  total_phases: 3
+  completed_phases: 3
+  total_plans: 7
+  completed_plans: 7
 ---
 
 # Project State
@@ -23,11 +23,11 @@ See: .planning/PROJECT.md (updated 2026-02-25)
 ## Current Position
 
 Phase: 7 of 11 (Config Schema Migration and Startup Validation)
-Plan: 1 of 2 complete
+Plan: 2 of 2 complete — Phase 7 DONE
 Status: In progress
-Last activity: 2026-02-26 — completed 07-01 (config schema rewrite: agents+schedule model, .strict(), .superRefine() cross-validations)
+Last activity: 2026-02-26 — completed 07-02 (startup validation gate: validateAgentsAtStartup() wired into orchestrator.start())
 
-Progress: [█░░░░░░░░░] ~29% (v2.0, 6/21 plans complete)
+Progress: [█░░░░░░░░░] ~33% (v2.0, 7/21 plans complete)
 
 ## Performance Metrics
 
@@ -46,6 +46,7 @@ Progress: [█░░░░░░░░░] ~29% (v2.0, 6/21 plans complete)
 | 4. Git Harness and Logging | 2 | Complete |
 
 *v2.0 metrics will populate as plans complete*
+| Phase 07 P02 | 2 | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -93,6 +94,14 @@ Phase 7 Plan 01 decisions (2026-02-26):
 - scheduler.evaluateSchedules() returns [] stub — Phase 10 will wire the new schedule format
 - Config migration uses hard break (.strict()) not expand-and-contract — old code_agent:/recurring: keys immediately rejected
 
+Phase 7 Plan 02 decisions (2026-02-26):
+- validateAgentsAtStartup placed before heartbeat timer and before "Daemon started" log in start() — failure exits before any daemon logging
+- Built-in placeholder values injected as "<task_id>" strings so validateTemplateVars sees them as defined (not undefined)
+- Prompt file reads use real fs.readFile() in implementation; tests mock only loadManifest and use real tmpdir files
+- [Phase 07-02]: validateAgentsAtStartup placed before heartbeat timer and before 'Daemon started' log in start() — failure exits before any daemon logging
+- [Phase 07-02]: Built-in placeholder values injected as '<task_id>' strings so validateTemplateVars sees them as defined (not undefined)
+- [Phase 07-02]: Prompt file reads use real fs.readFile() in implementation; tests mock only loadManifest and use real tmpdir files
+
 ### Pending Todos
 
 None.
@@ -119,5 +128,5 @@ Research flags for planning (investigate before finalizing plans):
 ## Session Continuity
 
 Last session: 2026-02-26
-Stopped at: Completed 07-01-PLAN.md (config schema migration: agents+schedule model with .strict() and .superRefine())
+Stopped at: Completed 07-02-PLAN.md (startup validation: validateAgentsAtStartup() wired into orchestrator.start(), 14 tests)
 Resume file: None
