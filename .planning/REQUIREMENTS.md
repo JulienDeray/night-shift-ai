@@ -17,7 +17,7 @@ Requirements for the Pluggable Agent Architecture milestone. Each maps to roadma
 
 - [x] **MFST-01**: `manifest.yaml` schema declares the full bead pipeline (name, type, prompt file, model, allowedTools, env vars, timeout, output schema)
 - [ ] **MFST-02**: Agent template loader reads and Zod-validates manifest from an agent directory with `realpath()` path containment
-- [ ] **MFST-03**: Engine injects built-in variables and agent-specific variables into prompt templates, with built-ins taking precedence on collision
+- [x] **MFST-03**: Engine injects built-in variables and agent-specific variables into prompt templates, with built-ins taking precedence on collision
 
 ### Plugin
 
@@ -86,7 +86,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | FOUN-03 | Phase 5 | Complete |
 | MFST-01 | Phase 6 | Complete |
 | MFST-02 | Phase 6 | Pending |
-| MFST-03 | Phase 6 | Pending |
+| MFST-03 | Phase 6 | Complete |
 | PLUG-01 | Phase 6 | Complete |
 | PLUG-02 | Phase 6 | Complete |
 | PLUG-03 | Phase 6 | Pending |

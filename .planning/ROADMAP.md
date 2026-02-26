@@ -121,7 +121,7 @@
 | 3. Agent Prompt and Security | v1.0 | 2/2 | Complete | 2026-02-25 |
 | 4. Git Harness and Logging | v1.0 | 2/2 | Complete | 2026-02-25 |
 | 5. Dispatch Foundation | 2/2 | Complete   | 2026-02-25 | - |
-| 6. Plugin Interfaces and Manifest Schema | 1/3 | In Progress|  | - |
+| 6. Plugin Interfaces and Manifest Schema | 2/3 | In Progress|  | - |
 | 7. Config Schema Migration and Startup Validation | v2.0 | 0/? | Not started | - |
 | 8. AgentEngine and Bead Plugin Implementations | v2.0 | 0/? | Not started | - |
 | 9. Code-Agent Migration | v2.0 | 0/? | Not started | - |

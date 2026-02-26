@@ -23,11 +23,11 @@ See: .planning/PROJECT.md (updated 2026-02-25)
 ## Current Position
 
 Phase: 6 of 11 (Plugin Interfaces and Manifest Schema)
-Plan: 1 of 3 complete
+Plan: 3 of 3 complete
 Status: In progress
-Last activity: 2026-02-26 — completed 06-01 (error classes, manifest Zod schema, manifest types, BeadPlugin, BeadRegistry)
+Last activity: 2026-02-26 — completed 06-03 (agent template variable system: dot notation, array indexing, built-in precedence, load-time validation)
 
-Progress: [█░░░░░░░░░] ~14% (v2.0, 3/21 plans complete)
+Progress: [█░░░░░░░░░] ~24% (v2.0, 5/21 plans complete)
 
 ## Performance Metrics
 
@@ -76,6 +76,12 @@ Phase 6 Plan 01 decisions (2026-02-26):
 - AgentPipelineContext named explicitly to avoid shadowing two existing PipelineContext types in codebase
 - BeadPlugin.execute() single-method interface — no lifecycle hooks per locked CONTEXT.md decision
 
+Phase 6 Plan 03 decisions (2026-02-26):
+- src/utils/template.ts left entirely unchanged — no import relationship between old and new modules
+- resolveNestedValue normalises [N] bracket syntax to .N before splitting on dots
+- renderAgentTemplate leaves unknown placeholders as-is; validateTemplateVars does the hard error at load time
+- beads.* variables skipped at load-time validation — those paths only exist at pipeline runtime
+
 ### Pending Todos
 
 None.
@@ -102,5 +108,5 @@ Research flags for planning (investigate before finalizing plans):
 ## Session Continuity
 
 Last session: 2026-02-26
-Stopped at: Completed 06-01-PLAN.md (error classes, manifest schema, manifest types, BeadPlugin, BeadRegistry)
+Stopped at: Completed 06-03-PLAN.md (agent template variable system)
 Resume file: None
