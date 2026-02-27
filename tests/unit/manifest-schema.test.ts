@@ -166,4 +166,91 @@ describe("ManifestSchema", () => {
     }));
     expect(result.success).toBe(true);
   });
+
+  it("mcp__atlassian__getConfluencePage in allowedTools passes validation", () => {
+    const result = ManifestSchema.safeParse(validManifest({
+      beads: [
+        { name: "log", type: "standard", prompt: "prompts/log.md", outputSchema: {}, allowedTools: ["Bash", "mcp__atlassian__getConfluencePage"] },
+      ],
+    }));
+    expect(result.success).toBe(true);
+  });
+
+  it("mcp__ prefix with underscore-separated parts passes validation", () => {
+    const result = ManifestSchema.safeParse(validManifest({
+      beads: [
+        { name: "log", type: "standard", prompt: "prompts/log.md", outputSchema: {}, allowedTools: ["mcp__some__tool", "mcp__other__thing__here"] },
+      ],
+    }));
+    expect(result.success).toBe(true);
+  });
+
+  it("non-mcp__ unknown tool is still rejected", () => {
+    const result = ManifestSchema.safeParse(validManifest({
+      beads: [
+        { name: "log", type: "standard", prompt: "prompts/log.md", outputSchema: {}, allowedTools: ["Bash", "FakeUnknownTool"] },
+      ],
+    }));
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const messages = result.error.issues.map((i) => i.message);
+      expect(messages.some((m) => m.includes('Unknown tool "FakeUnknownTool"'))).toBe(true);
+      expect(messages.some((m) => m.includes('mcp__*'))).toBe(true);
+    }
+  });
+
+  it("mcpConfig literal relative path on a bead passes validation", () => {
+    const result = ManifestSchema.safeParse(validManifest({
+      beads: [
+        { name: "log", type: "standard", prompt: "prompts/log.md", outputSchema: {}, mcpConfig: "mcp-config.json" },
+      ],
+    }));
+    expect(result.success).toBe(true);
+  });
+
+  it("mcpConfig template variable on a bead passes validation", () => {
+    const result = ManifestSchema.safeParse(validManifest({
+      beads: [
+        { name: "log", type: "standard", prompt: "prompts/log.md", outputSchema: {}, mcpConfig: "{{mcp_config_path}}" },
+      ],
+    }));
+    expect(result.success).toBe(true);
+  });
+
+  it("mcpConfig absolute path on a bead fails validation", () => {
+    const result = ManifestSchema.safeParse(validManifest({
+      beads: [
+        { name: "log", type: "standard", prompt: "prompts/log.md", outputSchema: {}, mcpConfig: "/absolute/path/mcp.json" },
+      ],
+    }));
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const messages = result.error.issues.map((i) => i.message);
+      expect(messages.some((m) => m.includes("relative path") || m.includes("template variable"))).toBe(true);
+    }
+  });
+
+  it("retry with valid retryFrom referencing preceding bead passes validation", () => {
+    const result = ManifestSchema.safeParse(validManifest({
+      beads: [
+        { name: "implement", type: "standard", prompt: "prompts/implement.md", outputSchema: {} },
+        { name: "verify", type: "standard", prompt: "prompts/verify.md", outputSchema: {}, retry: { maxAttempts: 3, retryFrom: "implement" } },
+      ],
+    }));
+    expect(result.success).toBe(true);
+  });
+
+  it("retry with retryFrom referencing nonexistent preceding bead fails validation", () => {
+    const result = ManifestSchema.safeParse(validManifest({
+      beads: [
+        { name: "implement", type: "standard", prompt: "prompts/implement.md", outputSchema: {} },
+        { name: "verify", type: "standard", prompt: "prompts/verify.md", outputSchema: {}, retry: { maxAttempts: 3, retryFrom: "nonexistent" } },
+      ],
+    }));
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const messages = result.error.issues.map((i) => i.message);
+      expect(messages.some((m) => m.includes("nonexistent") && m.includes("preceding bead"))).toBe(true);
+    }
+  });
 });

@@ -24,6 +24,10 @@ export interface ResolvedBead {
   env: ResolvedEnvVar[];    // resolved: agent merged with bead (bead wins collision)
   outputSchema: Record<string, unknown>;        // raw JSON Schema from manifest
   compiledOutputSchema: z.ZodTypeAny;           // compiled at load time via z.fromJSONSchema()
+  /** Raw mcpConfig string from manifest (may contain template variables). Not resolved at load time. */
+  mcpConfig?: string;
+  /** Bead-level retry config. */
+  retry?: { maxAttempts: number; retryFrom: string };
 }
 
 /**
