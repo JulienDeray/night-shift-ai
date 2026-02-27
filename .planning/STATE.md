@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Pluggable Agent Architecture
 status: unknown
-last_updated: "2026-02-27T18:53:00.510Z"
+last_updated: "2026-02-27T19:02:48.652Z"
 progress:
   total_phases: 5
-  completed_phases: 4
+  completed_phases: 5
   total_plans: 11
-  completed_plans: 10
+  completed_plans: 11
 ---
 
 # Project State
@@ -23,11 +23,11 @@ See: .planning/PROJECT.md (updated 2026-02-25)
 ## Current Position
 
 Phase: 9 of 11 (Code-Agent Migration)
-Plan: 1/2 — 09-01 complete
+Plan: 2/2 — 09-02 complete (Phase 9 done)
 Status: In progress
-Last activity: 2026-02-27 — Phase 9 Plan 01 complete
+Last activity: 2026-02-27 — Phase 9 Plan 02 complete
 
-Progress: [███░░░░░░░] ~43% (v2.0, 9/21 plans complete)
+Progress: [████░░░░░░] ~48% (v2.0, 10/21 plans complete)
 
 ## Performance Metrics
 
@@ -50,6 +50,7 @@ Progress: [███░░░░░░░] ~43% (v2.0, 9/21 plans complete)
 | Phase 08 P01 | 261 | 2 tasks | 9 files |
 | Phase 08 P02 | 4 | 2 tasks | 2 files |
 | Phase 09 P01 | 20 | 2 tasks | 9 files |
+| Phase 09 P02 | 6 | 2 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -115,6 +116,8 @@ Phase 8 Plan 02 decisions (2026-02-27):
 - [Phase 09]: mcpConfig stored as raw string on ResolvedBead (deferred resolution) — template variables rendered at plugin execution time via renderAgentTemplate before path.join
 - [Phase 09]: retryCount not reset between beads — persists across entire run to enforce maxAttempts cap correctly for implement→verify retry loops
 - [Phase 09]: mcp__* prefix accepted in allowedTools via !t.startsWith('mcp__') filter — error message updated to mention 'or any mcp__* tool'
+- [Phase 09]: retry_error declared in manifest variables with empty string default so dryRun validates implement.md without error — engine overwrites with actual error details on retry
+- [Phase 09]: GitCloneBeadPlugin rawOutput wrapped in JSON code block format — required because validateBeadOutput uses extractLastJsonBlock which only matches code block syntax
 
 ### Pending Todos
 
@@ -142,5 +145,5 @@ Research flags for planning (investigate before finalizing plans):
 ## Session Continuity
 
 Last session: 2026-02-27
-Stopped at: Completed 09-01-PLAN.md
-Resume file: .planning/phases/09-code-agent-migration/09-01-SUMMARY.md
+Stopped at: Completed 09-02-PLAN.md
+Resume file: .planning/phases/09-code-agent-migration/09-02-SUMMARY.md
