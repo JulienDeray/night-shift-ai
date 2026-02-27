@@ -5,17 +5,17 @@ import type { ClaudeJsonOutput } from "../core/types.js";
 /**
  * Constructs a sanitized environment for a bead invocation.
  *
- * AGENT-08 enforcement point: GITLAB_TOKEN is NEVER passed to analyze,
- * implement, or verify beads. It is only forwarded for the "mr" bead.
- * The "log" bead does not receive GITLAB_TOKEN either — it only uses
- * MCP Atlassian tools that authenticate independently.
+ * GITLAB_TOKEN is forwarded when the caller provides a non-undefined
+ * gitlabToken argument. The decision of whether to pass GITLAB_TOKEN
+ * belongs to the caller (e.g., StandardBeadPlugin inspects the resolved
+ * bead env; the old code-agent-runner only passes it for the "mr" bead).
  *
  * We start from a minimal allowlist of safe env vars rather than spreading
  * process.env — this prevents accidental token leakage if GITLAB_TOKEN
  * happens to be set in the parent process environment.
  */
 export function buildBeadEnv(
-  beadName: "analyze" | "implement" | "verify" | "mr" | "log",
+  beadName: string,
   gitlabToken: string | undefined,
 ): NodeJS.ProcessEnv {
   const safeEnv: NodeJS.ProcessEnv = {
@@ -27,9 +27,8 @@ export function buildBeadEnv(
     TERM: process.env.TERM,
   };
 
-  // Only the MR bead gets GITLAB_TOKEN (needed for `glab mr create`)
-  // The log bead explicitly must NOT receive it
-  if (beadName === "mr" && gitlabToken) {
+  // Forward GITLAB_TOKEN when the caller explicitly provides it
+  if (gitlabToken) {
     safeEnv.GITLAB_TOKEN = gitlabToken;
   }
 
@@ -92,12 +91,12 @@ export function buildBeadArgs(
  *
  * SECURITY:
  * - env is always constructed via buildBeadEnv (never process.env directly)
- * - GITLAB_TOKEN only forwarded for the "mr" bead
+ * - GITLAB_TOKEN forwarded only when caller passes a non-undefined gitlabToken
  * - Rendered prompt is never logged (may contain sensitive repo analysis)
  * - Log bead receives mcpConfigPath and Atlassian-only allowedTools, no GITLAB_TOKEN
  */
 export async function runBead(options: {
-  beadName: "analyze" | "implement" | "verify" | "mr" | "log";
+  beadName: string;
   prompt: string;
   model: string;
   cwd: string;
