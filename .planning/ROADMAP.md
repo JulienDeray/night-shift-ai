@@ -132,6 +132,6 @@ Plans:
 | 6. Plugin Interfaces and Manifest Schema | 3/3 | Complete   | 2026-02-26 | - |
 | 7. Config Schema Migration and Startup Validation | 2/2 | Complete   | 2026-02-26 | - |
 | 8. AgentEngine and Bead Plugin Implementations | 2/2 | Complete   | 2026-02-27 | - |
-| 9. Code-Agent Migration | v2.0 | 0/? | Not started | - |
+| 9. Code-Agent Migration | 1/2 | In Progress|  | - |
 | 10. Daemon Wiring and Legacy Cleanup | v2.0 | 0/? | Not started | - |
 | 11. Developer Experience | v2.0 | 0/? | Not started | - |
