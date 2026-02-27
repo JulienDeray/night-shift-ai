@@ -20,6 +20,7 @@ import {
   BeadOutputMissingError,
   RegistryError,
 } from "../core/errors.js";
+import { spawnWithTimeout } from "../utils/process.js";
 
 // ---------------------------------------------------------------------------
 // Error categorization
@@ -70,6 +71,17 @@ export class AgentEngine {
     private readonly registry: BeadRegistry,
     private readonly logger: Logger,
   ) {}
+
+  /**
+   * Resets the working directory to HEAD via git reset --hard.
+   * Called before each retry of the retryFrom bead.
+   */
+  private async resetWorkDir(workDir: string): Promise<void> {
+    const { result } = spawnWithTimeout("git", ["reset", "--hard", "HEAD"], {
+      cwd: workDir,
+    });
+    await result;
+  }
 
   /**
    * Executes a complete agent pipeline.
@@ -135,9 +147,14 @@ export class AgentEngine {
     };
 
     const perBead: BeadOutcome[] = [];
+    const beadOutputs: Record<string, unknown> = {};
 
-    // Bead execution loop
-    for (let i = 0; i < manifest.beads.length; i++) {
+    // Retry state — persists across entire run
+    let retryCount = 0;
+
+    // Bead execution loop (while-based to support retry jumps)
+    let i = 0;
+    while (i < manifest.beads.length) {
       const bead = manifest.beads[i];
       ctx = { ...ctx, currentBead: bead };
       const beadStart = Date.now();
@@ -166,6 +183,9 @@ export class AgentEngine {
 
         const durationMs = Date.now() - beadStart;
 
+        // Store bead output for caller inspection
+        beadOutputs[bead.name] = parsed;
+
         // Accumulate context for downstream beads
         ctx = {
           ...ctx,
@@ -187,6 +207,52 @@ export class AgentEngine {
         };
 
         perBead.push({ name: bead.name, status: "SUCCESS", durationMs });
+
+        // Check retry trigger: if bead has retry config and output has passed === false
+        if (
+          bead.retry &&
+          typeof parsed === "object" &&
+          parsed !== null &&
+          "passed" in parsed &&
+          (parsed as Record<string, unknown>).passed === false
+        ) {
+          retryCount++;
+          if (retryCount <= bead.retry.maxAttempts) {
+            const retryFromIndex = manifest.beads.findIndex((b) => b.name === bead.retry!.retryFrom);
+
+            this.logger.info("Bead triggered retry", {
+              runId,
+              bead: bead.name,
+              retryFrom: bead.retry.retryFrom,
+              attempt: retryCount,
+              maxAttempts: bead.retry.maxAttempts,
+            });
+
+            // Inject retry_error into variables for the retryFrom bead
+            const errorDetails = (parsed as Record<string, unknown>).error_details ?? "";
+            ctx = {
+              ...ctx,
+              variables: {
+                ...ctx.variables,
+                retry_error: String(errorDetails),
+              },
+            };
+
+            // Reset working directory before retry
+            await this.resetWorkDir(ctx.workDir);
+
+            // Jump back to retryFrom bead
+            i = retryFromIndex;
+            continue;
+          }
+          // Max retries exhausted — log and fall through to normal progression
+          this.logger.warn("Retry exhausted", {
+            runId,
+            bead: bead.name,
+            retryCount,
+            maxAttempts: bead.retry.maxAttempts,
+          });
+        }
 
         this.logger.info("Bead completed", {
           runId,
@@ -254,8 +320,11 @@ export class AgentEngine {
           errorCategory: category,
           suggestedDelayMs: category === "TRANSIENT" ? 60_000 : undefined,
           error: String(err),
+          beadOutputs,
         };
       }
+
+      i++;
     }
 
     // All beads succeeded — cleanup and return SUCCESS
@@ -280,6 +349,7 @@ export class AgentEngine {
       finalOutput,
       perBead,
       totalDurationMs,
+      beadOutputs,
     };
   }
 
