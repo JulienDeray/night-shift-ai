@@ -74,9 +74,8 @@ describe("GitCloneBeadPlugin", () => {
     const plugin = new GitCloneBeadPlugin();
     const result = await plugin.execute(makeContext());
 
-    expect(result.rawOutput).toBe(
-      JSON.stringify({ repoDir: "/tmp/x", handoffDir: "/tmp/y" }),
-    );
+    const payload = JSON.stringify({ repoDir: "/tmp/x", handoffDir: "/tmp/y" });
+    expect(result.rawOutput).toBe("```json\n" + payload + "\n```");
   });
 
   it("throws when repo_url variable is missing", async () => {

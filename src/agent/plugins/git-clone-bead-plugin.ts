@@ -32,12 +32,13 @@ export class GitCloneBeadPlugin implements BeadPlugin {
     // 4. Clone into the engine-managed directory
     const cloneResult = await cloneRepo(repoUrl, gitlabToken, repoDir);
 
-    // 5. Return clone paths as JSON — engine parses and updates context
+    // 5. Return clone paths as JSON code block — validateBeadOutput extracts last JSON code block
+    const payload = JSON.stringify({
+      repoDir: cloneResult.repoDir,
+      handoffDir: cloneResult.handoffDir,
+    });
     return {
-      rawOutput: JSON.stringify({
-        repoDir: cloneResult.repoDir,
-        handoffDir: cloneResult.handoffDir,
-      }),
+      rawOutput: "```json\n" + payload + "\n```",
     };
   }
 }
