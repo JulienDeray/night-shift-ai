@@ -79,7 +79,10 @@
   2. `StandardBeadPlugin` invokes the existing `runBead()` function unchanged — no new subprocess logic
   3. `GitCloneBeadPlugin` invokes the existing `cloneRepo()` function unchanged — no new git logic
   4. The engine contains zero references to `code-agent`, category rotation, or any agent-specific constant
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 08-01-PLAN.md — Engine types, TempDirManager, widen runBead/cloneRepo APIs, StandardBeadPlugin, GitCloneBeadPlugin
+- [ ] 08-02-PLAN.md — AgentEngine class with run(), dryRun(), error categorization, rollback, and comprehensive tests
 
 ### Phase 9: Code-Agent Migration
 **Goal**: The code-agent exists as a self-contained `agents/code-agent/` directory — runnable by `AgentEngine` with no functionality lost compared to v1.0
@@ -125,7 +128,7 @@
 | 5. Dispatch Foundation | 2/2 | Complete   | 2026-02-25 | - |
 | 6. Plugin Interfaces and Manifest Schema | 3/3 | Complete   | 2026-02-26 | - |
 | 7. Config Schema Migration and Startup Validation | 2/2 | Complete   | 2026-02-26 | - |
-| 8. AgentEngine and Bead Plugin Implementations | v2.0 | 0/? | Not started | - |
+| 8. AgentEngine and Bead Plugin Implementations | v2.0 | 0/2 | Not started | - |
 | 9. Code-Agent Migration | v2.0 | 0/? | Not started | - |
 | 10. Daemon Wiring and Legacy Cleanup | v2.0 | 0/? | Not started | - |
 | 11. Developer Experience | v2.0 | 0/? | Not started | - |
