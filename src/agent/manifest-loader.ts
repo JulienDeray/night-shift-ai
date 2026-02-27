@@ -139,6 +139,8 @@ function resolveBeadConfig(
     env: mergeEnv(agentEnv, beadEnv),
     outputSchema: bead.outputSchema,
     compiledOutputSchema: compileOutputSchema(bead.outputSchema, bead.name),
+    mcpConfig: bead.mcpConfig,  // store raw string — NOT resolved to absolute path here
+    retry: bead.retry ? { maxAttempts: bead.retry.maxAttempts, retryFrom: bead.retry.retryFrom } : undefined,
   };
 }
 

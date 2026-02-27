@@ -12,6 +12,7 @@ vi.mock("../../src/agent/bead-runner.js", () => ({
 
 import { runBead } from "../../src/agent/bead-runner.js";
 import { StandardBeadPlugin } from "../../src/agent/plugins/standard-bead-plugin.js";
+import { INJECTION_MITIGATION_PREAMBLE } from "../../src/agent/prompt-loader.js";
 import type { AgentPipelineContext } from "../../src/agent/bead-plugin.js";
 import type { ResolvedBead, LoadedManifest } from "../../src/agent/manifest-types.js";
 
@@ -219,5 +220,84 @@ describe("StandardBeadPlugin", () => {
     const callArgs = mockRunBead.mock.calls[0][0];
     expect(callArgs.model).toBe("claude-opus-4");
     expect(callArgs.allowedTools).toEqual(["Bash", "Read"]);
+  });
+
+  it("prepends INJECTION_MITIGATION_PREAMBLE to the prompt passed to runBead", async () => {
+    mockRunBead.mockResolvedValue({
+      exitCode: 0,
+      stdout: "ok",
+      stderr: "",
+      durationMs: 100,
+      costUsd: 0,
+      timedOut: false,
+    });
+
+    const plugin = new StandardBeadPlugin();
+    const ctx = makeContext(agentDir);
+    await plugin.execute(ctx);
+
+    const callArgs = mockRunBead.mock.calls[0][0];
+    expect(callArgs.prompt.startsWith(INJECTION_MITIGATION_PREAMBLE)).toBe(true);
+  });
+
+  it("passes mcpConfigPath resolved from template variable to runBead", async () => {
+    mockRunBead.mockResolvedValue({
+      exitCode: 0,
+      stdout: "ok",
+      stderr: "",
+      durationMs: 100,
+      costUsd: 0,
+      timedOut: false,
+    });
+
+    const plugin = new StandardBeadPlugin();
+    const bead = makeResolvedBead({ mcpConfig: "{{mcp_config_path}}" });
+    const ctx = makeContext(agentDir, {
+      currentBead: bead,
+      variables: { task_id: "task-123", repo_path: "/tmp/repo", mcp_config_path: "/tmp/mcp.json" },
+    });
+    await plugin.execute(ctx);
+
+    const callArgs = mockRunBead.mock.calls[0][0];
+    // Template variable rendered to absolute path — used directly
+    expect(callArgs.mcpConfigPath).toBe("/tmp/mcp.json");
+  });
+
+  it("passes mcpConfigPath resolved from relative literal path to runBead", async () => {
+    mockRunBead.mockResolvedValue({
+      exitCode: 0,
+      stdout: "ok",
+      stderr: "",
+      durationMs: 100,
+      costUsd: 0,
+      timedOut: false,
+    });
+
+    const plugin = new StandardBeadPlugin();
+    const bead = makeResolvedBead({ mcpConfig: "mcp-config.json" });
+    const ctx = makeContext(agentDir, { currentBead: bead });
+    await plugin.execute(ctx);
+
+    const callArgs = mockRunBead.mock.calls[0][0];
+    expect(callArgs.mcpConfigPath).toBe(path.join(agentDir, "mcp-config.json"));
+  });
+
+  it("does not pass mcpConfigPath when mcpConfig is undefined", async () => {
+    mockRunBead.mockResolvedValue({
+      exitCode: 0,
+      stdout: "ok",
+      stderr: "",
+      durationMs: 100,
+      costUsd: 0,
+      timedOut: false,
+    });
+
+    const plugin = new StandardBeadPlugin();
+    const bead = makeResolvedBead({ mcpConfig: undefined });
+    const ctx = makeContext(agentDir, { currentBead: bead });
+    await plugin.execute(ctx);
+
+    const callArgs = mockRunBead.mock.calls[0][0];
+    expect(callArgs.mcpConfigPath).toBeUndefined();
   });
 });

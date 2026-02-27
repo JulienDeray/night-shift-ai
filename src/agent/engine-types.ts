@@ -39,4 +39,6 @@ export interface AgentRunResult<T = unknown> {
   /** TRANSIENT hint: suggested delay in ms before caller retries. */
   suggestedDelayMs?: number;
   error?: string;
+  /** All bead outputs keyed by bead name — allows caller to inspect intermediate results. */
+  beadOutputs?: Record<string, unknown>;
 }
