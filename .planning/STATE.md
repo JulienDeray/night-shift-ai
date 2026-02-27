@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: Pluggable Agent Architecture
 status: unknown
-last_updated: "2026-02-27T15:33:14.643Z"
+last_updated: "2026-02-27T15:38:55Z"
 progress:
   total_phases: 4
   completed_phases: 3
   total_plans: 9
-  completed_plans: 8
+  completed_plans: 9
 ---
 
 # Project State
@@ -23,11 +23,11 @@ See: .planning/PROJECT.md (updated 2026-02-25)
 ## Current Position
 
 Phase: 8 of 11 (AgentEngine and Bead Plugin Implementations)
-Plan: 1/? — 08-01 complete, ready for 08-02
+Plan: 2/? — 08-02 complete
 Status: In progress
-Last activity: 2026-02-27 — Phase 8 Plan 01 complete
+Last activity: 2026-02-27 — Phase 8 Plan 02 complete
 
-Progress: [██░░░░░░░░] ~38% (v2.0, 8/21 plans complete)
+Progress: [███░░░░░░░] ~43% (v2.0, 9/21 plans complete)
 
 ## Performance Metrics
 
@@ -48,6 +48,7 @@ Progress: [██░░░░░░░░] ~38% (v2.0, 8/21 plans complete)
 *v2.0 metrics will populate as plans complete*
 | Phase 07 P02 | 2 | 2 tasks | 2 files |
 | Phase 08 P01 | 261 | 2 tasks | 9 files |
+| Phase 08 P02 | 4 | 2 tasks | 2 files |
 
 ## Accumulated Context
 
@@ -105,6 +106,12 @@ Phase 7 Plan 02 decisions (2026-02-26):
 - [Phase 08]: GITLAB_TOKEN gating changed from beadName==='mr' to gitlabToken presence — removes code-agent-specific logic from shared bead-runner infrastructure
 - [Phase 08]: cloneRepo() optional repoDir: on clone failure with caller-provided dir, only handoffDir is cleaned (caller owns repoDir lifecycle)
 
+Phase 8 Plan 02 decisions (2026-02-27):
+- categorizeError() checks timedOut flag first — timeout errors are FATAL even if error class would otherwise be TRANSIENT
+- Manifest load failure creates temp dir first then cleans up — temp dir always exists to clean regardless of failure point
+- dryRun() uses placeholder built-in strings ('<task_id>') so validateTemplateVars sees them as defined (same pattern as Phase 7 startup-validation)
+- ctx reconstructed with spread per bead iteration — immutable update pattern avoids shared reference bugs
+
 ### Pending Todos
 
 None.
@@ -131,5 +138,5 @@ Research flags for planning (investigate before finalizing plans):
 ## Session Continuity
 
 Last session: 2026-02-27
-Stopped at: Completed 08-01-PLAN.md
-Resume file: .planning/phases/08-agentengine-and-bead-plugin-implementations/08-01-SUMMARY.md
+Stopped at: Completed 08-02-PLAN.md
+Resume file: .planning/phases/08-agentengine-and-bead-plugin-implementations/08-02-SUMMARY.md
