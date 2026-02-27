@@ -18,9 +18,9 @@ vi.mock("../../src/agent/git-harness.js", () => ({
   cloneRepo: vi.fn(),
   cleanupDir: vi.fn(),
 }));
-
 import { runBead } from "../../src/agent/bead-runner.js";
 import { cloneRepo } from "../../src/agent/git-harness.js";
+import * as processUtils from "../../src/utils/process.js";
 import { AgentEngine } from "../../src/agent/engine.js";
 import { BeadRegistry } from "../../src/agent/bead-registry.js";
 import { StandardBeadPlugin } from "../../src/agent/plugins/standard-bead-plugin.js";
@@ -73,6 +73,7 @@ async function createTempAgent(options?: {
     type?: string;
     prompt: string;
     outputSchema?: Record<string, unknown>;
+    retry?: { maxAttempts: number; retryFrom: string };
   }>;
   promptContents?: Record<string, string>;
 }): Promise<{
@@ -713,6 +714,266 @@ describe("AgentEngine", () => {
         return data != null && (data as Record<string, unknown>)["runId"] === result.runId;
       });
       expect(callsWithRunId.length).toBeGreaterThan(0);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // 9. Retry loop
+  // -------------------------------------------------------------------------
+
+  const PASSED_OUTPUT_SCHEMA = {
+    type: "object",
+    properties: {
+      passed: { type: "boolean" },
+      error_details: { type: "string" },
+    },
+    required: ["passed"],
+  };
+
+  const PASS_RESULT = '```json\n{"result":"ok"}\n```';
+  const VERIFY_PASS = '```json\n{"passed":true}\n```';
+  const VERIFY_FAIL = '```json\n{"passed":false,"error_details":"test failed"}\n```';
+
+  describe("retry loop", () => {
+    it("retries from retryFrom bead when verify output has passed:false", async () => {
+      const { agentsRoot, agentDir, cleanup: c } = await createTempAgent({
+        beads: [
+          {
+            name: "implement",
+            type: "standard",
+            prompt: "prompts/implement.md",
+            outputSchema: RESULT_OUTPUT_SCHEMA,
+          },
+          {
+            name: "verify",
+            type: "standard",
+            prompt: "prompts/verify.md",
+            outputSchema: PASSED_OUTPUT_SCHEMA,
+            retry: { maxAttempts: 3, retryFrom: "implement" },
+          },
+        ],
+        promptContents: {
+          "prompts/implement.md": "Implement for task {{task_id}}.",
+          "prompts/verify.md": "Verify the implementation.",
+        },
+      });
+      cleanup = c;
+
+      // First verify fails, second passes
+      mockRunBead
+        .mockResolvedValueOnce(makeBeadResult(PASS_RESULT))   // implement (first)
+        .mockResolvedValueOnce(makeBeadResult(VERIFY_FAIL))   // verify (fails → retry)
+        .mockResolvedValueOnce(makeBeadResult(PASS_RESULT))   // implement (retry)
+        .mockResolvedValueOnce(makeBeadResult(VERIFY_PASS));  // verify (passes)
+
+      const engine = new AgentEngine(makeRegistry(), silentLogger());
+      const result = await engine.run(agentDir, agentsRoot, "task-retry");
+
+      expect(result.status).toBe("SUCCESS");
+      // implement called twice
+      const implementCalls = mockRunBead.mock.calls.filter(
+        (call) => call[0].beadName === "implement",
+      );
+      expect(implementCalls).toHaveLength(2);
+    });
+
+    it("injects retry_error variable on retry", async () => {
+      const { agentsRoot, agentDir, cleanup: c } = await createTempAgent({
+        beads: [
+          {
+            name: "implement",
+            type: "standard",
+            prompt: "prompts/implement.md",
+            outputSchema: RESULT_OUTPUT_SCHEMA,
+          },
+          {
+            name: "verify",
+            type: "standard",
+            prompt: "prompts/verify.md",
+            outputSchema: PASSED_OUTPUT_SCHEMA,
+            retry: { maxAttempts: 3, retryFrom: "implement" },
+          },
+        ],
+        promptContents: {
+          "prompts/implement.md": "Implement. Error context: {{retry_error}}",
+          "prompts/verify.md": "Verify the implementation.",
+        },
+      });
+      cleanup = c;
+
+      mockRunBead
+        .mockResolvedValueOnce(makeBeadResult(PASS_RESULT))
+        .mockResolvedValueOnce(makeBeadResult(VERIFY_FAIL))
+        .mockResolvedValueOnce(makeBeadResult(PASS_RESULT))
+        .mockResolvedValueOnce(makeBeadResult(VERIFY_PASS));
+
+      const engine = new AgentEngine(makeRegistry(), silentLogger());
+      await engine.run(agentDir, agentsRoot, "task-retry-error");
+
+      // Third runBead call is the retry of implement — prompt should contain retry_error
+      const thirdCall = mockRunBead.mock.calls[2][0];
+      expect(thirdCall.prompt).toContain("test failed");
+    });
+
+    it("calls git reset before retry", async () => {
+      // Spy on spawnWithTimeout to verify it's called with git reset args
+      const spawnSpy = vi.spyOn(processUtils, "spawnWithTimeout");
+
+      const { agentsRoot, agentDir, cleanup: c } = await createTempAgent({
+        beads: [
+          {
+            name: "implement",
+            type: "standard",
+            prompt: "prompts/implement.md",
+            outputSchema: RESULT_OUTPUT_SCHEMA,
+          },
+          {
+            name: "verify",
+            type: "standard",
+            prompt: "prompts/verify.md",
+            outputSchema: PASSED_OUTPUT_SCHEMA,
+            retry: { maxAttempts: 3, retryFrom: "implement" },
+          },
+        ],
+        promptContents: {
+          "prompts/implement.md": "Implement for task {{task_id}}.",
+          "prompts/verify.md": "Verify the implementation.",
+        },
+      });
+      cleanup = c;
+
+      mockRunBead
+        .mockResolvedValueOnce(makeBeadResult(PASS_RESULT))
+        .mockResolvedValueOnce(makeBeadResult(VERIFY_FAIL))
+        .mockResolvedValueOnce(makeBeadResult(PASS_RESULT))
+        .mockResolvedValueOnce(makeBeadResult(VERIFY_PASS));
+
+      const engine = new AgentEngine(makeRegistry(), silentLogger());
+      await engine.run(agentDir, agentsRoot, "task-retry-reset");
+
+      // spawnWithTimeout should have been called with git reset --hard HEAD
+      const gitResetCalls = spawnSpy.mock.calls.filter(
+        (call) => call[0] === "git" && JSON.stringify(call[1]) === JSON.stringify(["reset", "--hard", "HEAD"]),
+      );
+      expect(gitResetCalls.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it("stops retrying after maxAttempts exhausted", async () => {
+      const { agentsRoot, agentDir, cleanup: c } = await createTempAgent({
+        beads: [
+          {
+            name: "implement",
+            type: "standard",
+            prompt: "prompts/implement.md",
+            outputSchema: RESULT_OUTPUT_SCHEMA,
+          },
+          {
+            name: "verify",
+            type: "standard",
+            prompt: "prompts/verify.md",
+            outputSchema: PASSED_OUTPUT_SCHEMA,
+            retry: { maxAttempts: 2, retryFrom: "implement" },
+          },
+        ],
+        promptContents: {
+          "prompts/implement.md": "Implement for task {{task_id}}.",
+          "prompts/verify.md": "Verify the implementation.",
+        },
+      });
+      cleanup = c;
+
+      // verify always fails
+      mockRunBead
+        .mockResolvedValue(makeBeadResult(PASS_RESULT))     // implement (returns for all calls)
+        .mockResolvedValueOnce(makeBeadResult(PASS_RESULT)) // implement first
+        .mockResolvedValueOnce(makeBeadResult(VERIFY_FAIL)) // verify first (retry 1)
+        .mockResolvedValueOnce(makeBeadResult(PASS_RESULT)) // implement retry 1
+        .mockResolvedValueOnce(makeBeadResult(VERIFY_FAIL)) // verify retry 1 (retry 2)
+        .mockResolvedValueOnce(makeBeadResult(PASS_RESULT)) // implement retry 2
+        .mockResolvedValueOnce(makeBeadResult(VERIFY_FAIL)); // verify retry 2 (exhausted)
+
+      const engine = new AgentEngine(makeRegistry(), silentLogger());
+      const result = await engine.run(agentDir, agentsRoot, "task-retry-exhaust");
+
+      // Pipeline completes as SUCCESS (exhausted retry is not an error)
+      expect(result.status).toBe("SUCCESS");
+
+      // implement should be called 3 times (1 initial + 2 retries)
+      const implementCalls = mockRunBead.mock.calls.filter(
+        (call) => call[0].beadName === "implement",
+      );
+      expect(implementCalls).toHaveLength(3);
+    });
+
+    it("populates beadOutputs on success", async () => {
+      const { agentsRoot, agentDir, cleanup: c } = await createTempAgent({
+        beads: [
+          {
+            name: "analyze",
+            type: "standard",
+            prompt: "prompts/analyze.md",
+            outputSchema: RESULT_OUTPUT_SCHEMA,
+          },
+          {
+            name: "implement",
+            type: "standard",
+            prompt: "prompts/implement.md",
+            outputSchema: RESULT_OUTPUT_SCHEMA,
+          },
+        ],
+        promptContents: {
+          "prompts/analyze.md": "Analyze for task {{task_id}}.",
+          "prompts/implement.md": "Implement for task {{task_id}}.",
+        },
+      });
+      cleanup = c;
+
+      mockRunBead
+        .mockResolvedValueOnce(makeBeadResult('```json\n{"result":"analyzed"}\n```'))
+        .mockResolvedValueOnce(makeBeadResult('```json\n{"result":"implemented"}\n```'));
+
+      const engine = new AgentEngine(makeRegistry(), silentLogger());
+      const result = await engine.run(agentDir, agentsRoot, "task-bead-outputs");
+
+      expect(result.beadOutputs).toBeDefined();
+      expect(result.beadOutputs!["analyze"]).toEqual({ result: "analyzed" });
+      expect(result.beadOutputs!["implement"]).toEqual({ result: "implemented" });
+    });
+
+    it("populates beadOutputs on failure with outputs of completed beads", async () => {
+      const { agentsRoot, agentDir, cleanup: c } = await createTempAgent({
+        beads: [
+          {
+            name: "analyze",
+            type: "standard",
+            prompt: "prompts/analyze.md",
+            outputSchema: RESULT_OUTPUT_SCHEMA,
+          },
+          {
+            name: "implement",
+            type: "standard",
+            prompt: "prompts/implement.md",
+            outputSchema: RESULT_OUTPUT_SCHEMA,
+          },
+        ],
+        promptContents: {
+          "prompts/analyze.md": "Analyze for task {{task_id}}.",
+          "prompts/implement.md": "Implement for task {{task_id}}.",
+        },
+      });
+      cleanup = c;
+
+      mockRunBead
+        .mockResolvedValueOnce(makeBeadResult('```json\n{"result":"analyzed"}\n```'))
+        .mockRejectedValueOnce(new Error("implement exploded"));
+
+      const engine = new AgentEngine(makeRegistry(), silentLogger());
+      const result = await engine.run(agentDir, agentsRoot, "task-bead-outputs-fail");
+
+      expect(result.beadOutputs).toBeDefined();
+      expect(result.beadOutputs!["analyze"]).toEqual({ result: "analyzed" });
+      // implement failed — not in beadOutputs
+      expect(result.beadOutputs!["implement"]).toBeUndefined();
     });
   });
 });
