@@ -92,7 +92,10 @@ Plans:
   1. `agents/code-agent/manifest.yaml` declares the full pipeline and all prompt files are present in the directory
   2. Running the code-agent through `AgentEngine` in an integration test produces a result with the same outcome shape (`MR_CREATED`, `NO_IMPROVEMENT`, etc.) as the v1.0 `runCodeAgentPipeline()`
   3. The code-agent directory can be copied to a new location and pointed to from `nightshift.yaml` without modifying any engine code
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 09-01-PLAN.md — Engine extensions: mcpConfig, retry, mcp__ tools, preamble, beadOutputs
+- [ ] 09-02-PLAN.md — Agent directory creation (manifest + prompts) and integration test
 
 ### Phase 10: Daemon Wiring and Legacy Cleanup
 **Goal**: The daemon routes all `agentName` tasks through `AgentEngine` and the hardcoded `code-agent-runner.ts` is deleted — one dispatch path, no dead code
