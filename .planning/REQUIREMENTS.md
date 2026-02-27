@@ -29,8 +29,8 @@ Requirements for the Pluggable Agent Architecture milestone. Each maps to roadma
 ### Engine
 
 - [ ] **ENGN-01**: `AgentEngine` loads any agent directory and drives its bead pipeline from the manifest with no agent-specific logic
-- [ ] **ENGN-02**: `StandardBeadPlugin` wraps existing `runBead()` (claude -p subprocess) as a bead plugin
-- [ ] **ENGN-03**: `GitCloneBeadPlugin` wraps existing `cloneRepo()` as a harness-side bead plugin
+- [x] **ENGN-02**: `StandardBeadPlugin` wraps existing `runBead()` (claude -p subprocess) as a bead plugin
+- [x] **ENGN-03**: `GitCloneBeadPlugin` wraps existing `cloneRepo()` as a harness-side bead plugin
 
 ### Migration
 
@@ -94,8 +94,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | MIGR-02 | Phase 7 | Complete |
 | WIRE-03 | Phase 7 | Complete |
 | ENGN-01 | Phase 8 | Pending |
-| ENGN-02 | Phase 8 | Pending |
-| ENGN-03 | Phase 8 | Pending |
+| ENGN-02 | Phase 8 | Complete |
+| ENGN-03 | Phase 8 | Complete |
 | MIGR-01 | Phase 9 | Pending |
 | WIRE-01 | Phase 10 | Pending |
 | WIRE-02 | Phase 10 | Pending |
