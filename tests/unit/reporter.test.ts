@@ -3,7 +3,8 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
 import { generateReport, writeReport, toInboxEntry } from "../../src/inbox/reporter.js";
-import type { NightShiftTask, AgentExecutionResult } from "../../src/core/types.js";
+import type { NightShiftTask } from "../../src/core/types.js";
+import type { AgentRunResult } from "../../src/agent/engine-types.js";
 
 const makeTask = (overrides?: Partial<NightShiftTask>): NightShiftTask => ({
   id: "ns-abc12345",
@@ -16,13 +17,16 @@ const makeTask = (overrides?: Partial<NightShiftTask>): NightShiftTask => ({
   ...overrides,
 });
 
-const makeResult = (overrides?: Partial<AgentExecutionResult>): AgentExecutionResult => ({
-  sessionId: "sess-123",
-  durationMs: 149000,
-  totalCostUsd: 0.42,
-  result: "I did the thing successfully.",
-  isError: false,
-  numTurns: 8,
+const makeResult = (overrides?: Partial<AgentRunResult>): AgentRunResult => ({
+  runId: "run-001",
+  agentName: "test-agent",
+  status: "SUCCESS",
+  finalOutput: "I did the thing successfully.",
+  perBead: [
+    { name: "analyze", status: "SUCCESS", durationMs: 5000 },
+    { name: "implement", status: "SUCCESS", durationMs: 90000 },
+  ],
+  totalDurationMs: 149000,
   ...overrides,
 });
 
@@ -42,20 +46,24 @@ describe("generateReport", () => {
     expect(report).toContain("origin: one-off");
     expect(report).toContain("status: completed");
     expect(report).toContain("duration_seconds: 149");
-    expect(report).toContain("cost_usd: 0.42");
-    expect(report).toContain("num_turns: 8");
+    expect(report).toContain("agent_name: test-agent");
+    expect(report).toContain("bead_count: 2");
 
     // Check body
     expect(report).toContain("# test-task");
     expect(report).toContain("**Status**: Completed");
-    expect(report).toContain("**Cost**: $0.42");
+    expect(report).toContain("**Agent**: test-agent");
     expect(report).toContain("I did the thing successfully.");
     expect(report).toContain("> Do something useful");
   });
 
   it("marks failed tasks correctly", () => {
     const task = makeTask();
-    const result = makeResult({ isError: true, result: "Something went wrong" });
+    const result = makeResult({
+      status: "FATAL",
+      finalOutput: null,
+      error: "Something went wrong",
+    });
     const started = new Date("2026-02-20T03:00:00Z");
     const completed = new Date("2026-02-20T03:01:00Z");
 
@@ -66,9 +74,64 @@ describe("generateReport", () => {
     expect(report).toContain("Something went wrong");
   });
 
+  it("includes per-bead summary in report body", () => {
+    const task = makeTask();
+    const result = makeResult({
+      perBead: [
+        { name: "analyze", status: "SUCCESS", durationMs: 5000 },
+        { name: "implement", status: "FAILED", durationMs: 30000, error: "Build failed" },
+        { name: "verify", status: "SKIPPED", durationMs: 0 },
+      ],
+    });
+    const started = new Date("2026-02-20T03:00:00Z");
+    const completed = new Date("2026-02-20T03:01:00Z");
+
+    const report = generateReport(task, result, started, completed);
+
+    expect(report).toContain("**analyze**: SUCCESS (5000ms)");
+    expect(report).toContain("**implement**: FAILED (30000ms)");
+    expect(report).toContain("Build failed");
+    expect(report).toContain("**verify**: SKIPPED (0ms)");
+  });
+
+  it("shows 'No output' when finalOutput is null and no error", () => {
+    const task = makeTask();
+    const result = makeResult({ status: "FATAL", finalOutput: null, error: undefined });
+    const started = new Date("2026-02-20T03:00:00Z");
+    const completed = new Date("2026-02-20T03:01:00Z");
+
+    const report = generateReport(task, result, started, completed);
+
+    expect(report).toContain("No output");
+  });
+
+  it("JSON-stringifies object finalOutput", () => {
+    const task = makeTask();
+    const result = makeResult({ finalOutput: { result: "MR_CREATED", url: "https://example.com" } });
+    const started = new Date("2026-02-20T03:00:00Z");
+    const completed = new Date("2026-02-20T03:01:00Z");
+
+    const report = generateReport(task, result, started, completed);
+
+    expect(report).toContain("MR_CREATED");
+    expect(report).toContain("https://example.com");
+  });
+
+  it("does NOT include cost_usd or num_turns in report", () => {
+    const task = makeTask();
+    const result = makeResult();
+    const started = new Date("2026-02-20T03:00:00Z");
+    const completed = new Date("2026-02-20T03:02:29Z");
+
+    const report = generateReport(task, result, started, completed);
+
+    expect(report).not.toContain("cost_usd");
+    expect(report).not.toContain("num_turns");
+  });
+
   it("formats long durations correctly", () => {
     const task = makeTask();
-    const result = makeResult({ durationMs: 3700000 });
+    const result = makeResult({ totalDurationMs: 3700000 });
     const started = new Date("2026-02-20T02:00:00Z");
     const completed = new Date("2026-02-20T03:01:40Z");
 
@@ -170,9 +233,15 @@ describe("writeReport", () => {
 });
 
 describe("toInboxEntry", () => {
-  it("creates an inbox entry from task and result", () => {
+  it("creates an inbox entry from task and AgentRunResult", () => {
     const task = makeTask();
-    const result = makeResult();
+    const result = makeResult({
+      agentName: "test-agent",
+      perBead: [
+        { name: "analyze", status: "SUCCESS", durationMs: 1000 },
+        { name: "implement", status: "SUCCESS", durationMs: 2000 },
+      ],
+    });
     const started = new Date("2026-02-20T03:00:00Z");
     const completed = new Date("2026-02-20T03:02:29Z");
 
@@ -183,31 +252,47 @@ describe("toInboxEntry", () => {
     expect(entry.origin).toBe("one-off");
     expect(entry.status).toBe("completed");
     expect(entry.durationSeconds).toBe(149);
-    expect(entry.costUsd).toBe(0.42);
-    expect(entry.numTurns).toBe(8);
+    expect(entry.agentName).toBe("test-agent");
+    expect(entry.beadCount).toBe(2);
     expect(entry.filePath).toBe("/path/to/report.md");
   });
 
-  it("truncates result summary to 500 chars", () => {
+  it("truncates result summary to 500 chars when finalOutput is a long string", () => {
     const task = makeTask();
-    const longResult = "x".repeat(1000);
-    const result = makeResult({ result: longResult });
+    const longOutput = "x".repeat(1000);
+    const result = makeResult({ finalOutput: longOutput });
     const started = new Date("2026-02-20T03:00:00Z");
     const completed = new Date("2026-02-20T03:01:00Z");
 
     const entry = toInboxEntry(task, result, started, completed, "/path/to/report.md");
 
+    // JSON.stringify wraps string in quotes → 1002 chars → slice to 500
     expect(entry.resultSummary.length).toBe(500);
   });
 
   it("marks failed tasks with status 'failed'", () => {
     const task = makeTask();
-    const result = makeResult({ isError: true });
+    const result = makeResult({ status: "FATAL", finalOutput: null, error: "oops" });
     const started = new Date("2026-02-20T03:00:00Z");
     const completed = new Date("2026-02-20T03:01:00Z");
 
     const entry = toInboxEntry(task, result, started, completed, "/path/to/report.md");
 
     expect(entry.status).toBe("failed");
+  });
+
+  it("uses error as resultSummary when finalOutput is null", () => {
+    const task = makeTask();
+    const result = makeResult({
+      status: "FATAL",
+      finalOutput: null,
+      error: "Pipeline exploded",
+    });
+    const started = new Date("2026-02-20T03:00:00Z");
+    const completed = new Date("2026-02-20T03:01:00Z");
+
+    const entry = toInboxEntry(task, result, started, completed, "/path/to/report.md");
+
+    expect(entry.resultSummary).toContain("Pipeline exploded");
   });
 });

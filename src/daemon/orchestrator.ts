@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import path from "node:path";
 import { loadConfig } from "../core/config.js";
 import { getWorkspaceDir, ensureNightShiftDirs, getConfigPath } from "../core/paths.js";
@@ -10,12 +11,14 @@ import { writeDaemonState, writePidFile, removePidFile } from "./health.js";
 import { writeReport } from "../inbox/reporter.js";
 import { readJsonFile } from "../utils/fs.js";
 import { getQueueDir } from "../core/paths.js";
-import type { AgentExecutionResult, DaemonState, NightShiftConfig, NightShiftTask } from "../core/types.js";
+import type { DaemonState, NightShiftConfig, NightShiftTask } from "../core/types.js";
 import { NtfyClient } from "../notifications/ntfy-client.js";
 import fs from "node:fs/promises";
 import { loadManifest } from "../agent/manifest-loader.js";
 import { BUILT_IN_VARS, validateTemplateVars } from "../agent/template.js";
 import { ConfigError } from "../core/errors.js";
+import type { AgentRunResult } from "../agent/engine-types.js";
+import { appendRunLog } from "../agent/run-logger.js";
 
 /**
  * Validates all declared agents at daemon startup before the first poll tick.
@@ -135,6 +138,7 @@ export class Orchestrator {
       workspaceDir,
       logger: this.logger,
       configDir: path.dirname(getConfigPath()),
+      agentsDir: this.config.agentsDir,
     });
 
     this.ntfy = this.config.ntfy ? new NtfyClient(this.config.ntfy) : null;
@@ -325,9 +329,8 @@ export class Orchestrator {
     const { task, result, startedAt, completedAt } = taskResult;
 
     this.logger.info(`Task ${task.id} (${task.name}) completed`, {
-      status: result.isError ? "failed" : "completed",
-      costUsd: result.totalCostUsd,
-      durationMs: result.durationMs,
+      status: result.status === "SUCCESS" ? "completed" : "failed",
+      durationMs: result.totalDurationMs,
     });
 
     // Write inbox report
@@ -343,7 +346,7 @@ export class Orchestrator {
     // Close bead
     if (this.beads) {
       try {
-        if (result.isError) {
+        if (result.status !== "SUCCESS") {
           await this.beads.update(task.id, {
             labels: ["nightshift:failed"],
           });
@@ -365,7 +368,56 @@ export class Orchestrator {
 
     // Update stats
     this.state.totalExecuted++;
-    this.state.totalCostUsd += result.totalCostUsd;
+    // totalCostUsd stays 0 — AgentRunResult has no cost tracking
+
+    // JSONL logging — post-run hook, best-effort
+    try {
+      const summary = result.status === "SUCCESS"
+        ? (typeof result.finalOutput === "string"
+            ? result.finalOutput.slice(0, 200)
+            : JSON.stringify(result.finalOutput)?.slice(0, 200) ?? "")
+        : result.error?.slice(0, 200) ?? "Unknown error";
+      await appendRunLog({
+        date: new Date().toISOString(),
+        agent_name: result.agentName,
+        final_output: result.finalOutput,
+        duration_seconds: Math.round(result.totalDurationMs / 1000),
+        summary,
+      });
+    } catch (logErr) {
+      this.logger.warn("Failed to write run log", {
+        error: logErr instanceof Error ? logErr.message : String(logErr),
+      });
+    }
+
+    // Fallback category re-dispatch
+    if (result.status === "SUCCESS" && task.agentName) {
+      const analyzeOutput = result.beadOutputs?.["analyze"] as { result?: string; categoryUsed?: string } | undefined;
+      if (analyzeOutput?.result === "NO_IMPROVEMENT") {
+        const agentDecl = this.config.agents.find((a) => a.name === task.agentName);
+        const fallbackCategories = agentDecl?.fallback_categories;
+        if (fallbackCategories && fallbackCategories.length > 0) {
+          const usedCategory = analyzeOutput.categoryUsed;
+          const nextCategory = fallbackCategories.find((c) => c !== usedCategory);
+          if (nextCategory && this.pool.canAccept()) {
+            const fallbackTask: NightShiftTask = {
+              id: `ns-${crypto.randomBytes(4).toString("hex")}`,
+              name: `${task.agentName}-fallback-${nextCategory}`,
+              origin: task.origin,
+              prompt: "",
+              status: "pending",
+              timeout: task.timeout,
+              createdAt: new Date().toISOString(),
+              agentName: task.agentName,
+              notify: task.notify,
+              variables: { ...(task.variables ?? {}), category: nextCategory },
+            };
+            this.pool.dispatch(fallbackTask);
+            this.logger.info(`Dispatched fallback category '${nextCategory}' for agent '${task.agentName}'`);
+          }
+        }
+      }
+    }
 
     // Notify
     this.notifyTaskEnd(task, result);
@@ -373,8 +425,8 @@ export class Orchestrator {
 
   private notifyTaskStart(task: NightShiftTask): void {
     if (!this.ntfy || !task.notify) return;
-    const body = task.category
-      ? `Category: ${task.category}`
+    const body = task.agentName
+      ? `Agent: ${task.agentName}`
       : "Running\u2026";
     void this.ntfy.send(
       {
@@ -386,17 +438,24 @@ export class Orchestrator {
     );
   }
 
-  private notifyTaskEnd(task: NightShiftTask, result: AgentExecutionResult): void {
+  private notifyTaskEnd(task: NightShiftTask, result: AgentRunResult): void {
     if (!this.ntfy || !task.notify) return;
-    const isFailure = result.isError;
+    const isFailure = result.status !== "SUCCESS";
+    let body: string;
+    if (isFailure) {
+      body = `Error: ${result.error?.slice(0, 200) ?? "Unknown error"}`;
+    } else {
+      const summary = typeof result.finalOutput === "string"
+        ? result.finalOutput.slice(0, 200)
+        : JSON.stringify(result.finalOutput)?.slice(0, 200) ?? "";
+      body = summary;
+    }
     void this.ntfy.send(
       {
         title: isFailure
           ? `Night-shift FAILED: ${task.name}`
           : `Night-shift done: ${task.name}`,
-        body: isFailure
-          ? `Error: ${result.result.slice(0, 200)}`
-          : `Cost: $${result.totalCostUsd.toFixed(2)} \u2014 ${result.result.slice(0, 200)}`,
+        body,
         priority: isFailure ? 4 : 3,
       },
       this.logger,
