@@ -3,17 +3,34 @@ import { format } from "date-fns";
 import { getInboxDir, ensureDir } from "../core/paths.js";
 import { atomicWrite } from "../utils/fs.js";
 import { renderTemplate } from "../utils/template.js";
-import type { NightShiftTask, AgentExecutionResult, InboxEntry } from "../core/types.js";
+import type { NightShiftTask, InboxEntry } from "../core/types.js";
+import type { AgentRunResult } from "../agent/engine-types.js";
 
 export function generateReport(
   task: NightShiftTask,
-  result: AgentExecutionResult,
+  result: AgentRunResult,
   startedAt: Date,
   completedAt: Date,
 ): string {
   const durationSeconds = Math.round((completedAt.getTime() - startedAt.getTime()) / 1000);
-  const status = result.isError ? "failed" : "completed";
+  const status = result.status === "SUCCESS" ? "completed" : "failed";
   const durationFormatted = formatDurationHuman(durationSeconds);
+
+  // Build per-bead summary lines
+  const beadLines = result.perBead.map((bead) => {
+    const errorPart = bead.error ? ` — ${bead.error.slice(0, 200)}` : "";
+    return `- **${bead.name}**: ${bead.status} (${bead.durationMs}ms)${errorPart}`;
+  }).join("\n");
+
+  // Build result section
+  let resultSection: string;
+  if (result.finalOutput === null || result.finalOutput === undefined) {
+    resultSection = result.error ?? "No output";
+  } else if (typeof result.finalOutput === "string") {
+    resultSection = result.finalOutput;
+  } else {
+    resultSection = JSON.stringify(result.finalOutput, null, 2);
+  }
 
   return `---
 task_id: ${task.id}
@@ -23,17 +40,21 @@ status: ${status}
 started_at: ${startedAt.toISOString()}
 completed_at: ${completedAt.toISOString()}
 duration_seconds: ${durationSeconds}
-cost_usd: ${result.totalCostUsd.toFixed(2)}
-num_turns: ${result.numTurns}
+agent_name: ${result.agentName}
+bead_count: ${result.perBead.length}
 ---
 
 # ${task.name}
 
-**Status**: ${capitalize(status)} | **Duration**: ${durationFormatted} | **Cost**: $${result.totalCostUsd.toFixed(2)}
+**Status**: ${capitalize(status)} | **Duration**: ${durationFormatted} | **Agent**: ${result.agentName}
+
+## Beads
+
+${beadLines || "_No beads executed_"}
 
 ## Result
 
-${result.result}
+${resultSection}
 
 ## Original Prompt
 
@@ -43,7 +64,7 @@ ${result.result}
 
 export async function writeReport(
   task: NightShiftTask,
-  result: AgentExecutionResult,
+  result: AgentRunResult,
   startedAt: Date,
   completedAt: Date,
   base?: string,
@@ -71,22 +92,26 @@ export async function writeReport(
 
 export function toInboxEntry(
   task: NightShiftTask,
-  result: AgentExecutionResult,
+  result: AgentRunResult,
   startedAt: Date,
   completedAt: Date,
   filePath: string,
 ): InboxEntry {
+  const resultSummary = result.finalOutput !== null && result.finalOutput !== undefined
+    ? (JSON.stringify(result.finalOutput)?.slice(0, 500) ?? "")
+    : (result.error?.slice(0, 500) ?? "");
+
   return {
     taskId: task.id,
     taskName: task.name,
     origin: task.origin,
-    status: result.isError ? "failed" : "completed",
+    status: result.status === "SUCCESS" ? "completed" : "failed",
     startedAt: startedAt.toISOString(),
     completedAt: completedAt.toISOString(),
     durationSeconds: Math.round((completedAt.getTime() - startedAt.getTime()) / 1000),
-    costUsd: result.totalCostUsd,
-    numTurns: result.numTurns,
-    resultSummary: result.result.slice(0, 500),
+    agentName: result.agentName,
+    beadCount: result.perBead.length,
+    resultSummary,
     originalPrompt: task.prompt,
     filePath,
   };
