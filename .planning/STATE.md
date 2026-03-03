@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Pluggable Agent Architecture
 status: executing
-stopped_at: Phase 10 context gathered
-last_updated: "2026-03-03T15:52:10.731Z"
+stopped_at: Completed 10-01-PLAN.md
+last_updated: "2026-03-03T16:15:54.968Z"
 last_activity: 2026-02-27 — Phase 9 Plan 02 complete
 progress:
   total_phases: 7
   completed_phases: 5
-  total_plans: 11
-  completed_plans: 11
+  total_plans: 13
+  completed_plans: 12
   percent: 48
 ---
 
@@ -54,6 +54,7 @@ Progress: [████░░░░░░] ~48% (v2.0, 10/21 plans complete)
 | Phase 08 P02 | 4 | 2 tasks | 2 files |
 | Phase 09 P01 | 20 | 2 tasks | 9 files |
 | Phase 09 P02 | 6 | 2 tasks | 10 files |
+| Phase 10 P01 | 5 | 2 tasks | 10 files |
 
 ## Accumulated Context
 
@@ -121,6 +122,10 @@ Phase 8 Plan 02 decisions (2026-02-27):
 - [Phase 09]: mcp__* prefix accepted in allowedTools via !t.startsWith('mcp__') filter — error message updated to mention 'or any mcp__* tool'
 - [Phase 09]: retry_error declared in manifest variables with empty string default so dryRun validates implement.md without error — engine overwrites with actual error details on retry
 - [Phase 09]: GitCloneBeadPlugin rawOutput wrapped in JSON code block format — required because validateBeadOutput uses extractLastJsonBlock which only matches code block syntax
+- [Phase 10]: AgentEngine + BeadRegistry created fresh per dispatch (not stored per-task — engine is stateless)
+- [Phase 10]: Tasks without agentName push FATAL AgentRunResult synchronously to completedQueue (no async rejection)
+- [Phase 10]: totalCostUsd kept on DaemonState at zero — AgentRunResult has no cost tracking
+- [Phase 10]: Fallback dispatch only when pool.canAccept() — no queueing if pool is full
 
 ### Pending Todos
 
@@ -147,6 +152,6 @@ Research flags for planning (investigate before finalizing plans):
 
 ## Session Continuity
 
-Last session: 2026-03-03T15:52:10.727Z
-Stopped at: Phase 10 context gathered
-Resume file: .planning/phases/10-daemon-wiring-and-legacy-cleanup/10-CONTEXT.md
+Last session: 2026-03-03T16:15:54.966Z
+Stopped at: Completed 10-01-PLAN.md
+Resume file: None

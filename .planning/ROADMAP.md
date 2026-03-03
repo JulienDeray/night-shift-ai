@@ -136,5 +136,5 @@ Plans:
 | 7. Config Schema Migration and Startup Validation | 2/2 | Complete   | 2026-02-26 | - |
 | 8. AgentEngine and Bead Plugin Implementations | 2/2 | Complete   | 2026-02-27 | - |
 | 9. Code-Agent Migration | 2/2 | Complete   | 2026-02-27 | - |
-| 10. Daemon Wiring and Legacy Cleanup | v2.0 | 0/2 | Not started | - |
+| 10. Daemon Wiring and Legacy Cleanup | 1/2 | In Progress|  | - |
 | 11. Developer Experience | v2.0 | 0/? | Not started | - |
