@@ -33,7 +33,10 @@ daemon:
   heartbeat_interval_ms: 10000
   log_retention_days: 30
 
-recurring: []
+agents_dir: ./agents
+agents:
+  - name: my-agent
+schedule: []
 
 one_off_defaults:
   timeout: "30m"
@@ -61,9 +64,7 @@ ${overrides}`;
 
   beforeEach(async () => {
     tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "nightshift-submit-"));
-    // init so directory structure exists
     await run(["init"]);
-    // overwrite config with beads disabled
     await writeConfig();
   });
 
@@ -72,72 +73,45 @@ ${overrides}`;
   });
 
   it("creates a task file in the queue directory", async () => {
-    const res = await run(["submit", "Say hello world"]);
+    const res = await run(["submit", "--agent", "my-agent", "Say hello world"]);
 
     expect(res.exitCode).toBe(0);
     expect(res.stdout).toContain("Task queued");
 
     const tasks = await readQueuedTasks();
     expect(tasks).toHaveLength(1);
-    expect(tasks[0].prompt).toBe("Say hello world");
+    expect(tasks[0].agentName).toBe("my-agent");
     expect(tasks[0].origin).toBe("one-off");
     expect(tasks[0].status).toBe("pending");
   });
 
-  it("applies default timeout and budget from config", async () => {
-    await run(["submit", "Do something"]);
+  it("applies default timeout from config", async () => {
+    await run(["submit", "--agent", "my-agent", "Do something"]);
 
     const tasks = await readQueuedTasks();
     expect(tasks).toHaveLength(1);
     expect(tasks[0].timeout).toBe("30m");
-    expect(tasks[0].maxBudgetUsd).toBe(5.0);
   });
 
   it("accepts --timeout flag", async () => {
-    await run(["submit", "--timeout", "15m", "Quick task"]);
+    await run(["submit", "--agent", "my-agent", "--timeout", "15m", "Quick task"]);
 
     const tasks = await readQueuedTasks();
     expect(tasks).toHaveLength(1);
     expect(tasks[0].timeout).toBe("15m");
   });
 
-  it("accepts --budget flag", async () => {
-    await run(["submit", "--budget", "2.50", "Cheap task"]);
-
-    const tasks = await readQueuedTasks();
-    expect(tasks).toHaveLength(1);
-    expect(tasks[0].maxBudgetUsd).toBe(2.5);
-  });
-
-  it("accepts --model flag", async () => {
-    await run(["submit", "--model", "opus", "Complex task"]);
-
-    const tasks = await readQueuedTasks();
-    expect(tasks).toHaveLength(1);
-    expect(tasks[0].model).toBe("opus");
-  });
-
   it("accepts --name flag", async () => {
-    await run(["submit", "--name", "my-custom-name", "Named task"]);
+    await run(["submit", "--agent", "my-agent", "--name", "my-custom-name", "Named task"]);
 
     const tasks = await readQueuedTasks();
     expect(tasks).toHaveLength(1);
     expect(tasks[0].name).toBe("my-custom-name");
   });
 
-  it("accepts --tools flag with multiple tools", async () => {
-    // Prompt must come before --tools since variadic options consume
-    // all subsequent values until the next flag
-    await run(["submit", "Tool task", "--tools", "Read", "Write", "Bash"]);
-
-    const tasks = await readQueuedTasks();
-    expect(tasks).toHaveLength(1);
-    expect(tasks[0].allowedTools).toEqual(["Read", "Write", "Bash"]);
-  });
-
   it("generates a unique ID starting with ns-", async () => {
-    await run(["submit", "Task 1"]);
-    await run(["submit", "Task 2"]);
+    await run(["submit", "--agent", "my-agent", "Task 1"]);
+    await run(["submit", "--agent", "my-agent", "Task 2"]);
 
     const tasks = await readQueuedTasks();
     expect(tasks).toHaveLength(2);
@@ -147,16 +121,17 @@ ${overrides}`;
   });
 
   it("auto-generates name when --name not provided", async () => {
-    await run(["submit", "Anonymous task"]);
+    await run(["submit", "--agent", "my-agent", "Anonymous task"]);
 
     const tasks = await readQueuedTasks();
     expect(tasks).toHaveLength(1);
-    expect(tasks[0].name).toMatch(/^one-off-ns-/);
+    // Name is now {agentName}-{taskId}
+    expect(tasks[0].name).toMatch(/^my-agent-ns-/);
   });
 
   it("sets createdAt timestamp", async () => {
     const before = new Date().toISOString();
-    await run(["submit", "Timestamped task"]);
+    await run(["submit", "--agent", "my-agent", "Timestamped task"]);
     const after = new Date().toISOString();
 
     const tasks = await readQueuedTasks();
@@ -165,21 +140,28 @@ ${overrides}`;
     expect(tasks[0].createdAt <= after).toBe(true);
   });
 
+  it("requires --agent flag", async () => {
+    const res = await run(["submit", "No agent provided"]);
+
+    expect(res.exitCode).not.toBe(0);
+    const combined = res.stdout + res.stderr;
+    expect(combined.toLowerCase()).toMatch(/agent|required/);
+  });
+
   it("fails gracefully without config", async () => {
     await fs.unlink(path.join(tmpDir, "nightshift.yaml"));
-    const res = await run(["submit", "No config"]);
+    const res = await run(["submit", "--agent", "my-agent", "No config"]);
 
     expect(res.exitCode).not.toBe(0);
   });
 
-  it("prints confirmation with task ID and prompt summary", async () => {
-    const res = await run(["submit", "Summarize all PRs from this week"]);
+  it("prints confirmation with agent name", async () => {
+    const res = await run(["submit", "--agent", "my-agent", "Summarize all PRs from this week"]);
 
     expect(res.exitCode).toBe(0);
     expect(res.stdout).toContain("Task queued");
     expect(res.stdout).toContain("ns-");
-    expect(res.stdout).toContain("Summarize all PRs");
+    expect(res.stdout).toContain("my-agent");
     expect(res.stdout).toContain("Timeout:");
-    expect(res.stdout).toContain("Budget:");
   });
 });
