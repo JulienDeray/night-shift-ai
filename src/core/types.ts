@@ -20,24 +20,7 @@ export interface NightShiftTask {
   notify?: boolean;
   category?: string;
   agentName?: string;  // kebab-case agent name; required after Phase 10 migration
-}
-
-export interface AgentExecutionResult {
-  sessionId: string;
-  durationMs: number;
-  totalCostUsd: number;
-  result: string;
-  isError: boolean;
-  numTurns: number;
-}
-
-export interface ClaudeJsonOutput {
-  session_id: string;
-  duration_ms: number;
-  total_cost_usd: number;
-  result: string;
-  is_error: boolean;
-  num_turns: number;
+  variables?: Record<string, string>;  // per-task variable overrides passed to engine's configOverrides
 }
 
 export interface NtfyConfig {
@@ -50,6 +33,7 @@ export interface AgentDeclaration {
   name: string;
   notify?: boolean;
   variables?: Record<string, string>;
+  fallback_categories?: string[];  // per-agent fallback order in nightshift.yaml
 }
 
 export interface ScheduleEntry {
@@ -108,8 +92,8 @@ export interface InboxEntry {
   startedAt: string;
   completedAt: string;
   durationSeconds: number;
-  costUsd: number;
-  numTurns: number;
+  agentName: string;
+  beadCount: number;
   resultSummary: string;
   originalPrompt: string;
   filePath: string;

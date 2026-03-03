@@ -1,19 +1,21 @@
-import { AgentRunner, type AgentRunnerOptions } from "./agent-runner.js";
-import { parseTimeout } from "../utils/process.js";
-import type { NightShiftTask, AgentExecutionResult } from "../core/types.js";
-import type { AgentRunResult } from "../agent/agent-types.js";
+import path from "node:path";
+import { AgentEngine } from "../agent/engine.js";
+import { BeadRegistry } from "../agent/bead-registry.js";
+import { StandardBeadPlugin } from "../agent/plugins/standard-bead-plugin.js";
+import { GitCloneBeadPlugin } from "../agent/plugins/git-clone-bead-plugin.js";
+import type { AgentRunResult } from "../agent/engine-types.js";
+import type { NightShiftTask } from "../core/types.js";
 import type { Logger } from "../core/logger.js";
 
 export interface TaskResult {
   task: NightShiftTask;
-  result: AgentExecutionResult;
+  result: AgentRunResult;
   startedAt: Date;
   completedAt: Date;
 }
 
 interface RunningTask {
   task: NightShiftTask;
-  runner: AgentRunner | null;
   startedAt: Date;
   promise: Promise<TaskResult>;
 }
@@ -23,6 +25,7 @@ export class AgentPool {
   private readonly workspaceDir: string;
   private readonly logger: Logger;
   private readonly configDir: string;
+  private readonly agentsDir: string;
   private running: Map<string, RunningTask> = new Map();
   private completedQueue: TaskResult[] = [];
 
@@ -31,11 +34,13 @@ export class AgentPool {
     workspaceDir: string;
     logger: Logger;
     configDir?: string;
+    agentsDir?: string;
   }) {
     this.maxConcurrent = options.maxConcurrent;
     this.workspaceDir = options.workspaceDir;
     this.logger = options.logger;
     this.configDir = options.configDir ?? process.cwd();
+    this.agentsDir = options.agentsDir ?? "./agents";
   }
 
   get activeCount(): number {
@@ -56,16 +61,38 @@ export class AgentPool {
       return;
     }
 
-    // Generic AgentRunner dispatch path
-    const runnerOpts: AgentRunnerOptions = {
-      workspaceDir: this.workspaceDir,
-      logger: this.logger,
-    };
+    // Reject tasks without agentName immediately
+    if (!task.agentName) {
+      this.logger.warn(`Task ${task.id} rejected: agentName is required`);
+      const startedAt = new Date();
+      const completedAt = new Date();
+      const fatalResult: AgentRunResult = {
+        runId: "",
+        agentName: "",
+        status: "FATAL",
+        finalOutput: null,
+        perBead: [],
+        totalDurationMs: 0,
+        error: "Task rejected: agentName is required",
+      };
+      this.completedQueue.push({ task, result: fatalResult, startedAt, completedAt });
+      return;
+    }
 
-    const runner = new AgentRunner(runnerOpts);
     const startedAt = new Date();
 
-    const promise = runner.run(task).then(
+    // Build agent paths
+    const agentsRoot = path.resolve(this.configDir, this.agentsDir);
+    const agentDir = path.join(agentsRoot, task.agentName);
+
+    // Create a fresh registry and engine per dispatch
+    const registry = new BeadRegistry();
+    registry.register("standard", (_bead, _manifest) => new StandardBeadPlugin());
+    registry.register("git-clone", (_bead, _manifest) => new GitCloneBeadPlugin());
+
+    const engine = new AgentEngine(registry, this.logger);
+
+    const promise = engine.run(agentDir, agentsRoot, task.id, task.variables ?? {}).then(
       (result) => {
         const completedAt = new Date();
         const taskResult: TaskResult = { task, result, startedAt, completedAt };
@@ -75,37 +102,28 @@ export class AgentPool {
       },
       (err) => {
         const completedAt = new Date();
-        const taskResult: TaskResult = {
-          task,
-          result: {
-            sessionId: "",
-            durationMs: completedAt.getTime() - startedAt.getTime(),
-            totalCostUsd: 0,
-            result: err instanceof Error ? err.message : String(err),
-            isError: true,
-            numTurns: 0,
-          },
-          startedAt,
-          completedAt,
+        const fatalResult: AgentRunResult = {
+          runId: "",
+          agentName: task.agentName ?? "",
+          status: "FATAL",
+          finalOutput: null,
+          perBead: [],
+          totalDurationMs: completedAt.getTime() - startedAt.getTime(),
+          error: err instanceof Error ? err.message : String(err),
         };
+        const taskResult: TaskResult = { task, result: fatalResult, startedAt, completedAt };
         this.running.delete(task.id);
         this.completedQueue.push(taskResult);
         return taskResult;
       },
     );
 
-    this.running.set(task.id, { task, runner, startedAt, promise });
+    this.running.set(task.id, { task, startedAt, promise });
     this.logger.info(`Dispatched task ${task.id} (${task.name})`, {
       activeCount: this.activeCount,
+      agentName: task.agentName,
     });
   }
-
-  // Future: runTask will return AgentRunResult directly once Phase 10 migrates to AgentEngine
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  private _agentRunResultRef?: AgentRunResult;  // keeps import live until Phase 10 migration
-
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  private _parseTimeoutRef = parseTimeout;  // keeps import live
 
   collectCompleted(): TaskResult[] {
     const results = [...this.completedQueue];
@@ -114,11 +132,10 @@ export class AgentPool {
   }
 
   killAll(): void {
-    for (const [id, entry] of this.running) {
-      this.logger.info(`Killing task ${id}`);
-      if (entry.runner) {
-        entry.runner.kill();
-      }
+    for (const [id] of this.running) {
+      this.logger.warn(
+        `Task ${id}: AgentEngine runs cannot be interrupted — in-progress beads will complete (future improvement)`,
+      );
     }
   }
 

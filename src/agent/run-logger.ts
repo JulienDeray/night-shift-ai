@@ -4,9 +4,8 @@ import { getLogsDir, ensureDir } from "../core/paths.js";
 
 export interface RunLogEntry {
   date: string;
-  category: string;
-  mr_url: string | null;
-  cost_usd: number;
+  agent_name: string;
+  final_output: unknown | null;
   duration_seconds: number;
   summary: string;
 }
@@ -17,6 +16,6 @@ export async function appendRunLog(
 ): Promise<void> {
   const logsDir = getLogsDir(base);
   await ensureDir(logsDir);
-  const logPath = path.join(logsDir, "code-agent-runs.jsonl");
+  const logPath = path.join(logsDir, "agent-runs.jsonl");
   await fs.appendFile(logPath, JSON.stringify(entry) + "\n", "utf-8");
 }
