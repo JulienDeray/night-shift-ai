@@ -3,9 +3,9 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Pluggable Agent Architecture
 status: executing
-stopped_at: Completed 10-01-PLAN.md
-last_updated: "2026-03-03T16:15:54.968Z"
-last_activity: 2026-02-27 — Phase 9 Plan 02 complete
+stopped_at: Completed 10-02-PLAN.md
+last_updated: "2026-03-03T16:32:00.000Z"
+last_activity: 2026-03-03 — Phase 10 Plan 02 complete
 progress:
   total_phases: 7
   completed_phases: 5
@@ -25,12 +25,12 @@ See: .planning/PROJECT.md (updated 2026-02-25)
 
 ## Current Position
 
-Phase: 9 of 11 (Code-Agent Migration)
-Plan: 2/2 — 09-02 complete (Phase 9 done)
+Phase: 10 of 11 (Daemon Wiring and Legacy Cleanup)
+Plan: 2/2 — 10-02 complete (Phase 10 done)
 Status: In progress
-Last activity: 2026-02-27 — Phase 9 Plan 02 complete
+Last activity: 2026-03-03 — Phase 10 Plan 02 complete
 
-Progress: [████░░░░░░] ~48% (v2.0, 10/21 plans complete)
+Progress: [███████░░░] ~67% (v2.0, 14/21 plans complete)
 
 ## Performance Metrics
 
@@ -55,6 +55,7 @@ Progress: [████░░░░░░] ~48% (v2.0, 10/21 plans complete)
 | Phase 09 P01 | 20 | 2 tasks | 9 files |
 | Phase 09 P02 | 6 | 2 tasks | 10 files |
 | Phase 10 P01 | 5 | 2 tasks | 10 files |
+| Phase 10 P02 | 25 | 2 tasks | 14 files |
 
 ## Accumulated Context
 
@@ -126,6 +127,10 @@ Phase 8 Plan 02 decisions (2026-02-27):
 - [Phase 10]: Tasks without agentName push FATAL AgentRunResult synchronously to completedQueue (no async rejection)
 - [Phase 10]: totalCostUsd kept on DaemonState at zero — AgentRunResult has no cost tracking
 - [Phase 10]: Fallback dispatch only when pool.canAccept() — no queueing if pool is full
+- [Phase 10 P02]: BeadResult and ClaudeJsonOutput inlined into bead-runner.ts after types.ts deleted — avoids creating a new shared file
+- [Phase 10 P02]: Schedule state key uses agent:cron format to avoid collisions with v1.0 task-name keys
+- [Phase 10 P02]: nightshift run drops --timeout/--budget/--model/--tools options — engine reads from manifest
+- [Phase 10 P02]: nightshift submit --agent now required; prompt becomes optional positional argument
 
 ### Pending Todos
 
@@ -152,6 +157,6 @@ Research flags for planning (investigate before finalizing plans):
 
 ## Session Continuity
 
-Last session: 2026-03-03T16:15:54.966Z
-Stopped at: Completed 10-01-PLAN.md
+Last session: 2026-03-03T16:32:00.000Z
+Stopped at: Completed 10-02-PLAN.md
 Resume file: None
