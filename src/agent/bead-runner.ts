@@ -1,6 +1,26 @@
 import { spawnWithTimeout } from "../utils/process.js";
-import type { BeadResult } from "./types.js";
-import type { ClaudeJsonOutput } from "../core/types.js";
+
+/** Minimal shape of the JSON output produced by `claude -p --output-format json`. */
+interface ClaudeJsonOutput {
+  session_id: string;
+  duration_ms: number;
+  total_cost_usd: number;
+  result: string;
+  is_error: boolean;
+  num_turns: number;
+}
+
+/**
+ * Result type for a single bead invocation.
+ */
+export interface BeadResult {
+  exitCode: number;
+  stdout: string;
+  stderr: string;
+  durationMs: number;
+  costUsd: number;
+  timedOut: boolean;
+}
 
 /**
  * Constructs a sanitized environment for a bead invocation.

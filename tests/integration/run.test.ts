@@ -32,7 +32,9 @@ daemon:
   heartbeat_interval_ms: 10000
   log_retention_days: 30
 
-recurring: []
+agents_dir: ./agents
+agents: []
+schedule: []
 
 one_off_defaults:
   timeout: "30m"
@@ -43,9 +45,7 @@ ${overrides}`;
 
   beforeEach(async () => {
     tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "nightshift-run-"));
-    // init so directory structure exists
     await run(["init"]);
-    // overwrite config with beads disabled
     await writeConfig();
   });
 
@@ -58,65 +58,37 @@ ${overrides}`;
 
     expect(res.exitCode).toBe(0);
     expect(res.stdout).toContain("nightshift run");
-    expect(res.stdout).toContain("[prompt]");
-    expect(res.stdout).toContain("--code-agent");
+    expect(res.stdout).toContain("--agent");
   });
 
-  it("--help shows all expected flags", async () => {
+  it("--help shows expected flags", async () => {
     const res = await run(["run", "--help"]);
 
     expect(res.exitCode).toBe(0);
-    expect(res.stdout).toContain("--timeout");
-    expect(res.stdout).toContain("--budget");
-    expect(res.stdout).toContain("--model");
-    expect(res.stdout).toContain("--tools");
-    expect(res.stdout).toContain("--code-agent");
+    expect(res.stdout).toContain("--agent");
+    expect(res.stdout).toContain("--var");
     expect(res.stdout).toContain("--notify");
   });
 
-  it("requires a prompt argument in generic mode", async () => {
+  it("requires --agent flag", async () => {
     const res = await run(["run"]);
 
-    // Should exit non-zero with meaningful error
     expect(res.exitCode).not.toBe(0);
     const combined = res.stdout + res.stderr;
-    // Error about missing prompt
-    expect(combined.toLowerCase()).toMatch(/prompt|required|argument/);
-  });
-
-  it("fails gracefully when claude is not available", async () => {
-    // claude binary won't be available in CI, so this should fail gracefully
-    const res = await run(["run", "echo hello"]);
-
-    // Should exit non-zero (claude not found)
-    expect(res.exitCode).not.toBe(0);
-    const combined = res.stdout + res.stderr;
-    // Should have a meaningful error, not a crash/stack trace
-    expect(combined.length).toBeGreaterThan(0);
-  });
-
-  it("--code-agent without code_agent config exits non-zero with 'not configured' message", async () => {
-    // Config has no code_agent section
-    const res = await run(["run", "--code-agent"]);
-
-    expect(res.exitCode).not.toBe(0);
-    const combined = res.stdout + res.stderr;
-    expect(combined.toLowerCase()).toContain("not configured");
-  });
-
-  it("--code-agent with a prompt argument produces an error", async () => {
-    const res = await run(["run", "--code-agent", "some prompt"]);
-
-    expect(res.exitCode).not.toBe(0);
-    const combined = res.stdout + res.stderr;
-    // Should mention the conflict
-    expect(combined.toLowerCase()).toMatch(/code-agent|prompt|cannot/);
+    expect(combined.toLowerCase()).toMatch(/agent|required/);
   });
 
   it("fails gracefully without config", async () => {
     await fs.unlink(path.join(tmpDir, "nightshift.yaml"));
-    const res = await run(["run", "Do something"]);
+    const res = await run(["run", "--agent", "code-agent"]);
 
+    expect(res.exitCode).not.toBe(0);
+  });
+
+  it("fails gracefully when agent directory does not exist", async () => {
+    const res = await run(["run", "--agent", "nonexistent-agent"]);
+
+    // Should exit non-zero (agent dir not found)
     expect(res.exitCode).not.toBe(0);
   });
 });
