@@ -24,9 +24,8 @@ const mockEnsureDir = vi.mocked(ensureDir);
 function makeEntry(overrides: Partial<RunLogEntry> = {}): RunLogEntry {
   return {
     date: "2026-02-25T14:00:00Z",
-    category: "tests",
-    mr_url: "https://gitlab.com/team/repo/-/merge_requests/42",
-    cost_usd: 0.15,
+    agent_name: "code-agent",
+    final_output: "https://gitlab.com/team/repo/-/merge_requests/42",
     duration_seconds: 120,
     summary: "Added unit tests for the auth module",
     ...overrides,
@@ -49,13 +48,13 @@ describe("run-logger", () => {
     expect(mockEnsureDir).toHaveBeenCalledWith("/base/.nightshift/logs");
   });
 
-  it("calls fs.appendFile with path ending in code-agent-runs.jsonl", async () => {
+  it("calls fs.appendFile with path ending in agent-runs.jsonl", async () => {
     const entry = makeEntry();
     await appendRunLog(entry, "/base");
 
     expect(mockAppendFile).toHaveBeenCalledOnce();
     const [filePath] = mockAppendFile.mock.calls[0];
-    expect(String(filePath)).toMatch(/code-agent-runs\.jsonl$/);
+    expect(String(filePath)).toMatch(/agent-runs\.jsonl$/);
   });
 
   it("written content is a single JSON line terminated with \\n", async () => {
@@ -72,7 +71,7 @@ describe("run-logger", () => {
     expect(() => JSON.parse(withoutTrailingNewline)).not.toThrow();
   });
 
-  it("JSON line contains exactly the locked fields: date, category, mr_url, cost_usd, duration_seconds, summary", async () => {
+  it("JSON line contains exactly the locked fields: date, agent_name, final_output, duration_seconds, summary", async () => {
     const entry = makeEntry();
     await appendRunLog(entry, "/base");
 
@@ -81,22 +80,31 @@ describe("run-logger", () => {
 
     const keys = Object.keys(parsed).sort();
     expect(keys).toEqual(
-      ["category", "cost_usd", "date", "duration_seconds", "mr_url", "summary"],
+      ["agent_name", "date", "duration_seconds", "final_output", "summary"],
     );
   });
 
-  it("mr_url is literal JSON null when entry has null for mr_url", async () => {
-    const entry = makeEntry({ mr_url: null });
+  it("final_output is literal JSON null when entry has null for final_output", async () => {
+    const entry = makeEntry({ final_output: null });
     await appendRunLog(entry, "/base");
 
     const [, content] = mockAppendFile.mock.calls[0];
     const parsed = JSON.parse(String(content).trim());
-    expect(parsed.mr_url).toBeNull();
+    expect(parsed.final_output).toBeNull();
+  });
+
+  it("final_output can be an object (serialized as JSON)", async () => {
+    const entry = makeEntry({ final_output: { result: "MR_CREATED", url: "https://example.com" } });
+    await appendRunLog(entry, "/base");
+
+    const [, content] = mockAppendFile.mock.calls[0];
+    const parsed = JSON.parse(String(content).trim());
+    expect(parsed.final_output).toEqual({ result: "MR_CREATED", url: "https://example.com" });
   });
 
   it("multiple calls append multiple lines (not overwrite)", async () => {
-    const entry1 = makeEntry({ category: "tests" });
-    const entry2 = makeEntry({ category: "refactoring" });
+    const entry1 = makeEntry({ agent_name: "code-agent" });
+    const entry2 = makeEntry({ agent_name: "another-agent" });
 
     await appendRunLog(entry1, "/base");
     await appendRunLog(entry2, "/base");
@@ -110,5 +118,16 @@ describe("run-logger", () => {
 
     const [, , encoding] = mockAppendFile.mock.calls[0];
     expect(encoding).toBe("utf-8");
+  });
+
+  it("does NOT contain old fields: category, mr_url, cost_usd", async () => {
+    const entry = makeEntry();
+    await appendRunLog(entry, "/base");
+
+    const [, content] = mockAppendFile.mock.calls[0];
+    const parsed = JSON.parse(String(content).trim());
+    expect(parsed).not.toHaveProperty("category");
+    expect(parsed).not.toHaveProperty("mr_url");
+    expect(parsed).not.toHaveProperty("cost_usd");
   });
 });

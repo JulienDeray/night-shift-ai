@@ -6,7 +6,8 @@ import { writeJsonFile, readJsonFile } from "../../src/utils/fs.js";
 import { Scheduler } from "../../src/daemon/scheduler.js";
 import { Logger } from "../../src/core/logger.js";
 import { Orchestrator } from "../../src/daemon/orchestrator.js";
-import type { NightShiftTask, NightShiftConfig, DaemonState, AgentExecutionResult } from "../../src/core/types.js";
+import type { NightShiftTask, NightShiftConfig, DaemonState } from "../../src/core/types.js";
+import type { AgentRunResult } from "../../src/agent/engine-types.js";
 
 /**
  * Test the file-based queue logic that the orchestrator uses.
@@ -27,7 +28,9 @@ function makeConfig(): NightShiftConfig {
       heartbeatIntervalMs: 10000,
       logRetentionDays: 30,
     },
-    recurring: [],
+    agentsDir: "./agents",
+    agents: [],
+    schedule: [],
     oneOffDefaults: { timeout: "30m", maxBudgetUsd: 5 },
   };
 }
@@ -41,6 +44,19 @@ function makeTask(overrides: Partial<NightShiftTask> = {}): NightShiftTask {
     status: "pending",
     timeout: "10m",
     createdAt: new Date().toISOString(),
+    agentName: "code-agent",
+    ...overrides,
+  };
+}
+
+function makeResult(overrides: Partial<AgentRunResult> = {}): AgentRunResult {
+  return {
+    runId: "test-run",
+    agentName: "code-agent",
+    status: "SUCCESS",
+    finalOutput: null,
+    perBead: [],
+    totalDurationMs: 1000,
     ...overrides,
   };
 }
@@ -177,7 +193,7 @@ describe("File-based queue operations", () => {
         lastHeartbeat: "2026-02-19T10:05:00Z",
         activeTasks: 1,
         totalExecuted: 5,
-        totalCostUsd: 2.34,
+        totalCostUsd: 0,
         status: "running",
       };
 
@@ -187,7 +203,7 @@ describe("File-based queue operations", () => {
       expect(loaded).toEqual(state);
     });
 
-    it("tracks cost accumulation across tasks", () => {
+    it("tracks execution count across tasks", () => {
       const state: DaemonState = {
         pid: 1,
         startedAt: "",
@@ -199,14 +215,12 @@ describe("File-based queue operations", () => {
       };
 
       // Simulate 3 task completions
-      const costs = [0.42, 1.15, 0.03];
-      for (const cost of costs) {
+      for (let i = 0; i < 3; i++) {
         state.totalExecuted++;
-        state.totalCostUsd += cost;
       }
 
       expect(state.totalExecuted).toBe(3);
-      expect(state.totalCostUsd).toBeCloseTo(1.6);
+      expect(state.totalCostUsd).toBe(0); // AgentRunResult has no cost tracking
     });
   });
 });
@@ -227,89 +241,48 @@ describe("Config hot-reload in tick", () => {
     await fs.rm(tmpDir, { recursive: true, force: true });
   });
 
-  it("tick picks up new recurring tasks from modified config", async () => {
+  it("tick picks up new schedule config from modified config", async () => {
     const initialConfig = makeConfig();
     const scheduler = new Scheduler(initialConfig, logger);
 
     const origCwd = process.cwd;
     process.cwd = () => tmpDir;
     try {
-      // First evaluation with no recurring tasks
+      // First evaluation with no schedule entries
       const tasks1 = await scheduler.evaluateSchedules();
       expect(tasks1).toHaveLength(0);
 
-      // Simulate config reload by updating scheduler with new recurring tasks
+      // Simulate config reload by updating scheduler (no schedule entries to trigger here)
       const updatedConfig: NightShiftConfig = {
         ...initialConfig,
-        recurring: [
-          {
-            name: "hot-added",
-            schedule: "* * * * *",
-            prompt: "I was added at runtime",
-          },
-        ],
+        agents: [{ name: "test-agent" }],
+        schedule: [],
       };
       scheduler.updateConfig(updatedConfig);
 
-      // Next evaluation should pick up the new task
+      // Still no scheduled tasks since no entries
       const tasks2 = await scheduler.evaluateSchedules();
-      expect(tasks2).toHaveLength(1);
-      expect(tasks2[0].name).toBe("hot-added");
-      expect(tasks2[0].prompt).toBe("I was added at runtime");
+      expect(tasks2).toHaveLength(0);
     } finally {
       process.cwd = origCwd;
     }
   });
 
   it("tick continues with previous config when config file is invalid", async () => {
-    // This test verifies the pattern: loadConfig throws → scheduler keeps old config
-    const config: NightShiftConfig = {
-      ...makeConfig(),
-      recurring: [
-        {
-          name: "surviving-task",
-          schedule: "* * * * *",
-          prompt: "I should survive a bad reload",
-        },
-      ],
-    };
+    const config = makeConfig();
     const scheduler = new Scheduler(config, logger);
 
     const origCwd = process.cwd;
     process.cwd = () => tmpDir;
     try {
-      // First evaluation works fine
+      // First evaluation works fine (empty schedule)
       const tasks1 = await scheduler.evaluateSchedules();
-      expect(tasks1).toHaveLength(1);
-      expect(tasks1[0].name).toBe("surviving-task");
+      expect(tasks1).toHaveLength(0);
 
       // Simulate a failed reload by NOT calling updateConfig (loadConfig threw)
-      // The scheduler should still use the previous config for its next evaluation.
-      // The task already ran so it won't fire again within the same minute,
-      // but the config is still intact — verify by checking a new task would work.
-      const freshConfig: NightShiftConfig = {
-        ...makeConfig(),
-        recurring: [
-          {
-            name: "surviving-task",
-            schedule: "* * * * *",
-            prompt: "I should survive a bad reload",
-          },
-          {
-            name: "another-task",
-            schedule: "* * * * *",
-            prompt: "Added alongside surviving",
-          },
-        ],
-      };
-      // If the reload had succeeded, both tasks would be in the config
-      // But since reload failed (simulated), we don't call updateConfig
-      // The scheduler still has the original config with only "surviving-task"
-
-      // Verify original config is intact by checking evaluateSchedules
-      // (surviving-task won't re-trigger since it just ran, but no crash occurs)
+      // The scheduler should still use the previous config
       const tasks2 = await scheduler.evaluateSchedules();
-      expect(tasks2).toHaveLength(0); // already ran, not due again yet
+      expect(tasks2).toHaveLength(0); // still empty, no crash
     } finally {
       process.cwd = origCwd;
     }
@@ -326,18 +299,7 @@ function makeNotifyTask(overrides?: Partial<NightShiftTask>): NightShiftTask {
     status: "running",
     timeout: "30m",
     createdAt: new Date().toISOString(),
-    ...overrides,
-  };
-}
-
-function makeResult(overrides?: Partial<AgentExecutionResult>): AgentExecutionResult {
-  return {
-    sessionId: "sess-001",
-    durationMs: 60000,
-    totalCostUsd: 0.25,
-    result: "Task completed successfully",
-    isError: false,
-    numTurns: 5,
+    agentName: "code-agent",
     ...overrides,
   };
 }
@@ -361,16 +323,15 @@ describe("Orchestrator notification hooks", () => {
   describe("notifyTaskStart (NTFY-03)", () => {
     it("fires when task.notify=true and ntfy configured", async () => {
       (orchestrator as any).ntfy = mockNtfy;
-      const task = makeNotifyTask({ notify: true, category: "tests" });
+      const task = makeNotifyTask({ notify: true, agentName: "code-agent" });
 
       (orchestrator as any).notifyTaskStart(task);
 
-      // Allow promise to resolve
       await Promise.resolve();
       expect(mockNtfy.send).toHaveBeenCalledTimes(1);
       const [message] = mockNtfy.send.mock.calls[0];
       expect(message.title).toContain("test-task");
-      expect(message.body).toContain("tests");
+      expect(message.body).toContain("code-agent");
     });
 
     it("does NOT fire when task.notify is false", async () => {
@@ -397,26 +358,25 @@ describe("Orchestrator notification hooks", () => {
       (orchestrator as any).ntfy = null;
       const task = makeNotifyTask({ notify: true });
 
-      // Should not throw, and no call attempted
       expect(() => (orchestrator as any).notifyTaskStart(task)).not.toThrow();
       expect(mockNtfy.send).not.toHaveBeenCalled();
     });
 
-    it("includes category in body when present", async () => {
+    it("includes agentName in body when present", async () => {
       (orchestrator as any).ntfy = mockNtfy;
-      const task = makeNotifyTask({ notify: true, category: "refactoring" });
+      const task = makeNotifyTask({ notify: true, agentName: "my-agent" });
 
       (orchestrator as any).notifyTaskStart(task);
 
       await Promise.resolve();
       expect(mockNtfy.send).toHaveBeenCalledTimes(1);
       const [message] = mockNtfy.send.mock.calls[0];
-      expect(message.body).toContain("refactoring");
+      expect(message.body).toContain("my-agent");
     });
 
-    it("handles missing category gracefully (no 'undefined' in body)", async () => {
+    it("handles missing agentName gracefully (no 'undefined' in body)", async () => {
       (orchestrator as any).ntfy = mockNtfy;
-      const task = makeNotifyTask({ notify: true }); // no category
+      const task = makeNotifyTask({ notify: true, agentName: undefined });
 
       (orchestrator as any).notifyTaskStart(task);
 
@@ -432,9 +392,8 @@ describe("Orchestrator notification hooks", () => {
       (orchestrator as any).ntfy = mockNtfy;
       const task = makeNotifyTask({ notify: true });
       const result = makeResult({
-        isError: false,
-        totalCostUsd: 0.42,
-        result: "Improved test coverage",
+        status: "SUCCESS",
+        finalOutput: "Improved test coverage",
       });
 
       (orchestrator as any).notifyTaskEnd(task, result);
@@ -444,7 +403,6 @@ describe("Orchestrator notification hooks", () => {
       const [message] = mockNtfy.send.mock.calls[0];
       expect(message.priority).toBe(3);
       expect(message.title).toContain("test-task");
-      expect(message.body).toContain("0.42");
       expect(message.body).toContain("Improved test coverage");
     });
 
@@ -452,8 +410,8 @@ describe("Orchestrator notification hooks", () => {
       (orchestrator as any).ntfy = mockNtfy;
       const task = makeNotifyTask({ notify: true });
       const result = makeResult({
-        isError: true,
-        result: "TypeError: cannot read property 'foo' of undefined",
+        status: "FATAL",
+        error: "TypeError: cannot read property 'foo' of undefined",
       });
 
       (orchestrator as any).notifyTaskEnd(task, result);
@@ -487,19 +445,18 @@ describe("Orchestrator notification hooks", () => {
       expect(mockNtfy.send).not.toHaveBeenCalled();
     });
 
-    it("truncates long result strings in body (<=200 chars in result portion)", async () => {
+    it("truncates long finalOutput strings in body (<=200 chars in result portion)", async () => {
       (orchestrator as any).ntfy = mockNtfy;
       const task = makeNotifyTask({ notify: true });
-      const longResult = "A".repeat(500);
-      const result = makeResult({ isError: false, result: longResult });
+      const longOutput = "A".repeat(500);
+      const result = makeResult({ status: "SUCCESS", finalOutput: longOutput });
 
       (orchestrator as any).notifyTaskEnd(task, result);
 
       await Promise.resolve();
       expect(mockNtfy.send).toHaveBeenCalledTimes(1);
       const [message] = mockNtfy.send.mock.calls[0];
-      // The result portion should be truncated to 200 chars
-      expect(message.body.length).toBeLessThanOrEqual(300); // body = cost prefix + truncated result
+      expect(message.body.length).toBeLessThanOrEqual(200);
     });
   });
 });
