@@ -106,7 +106,10 @@ Plans:
   2. `code-agent.ts` and `code-agent-runner.ts` no longer exist in `src/`
   3. All existing integration tests pass on the new dispatch path with the migrated code-agent directory
   4. `grep -r isCodeAgent src/` returns zero results (final verification)
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 10-01-PLAN.md — AgentPool dispatch wiring, type migration to AgentRunResult, orchestrator bridging with fallback dispatch and JSONL hook
+- [ ] 10-02-PLAN.md — Scheduler wiring, CLI rewrite, legacy file deletion, test cleanup
 
 ### Phase 11: Developer Experience
 **Goal**: An engineer can scaffold a new agent, inspect all configured agents, and validate an agent directory without starting the daemon — all from the CLI
@@ -133,5 +136,5 @@ Plans:
 | 7. Config Schema Migration and Startup Validation | 2/2 | Complete   | 2026-02-26 | - |
 | 8. AgentEngine and Bead Plugin Implementations | 2/2 | Complete   | 2026-02-27 | - |
 | 9. Code-Agent Migration | 2/2 | Complete   | 2026-02-27 | - |
-| 10. Daemon Wiring and Legacy Cleanup | v2.0 | 0/? | Not started | - |
+| 10. Daemon Wiring and Legacy Cleanup | v2.0 | 0/2 | Not started | - |
 | 11. Developer Experience | v2.0 | 0/? | Not started | - |
