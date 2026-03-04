@@ -25,7 +25,9 @@ daemon:
   poll_interval_ms: 30000
   heartbeat_interval_ms: 10000
   log_retention_days: 30
-recurring: []
+agents_dir: ./agents
+agents: []
+schedule: []
 one_off_defaults:
   timeout: "30m"
   max_budget_usd: 5.00
