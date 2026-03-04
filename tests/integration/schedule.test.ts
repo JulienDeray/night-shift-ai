@@ -25,14 +25,14 @@ describe("nightshift schedule", () => {
     await fs.rm(tmpDir, { recursive: true, force: true });
   });
 
-  it("shows 'No recurring tasks' when none are configured", async () => {
+  it("shows 'No schedule entries configured' when none are configured", async () => {
     const res = await run(["schedule"]);
 
     expect(res.exitCode).toBe(0);
-    expect(res.stdout).toContain("No recurring tasks");
+    expect(res.stdout).toContain("No schedule entries configured");
   });
 
-  it("displays recurring tasks in a table with next run time", async () => {
+  it("displays schedule entries in a table with next run time", async () => {
     const configYaml = `workspace: ./workspace
 max_concurrent: 2
 beads:
@@ -41,12 +41,13 @@ daemon:
   poll_interval_ms: 30000
   heartbeat_interval_ms: 10000
   log_retention_days: 30
-recurring:
-  - name: "daily-standup"
-    schedule: "30 9 * * 1-5"
-    prompt: "Prepare standup notes"
-    timeout: "15m"
-    max_budget_usd: 2.00
+agents_dir: ./agents
+agents:
+  - name: daily-standup
+schedule:
+  - agent: daily-standup
+    cron: "30 9 * * 1-5"
+    enabled: true
 one_off_defaults:
   timeout: "30m"
   max_budget_usd: 5.00
@@ -58,24 +59,29 @@ one_off_defaults:
     expect(res.exitCode).toBe(0);
     expect(res.stdout).toContain("daily-standup");
     expect(res.stdout).toContain("30 9 * * 1-5");
-    expect(res.stdout).toContain("15m");
-    expect(res.stdout).toContain("$2.00");
+    expect(res.stdout).toContain("yes");
   });
 
-  it("uses default timeout when task has no explicit timeout", async () => {
+  it("shows disabled for entries with enabled: false", async () => {
     const configYaml = `workspace: ./workspace
 max_concurrent: 2
-default_timeout: "45m"
 beads:
   enabled: false
 daemon:
   poll_interval_ms: 30000
   heartbeat_interval_ms: 10000
   log_retention_days: 30
-recurring:
-  - name: "no-timeout-task"
-    schedule: "0 3 * * *"
-    prompt: "Do something"
+agents_dir: ./agents
+agents:
+  - name: active-agent
+  - name: paused-agent
+schedule:
+  - agent: active-agent
+    cron: "0 3 * * *"
+    enabled: true
+  - agent: paused-agent
+    cron: "0 4 * * *"
+    enabled: false
 one_off_defaults:
   timeout: "30m"
   max_budget_usd: 5.00
@@ -85,7 +91,8 @@ one_off_defaults:
     const res = await run(["schedule"]);
 
     expect(res.exitCode).toBe(0);
-    expect(res.stdout).toContain("no-timeout-task");
-    expect(res.stdout).toContain("45m");
+    expect(res.stdout).toContain("active-agent");
+    expect(res.stdout).toContain("paused-agent");
+    expect(res.stdout).toContain("disabled");
   });
 });
