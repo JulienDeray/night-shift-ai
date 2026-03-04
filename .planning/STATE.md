@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Pluggable Agent Architecture
 status: executing
-stopped_at: Completed 10-02-PLAN.md
-last_updated: "2026-03-03T16:32:00.000Z"
+stopped_at: Completed 10-03-PLAN.md
+last_updated: "2026-03-04T08:50:57.604Z"
 last_activity: 2026-03-03 — Phase 10 Plan 02 complete
 progress:
   total_phases: 7
-  completed_phases: 5
-  total_plans: 13
-  completed_plans: 12
-  percent: 48
+  completed_phases: 6
+  total_plans: 14
+  completed_plans: 14
+  percent: 67
 ---
 
 # Project State
@@ -56,6 +56,7 @@ Progress: [███████░░░] ~67% (v2.0, 14/21 plans complete)
 | Phase 09 P02 | 6 | 2 tasks | 10 files |
 | Phase 10 P01 | 5 | 2 tasks | 10 files |
 | Phase 10 P02 | 25 | 2 tasks | 14 files |
+| Phase 10 P03 | 5 | 1 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -131,6 +132,8 @@ Phase 8 Plan 02 decisions (2026-02-27):
 - [Phase 10 P02]: Schedule state key uses agent:cron format to avoid collisions with v1.0 task-name keys
 - [Phase 10 P02]: nightshift run drops --timeout/--budget/--model/--tools options — engine reads from manifest
 - [Phase 10 P02]: nightshift submit --agent now required; prompt becomes optional positional argument
+- [Phase 10]: Flaky full-suite parallel runs are pre-existing race conditions (ENOENT on tmpdir); --pool=forks --singleFork confirms 384/384 pass
+- [Phase 10]: [Phase 10 P03]: schedule.test.ts third test replaced: obsolete timeout-inheritance concept removed, replaced with enabled/disabled entry assertion
 
 ### Pending Todos
 
@@ -157,6 +160,6 @@ Research flags for planning (investigate before finalizing plans):
 
 ## Session Continuity
 
-Last session: 2026-03-03T16:32:00.000Z
-Stopped at: Completed 10-02-PLAN.md
+Last session: 2026-03-04T08:50:57.602Z
+Stopped at: Completed 10-03-PLAN.md
 Resume file: None
