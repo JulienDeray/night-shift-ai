@@ -7,4 +7,5 @@ nightshift.yaml
 *.log
 .DS_Store
 workbench/*
+workbench-v2/*
 .env
