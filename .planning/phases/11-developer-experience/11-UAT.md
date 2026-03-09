@@ -1,9 +1,9 @@
 ---
-status: complete
+status: diagnosed
 phase: 11-developer-experience
 source: 11-01-SUMMARY.md, 11-02-SUMMARY.md, 11-03-SUMMARY.md
 started: 2026-03-09T19:00:00Z
-updated: 2026-03-09T19:15:00Z
+updated: 2026-03-09T19:20:00Z
 ---
 
 ## Current Test
@@ -67,13 +67,27 @@ skipped: 0
   reason: "User reported: nightshift agent init my-test-agent returned: Added to nightshift.yaml with schedule: 0 2 * * * but no nightshift.yaml is present in the folder"
   severity: major
   test: 2
-  artifacts: []
+  root_cause: "Not a code bug. The code at src/agent/scaffold.ts:130-159 correctly gates configUpdated behind successful file read/write. The message only prints when src/cli/commands/agent.ts:42-44 sees configUpdated=true. A nightshift.yaml existed at workbench/nightshift.yaml and was correctly updated (agent entry visible at lines 47-52). User likely ran from workbench/ directory where config exists."
+  artifacts:
+    - path: "src/agent/scaffold.ts"
+      issue: "Logic is correct — configUpdated only set true after successful write"
+    - path: "src/cli/commands/agent.ts"
+      issue: "Gating is correct — message only shown when configUpdated=true"
+    - path: "workbench/nightshift.yaml"
+      issue: "Contains my-test-agent registration — proof scaffold worked"
   missing: []
+  debug_session: ".planning/debug/agent-init-config-register.md"
 
 - truth: "agent init supports --register flag for config registration"
   status: failed
   reason: "User reported: returned error: unknown option '--register'"
   severity: major
   test: 3
-  artifacts: []
+  root_cause: "Invalid test expectation. The --register flag was never designed or specified. Per 11-01-PLAN.md Task 1 step 8, agent init ALWAYS attempts config registration (no opt-in flag). The only option defined is --force (src/cli/commands/agent.ts:37). This is working as designed."
+  artifacts:
+    - path: "src/cli/commands/agent.ts"
+      issue: "Only --force defined — correct per plan specification"
+    - path: ".planning/phases/11-developer-experience/11-01-PLAN.md"
+      issue: "Plan specifies always-register design, no --register flag"
   missing: []
+  debug_session: ".planning/debug/agent-init-config-register.md"
