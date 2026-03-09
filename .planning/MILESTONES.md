@@ -1,5 +1,29 @@
 # Milestones
 
+## v2.0 Pluggable Agent Architecture (Shipped: 2026-03-09)
+
+**Phases completed:** 9 phases (5-13), 19 plans
+**Timeline:** 13 days (2026-02-25 to 2026-03-09)
+**Git range:** feat(05-01) to docs(phase-13) (101 commits)
+**LOC:** 12,752 TypeScript (138 files changed, +23,824 / -4,414)
+
+**Key accomplishments:**
+1. Pluggable agent architecture with directory-based agents and manifest-driven configuration
+2. Generic AgentEngine executing any agent's bead pipeline with typed plugins and error categorization
+3. Code-agent fully migrated from hardcoded pipeline to configured agent template — zero functionality loss
+4. Config schema rewritten for multi-agent scheduling with startup validation
+5. Developer experience CLI: agent init, validate, list, show with 21 tests
+6. Full legacy cleanup: all hardcoded code-agent code removed, single dispatch path
+
+**Delivered:** A configurable agent platform where agents are directories (prompt files + manifest.yaml), beads are composable plugins with typed inputs/outputs, and code-agent is one configured template among many — with CLI tooling for scaffolding, validation, and inspection.
+
+### Known Tech Debt
+- 4 orphaned type stubs in `src/agent/agent-types.ts` (cosmetic)
+- SUMMARY frontmatter gaps in plans 06-02, 08-01 (metadata only)
+- Stale doc comments referencing deleted files in Phase 10 code (cosmetic)
+
+---
+
 ## v1.0 MVP (Shipped: 2026-02-25)
 
 **Phases completed:** 4 phases, 8 plans, 16 tasks
