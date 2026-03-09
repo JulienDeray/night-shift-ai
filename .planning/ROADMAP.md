@@ -137,7 +137,9 @@ Plans:
   1. `orchestrator.ts` captures the `NightShiftTask[]` returned by `evaluateSchedules()` and dispatches each to `pool.dispatch()`
   2. A unit test verifies that scheduled tasks flow from `evaluateSchedules()` through to `pool.dispatch()`
   3. The E2E flow "config → schedule evaluation → agent dispatch" no longer breaks at schedule→dispatch
-**Plans**: TBD
+**Plans**: 1 plan
+Plans:
+- [ ] 12-01-PLAN.md — Wire evaluateSchedules() return value into pool.dispatch() with TDD test
 
 ### Phase 13: Phase 11 Verification
 **Goal**: Phase 11 (Developer Experience) has formal verification confirming DX-01, DX-02, DX-03 are satisfied
@@ -166,5 +168,5 @@ Plans:
 | 9. Code-Agent Migration | 2/2 | Complete   | 2026-02-27 | - |
 | 10. Daemon Wiring and Legacy Cleanup | 3/3 | Complete    | 2026-03-04 | - |
 | 11. Developer Experience | v2.0 | 3/3 | Complete | 2026-03-09 |
-| 12. Fix Scheduler Dispatch Wiring | v2.0 | 0/? | Pending | — |
+| 12. Fix Scheduler Dispatch Wiring | v2.0 | 0/1 | Pending | — |
 | 13. Phase 11 Verification | v2.0 | 0/? | Pending | — |
