@@ -460,3 +460,93 @@ describe("Orchestrator notification hooks", () => {
     });
   });
 });
+
+describe("scheduled task dispatch", () => {
+  let orchestrator: Orchestrator;
+  let mockScheduler: { evaluateSchedules: ReturnType<typeof vi.fn>; updateConfig: ReturnType<typeof vi.fn>; loadState: ReturnType<typeof vi.fn> };
+  let mockPool: {
+    canAccept: ReturnType<typeof vi.fn>;
+    dispatch: ReturnType<typeof vi.fn>;
+    collectCompleted: ReturnType<typeof vi.fn>;
+    activeCount: number;
+  };
+  let logger: Logger;
+
+  beforeEach(async () => {
+    orchestrator = new Orchestrator();
+    logger = Logger.createCliLogger(false);
+    mockScheduler = {
+      evaluateSchedules: vi.fn().mockResolvedValue([]),
+      updateConfig: vi.fn(),
+      loadState: vi.fn(),
+    };
+    mockPool = {
+      canAccept: vi.fn().mockReturnValue(true),
+      dispatch: vi.fn(),
+      collectCompleted: vi.fn().mockReturnValue([]),
+      activeCount: 0,
+    };
+
+    (orchestrator as any).logger = logger;
+    (orchestrator as any).scheduler = mockScheduler;
+    (orchestrator as any).pool = mockPool;
+    (orchestrator as any).config = makeConfig();
+    (orchestrator as any).beads = null;
+    (orchestrator as any).ntfy = null;
+
+    // Mock loadConfig to return current config (hot-reload step)
+    const configMod = await import("../../src/core/config.js");
+    vi.spyOn(configMod, "loadConfig").mockResolvedValue(makeConfig());
+    // Mock getQueueDir to return a non-existent dir (no queued tasks)
+    const pathsMod = await import("../../src/core/paths.js");
+    vi.spyOn(pathsMod, "getQueueDir").mockReturnValue("/tmp/nightshift-nonexistent-queue");
+    // Mock writeDaemonState to no-op
+    const healthMod = await import("../../src/daemon/health.js");
+    vi.spyOn(healthMod, "writeDaemonState").mockResolvedValue(undefined);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("dispatches scheduled tasks returned by evaluateSchedules", async () => {
+    const task1 = makeTask({ id: "ns-sched001", name: "sched-1", origin: "recurring" });
+    const task2 = makeTask({ id: "ns-sched002", name: "sched-2", origin: "recurring" });
+    mockScheduler.evaluateSchedules.mockResolvedValue([task1, task2]);
+    mockPool.canAccept.mockReturnValue(true);
+
+    const notifySpy = vi.spyOn(orchestrator as any, "notifyTaskStart").mockImplementation(() => {});
+
+    await (orchestrator as any).tick();
+
+    expect(mockPool.dispatch).toHaveBeenCalledWith(task1);
+    expect(mockPool.dispatch).toHaveBeenCalledWith(task2);
+    expect(notifySpy).toHaveBeenCalledWith(task1);
+    expect(notifySpy).toHaveBeenCalledWith(task2);
+  });
+
+  it("skips remaining scheduled tasks when pool.canAccept returns false", async () => {
+    const task1 = makeTask({ id: "ns-sched003", name: "sched-3", origin: "recurring" });
+    const task2 = makeTask({ id: "ns-sched004", name: "sched-4", origin: "recurring" });
+    mockScheduler.evaluateSchedules.mockResolvedValue([task1, task2]);
+    mockPool.canAccept.mockReturnValueOnce(true).mockReturnValueOnce(false);
+
+    const notifySpy = vi.spyOn(orchestrator as any, "notifyTaskStart").mockImplementation(() => {});
+
+    await (orchestrator as any).tick();
+
+    expect(mockPool.dispatch).toHaveBeenCalledTimes(1);
+    expect(mockPool.dispatch).toHaveBeenCalledWith(task1);
+    expect(notifySpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not dispatch when evaluateSchedules returns empty array", async () => {
+    mockScheduler.evaluateSchedules.mockResolvedValue([]);
+
+    await (orchestrator as any).tick();
+
+    // dispatch may be called from queue tasks, but not from scheduled tasks
+    // Since queue dir doesn't exist, no queue tasks either
+    expect(mockPool.dispatch).not.toHaveBeenCalled();
+  });
+});
