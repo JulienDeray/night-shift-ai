@@ -29,7 +29,7 @@
 - [x] **Phase 8: AgentEngine and Bead Plugin Implementations** — Generic `AgentEngine`, `StandardBeadPlugin`, `GitCloneBeadPlugin` (completed 2026-02-27)
 - [x] **Phase 9: Code-Agent Migration** — `agents/code-agent/` directory with manifest and prompt files, parity with v1.0 pipeline (completed 2026-02-27)
 - [x] **Phase 10: Daemon Wiring and Legacy Cleanup** — Route `agentName` tasks to `AgentEngine`, remove `code-agent.ts` and `code-agent-runner.ts` (completed 2026-03-03)
-- [ ] **Phase 11: Developer Experience** — `agent init`, `agents list`, `agent validate` CLI commands
+- [x] **Phase 11: Developer Experience** — `agent init`, `agents list`, `agent validate` CLI commands (completed 2026-03-09)
 
 ## Phase Details
 
@@ -123,7 +123,7 @@ Plans:
 **Plans**: 3 plans
 Plans:
 - [x] 11-01-PLAN.md — Scaffold logic + agent CLI subcommand group (init, validate, list, show)
-- [ ] 11-02-PLAN.md — Unit and integration tests for scaffold and CLI commands
+- [x] 11-02-PLAN.md — Unit and integration tests for scaffold and CLI commands
 - [x] 11-03-PLAN.md — Documentation: README.md rewrite + docs/agents.md reference
 
 ## Progress
@@ -142,4 +142,4 @@ Plans:
 | 8. AgentEngine and Bead Plugin Implementations | 2/2 | Complete   | 2026-02-27 | - |
 | 9. Code-Agent Migration | 2/2 | Complete   | 2026-02-27 | - |
 | 10. Daemon Wiring and Legacy Cleanup | 3/3 | Complete    | 2026-03-04 | - |
-| 11. Developer Experience | v2.0 | 2/3 | In progress | - |
+| 11. Developer Experience | v2.0 | 3/3 | Complete | 2026-03-09 |
