@@ -8,6 +8,7 @@ import { inboxCommand } from "./commands/inbox.js";
 import { startCommand } from "./commands/start.js";
 import { stopCommand } from "./commands/stop.js";
 import { configCommand } from "./commands/config.js";
+import { agentCommand } from "./commands/agent.js";
 
 export const program = new Command()
   .name("nightshift")
@@ -23,3 +24,4 @@ program.addCommand(inboxCommand);
 program.addCommand(startCommand);
 program.addCommand(stopCommand);
 program.addCommand(configCommand);
+program.addCommand(agentCommand);
