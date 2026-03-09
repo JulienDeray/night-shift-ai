@@ -45,9 +45,9 @@ Requirements for the Pluggable Agent Architecture milestone. Each maps to roadma
 
 ### Developer Experience
 
-- [ ] **DX-01**: `nightshift agent init <name>` scaffolds a starter agent directory with manifest and placeholder prompts
-- [ ] **DX-02**: `nightshift agents list` shows configured agents with bead count, schedule, and last run outcome
-- [ ] **DX-03**: `nightshift agent validate <path>` validates an agent directory without starting the daemon
+- [x] **DX-01**: `nightshift agent init <name>` scaffolds a starter agent directory with manifest and placeholder prompts
+- [x] **DX-02**: `nightshift agents list` shows configured agents with bead count, schedule, and last run outcome
+- [x] **DX-03**: `nightshift agent validate <path>` validates an agent directory without starting the daemon
 
 ## Future Requirements
 
@@ -99,9 +99,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | MIGR-01 | Phase 9 | Complete |
 | WIRE-01 | Phase 12 | Complete |
 | WIRE-02 | Phase 10 | Complete |
-| DX-01 | Phase 13 | Pending |
-| DX-02 | Phase 13 | Pending |
-| DX-03 | Phase 13 | Pending |
+| DX-01 | Phase 13 | Complete |
+| DX-02 | Phase 13 | Complete |
+| DX-03 | Phase 13 | Complete |
 
 **Coverage:**
 - v2.0 requirements: 21 total
