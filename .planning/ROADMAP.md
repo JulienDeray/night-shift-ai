@@ -122,9 +122,9 @@ Plans:
   3. `nightshift agent validate <path>` exits 0 for a valid agent directory and exits non-zero with a human-readable error for an invalid one — without starting the daemon
 **Plans**: 3 plans
 Plans:
-- [ ] 11-01-PLAN.md — Scaffold logic + agent CLI subcommand group (init, validate, list, show)
+- [x] 11-01-PLAN.md — Scaffold logic + agent CLI subcommand group (init, validate, list, show)
 - [ ] 11-02-PLAN.md — Unit and integration tests for scaffold and CLI commands
-- [ ] 11-03-PLAN.md — Documentation: README.md rewrite + docs/agents.md reference
+- [x] 11-03-PLAN.md — Documentation: README.md rewrite + docs/agents.md reference
 
 ## Progress
 
@@ -142,4 +142,4 @@ Plans:
 | 8. AgentEngine and Bead Plugin Implementations | 2/2 | Complete   | 2026-02-27 | - |
 | 9. Code-Agent Migration | 2/2 | Complete   | 2026-02-27 | - |
 | 10. Daemon Wiring and Legacy Cleanup | 3/3 | Complete    | 2026-03-04 | - |
-| 11. Developer Experience | v2.0 | 1/3 | In progress | - |
+| 11. Developer Experience | v2.0 | 2/3 | In progress | - |
