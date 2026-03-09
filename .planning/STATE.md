@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v2.0
 milestone_name: Pluggable Agent Architecture
 status: executing
-stopped_at: Phase 11 context gathered
-last_updated: "2026-03-09T16:33:08.253Z"
-last_activity: 2026-03-03 — Phase 10 Plan 02 complete
+stopped_at: Completed 11-01-PLAN.md
+last_updated: "2026-03-09T17:53:13Z"
+last_activity: 2026-03-09 — Phase 11 Plan 01 complete
 progress:
   total_phases: 7
   completed_phases: 6
   total_plans: 14
-  completed_plans: 14
-  percent: 67
+  completed_plans: 15
+  percent: 71
 ---
 
 # Project State
@@ -25,12 +25,12 @@ See: .planning/PROJECT.md (updated 2026-02-25)
 
 ## Current Position
 
-Phase: 10 of 11 (Daemon Wiring and Legacy Cleanup)
-Plan: 2/2 — 10-02 complete (Phase 10 done)
+Phase: 11 of 11 (Developer Experience)
+Plan: 1/3 — 11-01 complete
 Status: In progress
-Last activity: 2026-03-03 — Phase 10 Plan 02 complete
+Last activity: 2026-03-09 — Phase 11 Plan 01 complete
 
-Progress: [███████░░░] ~67% (v2.0, 14/21 plans complete)
+Progress: [███████░░░] ~71% (v2.0, 15/21 plans complete)
 
 ## Performance Metrics
 
@@ -57,6 +57,7 @@ Progress: [███████░░░] ~67% (v2.0, 14/21 plans complete)
 | Phase 10 P01 | 5 | 2 tasks | 10 files |
 | Phase 10 P02 | 25 | 2 tasks | 14 files |
 | Phase 10 P03 | 5 | 1 tasks | 3 files |
+| Phase 11 P01 | 3 | 2 tasks | 3 files |
 
 ## Accumulated Context
 
@@ -135,6 +136,11 @@ Phase 8 Plan 02 decisions (2026-02-27):
 - [Phase 10]: Flaky full-suite parallel runs are pre-existing race conditions (ENOENT on tmpdir); --pool=forks --singleFork confirms 384/384 pass
 - [Phase 10]: [Phase 10 P03]: schedule.test.ts third test replaced: obsolete timeout-inheritance concept removed, replaced with enabled/disabled entry assertion
 
+Phase 11 Plan 01 decisions (2026-03-09):
+- [Phase 11-01]: Two-pass validate: ManifestSchema.safeParse for schema, loadManifest for env vars (env missing = warning not error)
+- [Phase 11-01]: scaffold uses parseYaml for raw config editing to avoid Zod schema enforcement on nightshift.yaml write-back
+- [Phase 11-01]: agent list and show use parseYaml (not loadManifest) to avoid env var errors when inspecting agents
+
 ### Pending Todos
 
 None.
@@ -160,6 +166,6 @@ Research flags for planning (investigate before finalizing plans):
 
 ## Session Continuity
 
-Last session: 2026-03-09T16:33:08.250Z
-Stopped at: Phase 11 context gathered
-Resume file: .planning/phases/11-developer-experience/11-CONTEXT.md
+Last session: 2026-03-09T17:53:13Z
+Stopped at: Completed 11-01-PLAN.md
+Resume file: .planning/phases/11-developer-experience/11-01-SUMMARY.md
