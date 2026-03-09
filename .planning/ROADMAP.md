@@ -30,7 +30,7 @@
 - [x] **Phase 9: Code-Agent Migration** — `agents/code-agent/` directory with manifest and prompt files, parity with v1.0 pipeline (completed 2026-02-27)
 - [x] **Phase 10: Daemon Wiring and Legacy Cleanup** — Route `agentName` tasks to `AgentEngine`, remove `code-agent.ts` and `code-agent-runner.ts` (completed 2026-03-03)
 - [x] **Phase 11: Developer Experience** — `agent init`, `agents list`, `agent validate` CLI commands (completed 2026-03-09)
-- [ ] **Phase 12: Fix Scheduler Dispatch Wiring** — Capture `evaluateSchedules()` return value and dispatch scheduled tasks to AgentPool (gap closure)
+- [x] **Phase 12: Fix Scheduler Dispatch Wiring** — Capture `evaluateSchedules()` return value and dispatch scheduled tasks to AgentPool (gap closure) (completed 2026-03-09)
 - [ ] **Phase 13: Phase 11 Verification** — Produce missing 11-VERIFICATION.md for DX-01/02/03 (gap closure)
 
 ## Phase Details
@@ -168,5 +168,5 @@ Plans:
 | 9. Code-Agent Migration | 2/2 | Complete   | 2026-02-27 | - |
 | 10. Daemon Wiring and Legacy Cleanup | 3/3 | Complete    | 2026-03-04 | - |
 | 11. Developer Experience | v2.0 | 3/3 | Complete | 2026-03-09 |
-| 12. Fix Scheduler Dispatch Wiring | v2.0 | 0/1 | Pending | — |
+| 12. Fix Scheduler Dispatch Wiring | 1/1 | Complete   | 2026-03-09 | — |
 | 13. Phase 11 Verification | v2.0 | 0/? | Pending | — |
