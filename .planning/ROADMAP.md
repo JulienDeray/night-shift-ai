@@ -30,6 +30,8 @@
 - [x] **Phase 9: Code-Agent Migration** — `agents/code-agent/` directory with manifest and prompt files, parity with v1.0 pipeline (completed 2026-02-27)
 - [x] **Phase 10: Daemon Wiring and Legacy Cleanup** — Route `agentName` tasks to `AgentEngine`, remove `code-agent.ts` and `code-agent-runner.ts` (completed 2026-03-03)
 - [x] **Phase 11: Developer Experience** — `agent init`, `agents list`, `agent validate` CLI commands (completed 2026-03-09)
+- [ ] **Phase 12: Fix Scheduler Dispatch Wiring** — Capture `evaluateSchedules()` return value and dispatch scheduled tasks to AgentPool (gap closure)
+- [ ] **Phase 13: Phase 11 Verification** — Produce missing 11-VERIFICATION.md for DX-01/02/03 (gap closure)
 
 ## Phase Details
 
@@ -126,6 +128,27 @@ Plans:
 - [x] 11-02-PLAN.md — Unit and integration tests for scaffold and CLI commands
 - [x] 11-03-PLAN.md — Documentation: README.md rewrite + docs/agents.md reference
 
+### Phase 12: Fix Scheduler Dispatch Wiring
+**Goal**: Scheduled agents actually execute — `evaluateSchedules()` return value is captured and dispatched to `AgentPool`
+**Depends on**: Phase 10
+**Requirements**: WIRE-01
+**Gap Closure:** Closes integration bug + flow gap from v2.0 audit
+**Success Criteria** (what must be TRUE):
+  1. `orchestrator.ts` captures the `NightShiftTask[]` returned by `evaluateSchedules()` and dispatches each to `pool.dispatch()`
+  2. A unit test verifies that scheduled tasks flow from `evaluateSchedules()` through to `pool.dispatch()`
+  3. The E2E flow "config → schedule evaluation → agent dispatch" no longer breaks at schedule→dispatch
+**Plans**: TBD
+
+### Phase 13: Phase 11 Verification
+**Goal**: Phase 11 (Developer Experience) has formal verification confirming DX-01, DX-02, DX-03 are satisfied
+**Depends on**: Phase 11
+**Requirements**: DX-01, DX-02, DX-03
+**Gap Closure:** Closes verification gap from v2.0 audit
+**Success Criteria** (what must be TRUE):
+  1. `11-VERIFICATION.md` exists with structured results for all 3 DX requirements
+  2. Each DX requirement is verified against Phase 11 success criteria with evidence from the 21 passing tests
+**Plans**: TBD
+
 ## Progress
 
 **Execution Order:** 5 → 6 → 7 → 8 → 9 → 10 → 11
@@ -143,3 +166,5 @@ Plans:
 | 9. Code-Agent Migration | 2/2 | Complete   | 2026-02-27 | - |
 | 10. Daemon Wiring and Legacy Cleanup | 3/3 | Complete    | 2026-03-04 | - |
 | 11. Developer Experience | v2.0 | 3/3 | Complete | 2026-03-09 |
+| 12. Fix Scheduler Dispatch Wiring | v2.0 | 0/? | Pending | — |
+| 13. Phase 11 Verification | v2.0 | 0/? | Pending | — |
