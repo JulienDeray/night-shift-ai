@@ -4,26 +4,25 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Node >= 20](https://img.shields.io/badge/node-%3E%3D20-brightgreen.svg)](https://nodejs.org/)
 
-Local-first framework for queuing tasks to be executed autonomously by AI agents during off-hours.
+Local-first framework for running autonomous AI agents during off-hours.
 
 ## Why
 
-Night-shift turns day to day tasks into fire-and-forget jobs that execute while you sleep.
+Night-shift turns your machine into an agent platform that works while you sleep. Define agents as directories with YAML manifests and prompt files, schedule them with cron, and read results in the morning.
 
-The system is **local-first** by design. No cloud infrastructure, no servers, no accounts. A background daemon on your machine polls for ready tasks, spawns `claude -p` processes with your existing MCP server connections (Jira, Confluence, filesystem, etc.), and writes results as markdown files you can read in the morning.
+The system is **local-first** by design. No cloud infrastructure, no servers, no accounts. A background daemon on your machine evaluates schedules, loads agent manifests, and executes bead pipelines through `claude -p` processes with your existing MCP server connections (Jira, Confluence, filesystem, etc.). Results are written as markdown files you review in the morning.
 
-Night-shift ships with a **code improvement agent** that clones a GitLab repo each night, finds one small, reviewable improvement based on a config-driven category rotation (tests, refactoring, docs, etc.), and creates a merge request. Results are logged to a local file and a Confluence page. Push notifications via [Ntfy](https://ntfy.sh) keep you informed of task starts, successes, and failures.
+Agents are **pluggable**. Night-shift ships with a `code-agent` that clones a GitLab repo each night, finds one small improvement, and creates a merge request. You can create your own agents for any task -- each is a self-contained directory with a `manifest.yaml` defining the pipeline and `prompts/` containing the instructions.
 
-Night-shift requires the [Claude CLI](https://claude.ai/download) — all agent execution goes through `claude -p`.
+Night-shift requires the [Claude CLI](https://claude.ai/download) -- all agent execution goes through `claude -p`.
 
 Task tracking uses [beads](https://github.com/steveyegge/beads) for dependency graphs and atomic claiming, but falls back to a simple file-based queue when beads is unavailable.
 
 ## Prerequisites
 
 - **Node.js >= 20**
-- **[Claude CLI](https://claude.ai/download)** — the agent runtime (`claude -p`)
-- **[glab](https://gitlab.com/gitlab-org/cli)** (for code improvement agent) — GitLab CLI, pre-authenticated
-- **[beads](https://github.com/steveyegge/beads)** (optional) — enables dependency graphs and atomic task claiming; falls back to a file-based queue without it
+- **[Claude CLI](https://claude.ai/download)** -- the agent runtime (`claude -p`)
+- **[beads](https://github.com/steveyegge/beads)** (optional) -- enables dependency graphs and atomic task claiming; falls back to a file-based queue without it
 
 ## Quick Start
 
@@ -35,11 +34,13 @@ npm install
 npm run build
 npm link                     # registers the `nightshift` binary on your PATH
 
-# Initialize
+# Initialize project
 nightshift init              # creates .nightshift/ and nightshift.yaml
 
-# Submit a one-off task
-nightshift submit "Summarize the latest MRs in our repo"
+# Create your first agent
+nightshift agent init my-agent       # scaffold agent directory + manifest
+nightshift agent validate my-agent   # check manifest, prompts, variables
+nightshift run --agent my-agent      # test run in foreground
 
 # Start the daemon (runs in background)
 nightshift start
@@ -52,7 +53,41 @@ nightshift inbox             # browse completed reports
 nightshift stop
 ```
 
-Edit `nightshift.yaml` to configure recurring tasks, budgets, timeouts, and tool restrictions.
+Edit `nightshift.yaml` to configure agents, schedules, and settings. See [Agent System](#agent-system) for details.
+
+## Agent System
+
+Agents are directories under `agents/`, each containing a `manifest.yaml` and a `prompts/` directory with markdown prompt files. The manifest defines the agent's pipeline: an ordered list of **beads** (stages), each invoking `claude -p` with specific tools, model, timeout, and an output schema contract.
+
+```
+agents/
+  code-agent/
+    manifest.yaml          # Pipeline definition
+    prompts/
+      clone-stub.md        # Git clone instructions
+      analyze.md           # Analysis prompt
+      implement.md         # Implementation prompt
+      verify.md            # Verification prompt
+      mr.md                # Merge request prompt
+      log.md               # Confluence logging prompt
+  my-agent/
+    manifest.yaml
+    prompts/
+      clone-stub.md
+      analyze.md
+```
+
+**Bead types:**
+- `standard` -- runs `claude -p` with the prompt, validates JSON output against the declared schema
+- `git-clone` -- clones a repository, provides `repoDir` and `handoffDir` to downstream beads
+
+**Key features:**
+- Template variables (`{{variable_name}}`) in prompts, with bead output references (`{{beads.clone.output.repoDir}}`)
+- Output schema contracts -- every bead declares a JSON Schema; violations abort the pipeline
+- Retry support -- a bead can retry from an earlier bead (e.g., verify retries from implement)
+- Environment variable isolation -- minimal safe env by default, explicit allowlisting per bead
+
+Night-shift ships with `code-agent` as a built-in example. See [docs/agents.md](docs/agents.md) for the full agent system reference.
 
 ## Using Night-Shift from an LLM Agent
 
@@ -68,22 +103,24 @@ nightshift init
 
 After `npm link`, the `nightshift` binary is available on `PATH`.
 
-### Submitting tasks
+### Agent management
 
 ```bash
-# Basic task
-nightshift submit "Review the open MRs in the repo and summarize findings"
-
-# With options
-nightshift submit "Prepare standup notes from Jira" \
-  --timeout 15m \
-  --budget 2.00 \
-  --model sonnet \
-  --name "standup-prep" \
-  --tools "mcp__jira__*" "Read"
+nightshift agent init my-agent          # scaffold a new agent
+nightshift agent validate my-agent      # check manifest + prompts + variables
+nightshift agent list                   # show all agents with schedule info
+nightshift agent list --json            # machine-readable output
+nightshift agent show my-agent          # detailed agent info + recent runs
 ```
 
-The command returns immediately. The daemon picks up the task on its next poll cycle.
+### Running agents
+
+```bash
+nightshift run --agent my-agent                      # foreground run
+nightshift run --agent my-agent --var repo_url=...   # with variable overrides
+nightshift submit --agent my-agent                   # queue for daemon
+nightshift submit --agent my-agent "custom prompt"   # with prompt override
+```
 
 ### Start / stop the daemon
 
@@ -96,8 +133,8 @@ nightshift stop --force      # immediate shutdown (SIGKILL)
 ### Checking status
 
 ```bash
-nightshift status            # daemon state, active tasks, total executed, cost
-nightshift schedule          # list recurring tasks with next run times
+nightshift status            # daemon state, active tasks, total executed
+nightshift schedule          # list scheduled agents with next run times
 ```
 
 ### Reading results
@@ -108,7 +145,7 @@ nightshift inbox -n 5        # list last 5 reports
 nightshift inbox --read <filename>  # display a specific report
 ```
 
-Reports are markdown files in `.nightshift/inbox/` with YAML frontmatter containing task metadata (cost, duration, status).
+Reports are markdown files in `.nightshift/inbox/` with YAML frontmatter containing task metadata (duration, status).
 
 ### Validating config
 
@@ -125,18 +162,22 @@ git clone https://github.com/julienderay/night-shift.git ~/night-shift
 cd ~/night-shift && npm install && npm run build && npm link
 nightshift init
 
-# Start daemon
-nightshift start
+# Create and configure an agent
+nightshift agent init code-review
+# Edit agents/code-review/manifest.yaml and prompts as needed
+nightshift agent validate code-review
 
-# Submit work
-nightshift submit "Audit the codebase for TODO comments and categorize them" --timeout 20m --budget 3.00
+# Start daemon and submit work
+nightshift start
+nightshift run --agent code-review     # test in foreground first
+nightshift submit --agent code-review  # or queue for daemon
 
 # Check progress
 nightshift status
 
 # Read results when done
 nightshift inbox
-nightshift inbox --read 2026-02-20_audit-todos_ns-a1b2c3d4.md
+nightshift inbox --read 2026-02-20_code-review_ns-a1b2c3d4.md
 
 # Stop daemon
 nightshift stop
@@ -144,111 +185,135 @@ nightshift stop
 
 ### Key facts for LLM agents
 
-- **All commands are non-interactive** — no prompts, no confirmations, safe for scripted use.
-- **The daemon must be running** for tasks to execute. Start it with `nightshift start` before submitting tasks.
-- **Tasks execute asynchronously** — `nightshift submit` queues the task and returns immediately. Poll `nightshift status` or `nightshift inbox` to check completion.
-- **Each task spawns a `claude -p` process** with `--dangerously-skip-permissions`. Safety is enforced via `--allowedTools` per task.
-- **MCP servers are inherited** from the user's existing Claude CLI config — no additional setup needed.
+- **All commands are non-interactive** -- no prompts, no confirmations, safe for scripted use.
+- **The daemon must be running** for queued tasks to execute. Start it with `nightshift start` before submitting tasks.
+- **Tasks execute asynchronously** -- `nightshift submit` queues the task and returns immediately. Poll `nightshift status` or `nightshift inbox` to check completion.
+- **`nightshift run` is synchronous** -- runs the agent in the foreground and blocks until completion. Useful for testing.
+- **Each bead spawns a `claude -p` process** with `--dangerously-skip-permissions`. Safety is enforced via `allowedTools` per bead in the manifest.
+- **MCP servers are inherited** from the user's existing Claude CLI config -- no additional setup needed.
 - **Results are markdown files** in `.nightshift/inbox/`, parseable via the YAML frontmatter.
 - **Exit codes**: all commands exit `0` on success, non-zero on error.
 
 ## Architecture
 
 ```
-User ──► CLI (nightshift submit/schedule/inbox/...)
-              │
-              ▼
-         Config (nightshift.yaml)  ◄── recurring tasks + settings + ntfy + code_agent
-              │
-              ▼
+User --- CLI (nightshift agent/run/submit/start/stop/...)
+              |
+              v
+         Config (nightshift.yaml)  <-- agents[] + schedule[] + settings
+              |
+              v
          Daemon (background process)
-           ├── Scheduler ── evaluates cron → creates tasks for due recurring jobs
-           ├── Orchestrator ── main poll loop: schedule → poll → dispatch → collect
-           │     └── NtfyClient ── fire-and-forget push notifications (start/end)
-           ├── AgentPool ── manages concurrent claude -p processes
-           │     ├── AgentRunner ── single claude -p lifecycle (generic tasks)
-           │     └── runCodeAgent ── 4-bead pipeline (code improvement tasks)
-           │           clone → analyze → implement → verify → MR → log
-           └── Reporter ── generates markdown inbox reports from results
-              │
-              ▼
-         Inbox (.nightshift/inbox/*.md) ◄── user reads in the morning
+           |-- Scheduler -- evaluates cron schedule entries, creates tasks
+           |-- Orchestrator -- main poll loop: schedule > poll > dispatch > collect
+           |     +-- NtfyClient -- fire-and-forget push notifications (start/end)
+           |-- AgentPool -- manages concurrent agent runs
+           |     +-- AgentEngine -- manifest-driven bead pipeline
+           |           +-- BeadRegistry -- maps bead types to plugins
+           |           +-- StandardBeadPlugin -- claude -p execution
+           |           +-- GitCloneBeadPlugin -- repository cloning
+           +-- Reporter -- generates markdown inbox reports from results
+              |
+              v
+         Inbox (.nightshift/inbox/*.md) <-- user reads in the morning
 ```
+
+**Pipeline execution** (per agent run):
+
+1. Load manifest from `agents/<name>/manifest.yaml`
+2. Resolve variables (built-ins > config overrides > manifest defaults)
+3. Execute beads in order: render prompt template, invoke `claude -p`, validate JSON output against schema
+4. On retry-configured beads: re-execute from the `retryFrom` bead on failure (up to `maxAttempts`)
+5. Return `AgentRunResult` with per-bead outcomes and final output
 
 **Poll loop** (runs every `daemon.poll_interval_ms`, default 30s):
 
 1. Write heartbeat to `.nightshift/daemon.json`
-2. Evaluate cron schedules → create tasks for due recurring jobs (dedup via state)
-3. Collect completed agent results → write inbox reports → close tasks
+2. Evaluate cron schedules -- create tasks for due agents (dedup via state)
+3. Collect completed agent results -- write inbox reports -- close tasks
 4. Poll for ready tasks (beads `bd ready` or file queue scan)
-5. For each ready task (up to `max_concurrent - active`): claim → dispatch to agent pool
-
-**Agent execution**: each task spawns `claude -p` with JSON output, budget caps, tool restrictions, and a timeout. The agent inherits your MCP config automatically.
+5. For each ready task (up to `max_concurrent - active`): claim and dispatch to agent pool
 
 ## Project Structure
 
 ```
 night-shift/
-├── bin/nightshift.ts                  # CLI entry point
-├── src/
-│   ├── cli/
-│   │   ├── index.ts                   # Commander program with all commands
-│   │   ├── commands/
-│   │   │   ├── init.ts                # nightshift init [--force]
-│   │   │   ├── submit.ts             # nightshift submit "<prompt>" [-t -b -m -n --tools]
-│   │   │   ├── schedule.ts           # nightshift schedule
-│   │   │   ├── status.ts             # nightshift status
-│   │   │   ├── inbox.ts              # nightshift inbox [-n --read]
-│   │   │   ├── start.ts              # nightshift start
-│   │   │   ├── stop.ts               # nightshift stop [--force]
-│   │   │   └── config.ts             # nightshift config show|validate
-│   │   └── formatters.ts             # Table rendering, colored status, cost/duration formatting
-│   ├── daemon/
-│   │   ├── index.ts                   # Daemon entry point + signal handlers
-│   │   ├── orchestrator.ts           # Main poll loop
-│   │   ├── scheduler.ts              # Cron evaluation + dedup state
-│   │   ├── agent-pool.ts             # Concurrency limiter
-│   │   ├── agent-runner.ts           # Single claude -p lifecycle
-│   │   └── health.ts                 # PID file, heartbeat, stale detection
-│   ├── core/
-│   │   ├── types.ts                   # All TypeScript interfaces
-│   │   ├── config.ts                  # Zod schema + YAML loader + defaults
-│   │   ├── paths.ts                   # .nightshift/ path resolution
-│   │   ├── logger.ts                  # Structured JSON logger (file + stdout)
-│   │   └── errors.ts                  # NightShiftError, ConfigError, DaemonError, etc.
-│   ├── beads/
-│   │   ├── client.ts                  # Wrapper around bd CLI (spawn-based, no shell)
-│   │   ├── types.ts                   # BeadEntry, create/update options
-│   │   └── mapper.ts                 # NightShiftTask ↔ bead mapping
-│   ├── agent/
-│   │   ├── code-agent.ts             # Top-level runCodeAgent harness (clone → pipeline → log → cleanup)
-│   │   ├── code-agent-runner.ts      # 4-bead pipeline orchestrator (analyze → implement → verify → MR)
-│   │   ├── bead-runner.ts            # Single bead execution (env isolation, tool restriction)
-│   │   ├── prompt-loader.ts          # Template loader with injection mitigation preamble
-│   │   ├── git-harness.ts            # Git clone lifecycle with unconditional cleanup
-│   │   ├── run-logger.ts             # JSONL run log appender
-│   │   ├── types.ts                  # Agent pipeline types (BeadResult, CodeAgentRunResult, etc.)
-│   │   └── prompts/                  # Bead prompt templates (analyze, implement, verify, mr, log)
-│   ├── notifications/
-│   │   └── ntfy-client.ts            # Fire-and-forget Ntfy push notifications
-│   ├── inbox/
-│   │   └── reporter.ts               # Markdown report generation with YAML frontmatter
-│   └── utils/
-│       ├── process.ts                 # spawnWithTimeout, parseTimeout
-│       ├── fs.ts                      # Atomic writes, JSON read/write
-│       └── template.ts               # {{date}}, {{name}} substitution
-├── tests/
-│   ├── unit/                          # config, process, template, reporter, mapper, scheduler, health,
-│   │                                  # ntfy-client, prompt-loader, code-agent-runner, agent-pool, etc.
-│   └── integration/                   # CLI init + config flow
-├── nightshift.yaml                    # Created by `nightshift init`
-└── .nightshift/                       # Created by `nightshift init`
-    ├── inbox/                         # Completed task reports (markdown)
-    ├── queue/                         # File-based task queue (when beads disabled)
-    ├── logs/                          # Daemon logs (JSON, one file per day)
-    ├── daemon.json                    # Daemon heartbeat state
-    ├── daemon.pid                     # Daemon PID file
-    └── scheduler.json                 # Scheduler dedup state (last run times)
++-- bin/nightshift.ts                  # CLI entry point
++-- agents/
+|   +-- code-agent/                    # Built-in example agent
+|       +-- manifest.yaml              # Pipeline definition (6 beads)
+|       +-- prompts/                   # Bead prompt templates
++-- src/
+|   +-- cli/
+|   |   +-- index.ts                   # Commander program with all commands
+|   |   +-- commands/
+|   |   |   +-- init.ts                # nightshift init [--force]
+|   |   |   +-- submit.ts             # nightshift submit --agent <name> [prompt]
+|   |   |   +-- run.ts                # nightshift run --agent <name> [--var ...]
+|   |   |   +-- agent.ts              # nightshift agent {init|validate|list|show}
+|   |   |   +-- schedule.ts           # nightshift schedule
+|   |   |   +-- status.ts             # nightshift status
+|   |   |   +-- inbox.ts              # nightshift inbox [-n --read]
+|   |   |   +-- start.ts              # nightshift start
+|   |   |   +-- stop.ts               # nightshift stop [--force]
+|   |   |   +-- config.ts             # nightshift config show|validate
+|   |   +-- formatters.ts             # Table rendering, colored status, duration formatting
+|   +-- daemon/
+|   |   +-- index.ts                   # Daemon entry point + signal handlers
+|   |   +-- orchestrator.ts           # Main poll loop
+|   |   +-- scheduler.ts              # Cron evaluation + dedup state
+|   |   +-- agent-pool.ts             # Concurrency limiter + dispatch
+|   |   +-- health.ts                 # PID file, heartbeat, stale detection
+|   +-- core/
+|   |   +-- types.ts                   # All TypeScript interfaces
+|   |   +-- config.ts                  # Zod schema + YAML loader + defaults
+|   |   +-- paths.ts                   # .nightshift/ path resolution
+|   |   +-- logger.ts                  # Structured JSON logger (file + stdout)
+|   |   +-- errors.ts                  # NightShiftError, ManifestError, etc.
+|   +-- agent/
+|   |   +-- engine.ts                  # AgentEngine -- manifest-driven pipeline executor
+|   |   +-- engine-types.ts           # AgentRunResult, BeadOutcome, PipelineStatus
+|   |   +-- manifest-loader.ts        # loadManifest(), extractLastJsonBlock, validateBeadOutput
+|   |   +-- manifest-schema.ts        # ManifestSchema, BeadSchema (Zod)
+|   |   +-- manifest-types.ts         # LoadedManifest, ResolvedBead type definitions
+|   |   +-- template.ts               # Template variable system (render, validate, builtins)
+|   |   +-- bead-runner.ts            # Single bead execution (env isolation, tool restriction)
+|   |   +-- bead-plugin.ts            # BeadPlugin interface
+|   |   +-- bead-registry.ts          # BeadRegistry -- maps type strings to plugin factories
+|   |   +-- scaffold.ts               # Agent scaffolding (nightshift agent init)
+|   |   +-- agent-types.ts            # validateAgentName, agent type definitions
+|   |   +-- plugins/
+|   |   |   +-- standard-bead-plugin.ts    # claude -p execution
+|   |   |   +-- git-clone-bead-plugin.ts   # Repository cloning
+|   |   +-- prompt-loader.ts           # Template loader with injection mitigation
+|   |   +-- git-harness.ts            # Git clone lifecycle with cleanup
+|   |   +-- run-logger.ts             # JSONL run log appender
+|   |   +-- temp-dir-manager.ts       # Temporary directory lifecycle
+|   +-- beads/
+|   |   +-- client.ts                  # Wrapper around bd CLI
+|   |   +-- types.ts                   # BeadEntry types
+|   |   +-- mapper.ts                  # NightShiftTask <-> bead mapping
+|   +-- notifications/
+|   |   +-- ntfy-client.ts            # Fire-and-forget Ntfy push notifications
+|   +-- inbox/
+|   |   +-- reporter.ts               # Markdown report generation with YAML frontmatter
+|   +-- utils/
+|       +-- process.ts                 # spawnWithTimeout, parseTimeout
+|       +-- fs.ts                      # Atomic writes, JSON read/write
+|       +-- template.ts               # Legacy {{date}}, {{name}} substitution
++-- tests/
+|   +-- unit/                          # Config, manifest, template, engine, etc.
+|   +-- integration/                   # CLI flow tests
++-- docs/
+|   +-- agents.md                      # Full agent system reference
++-- nightshift.yaml                    # Created by `nightshift init`
++-- .nightshift/                       # Created by `nightshift init`
+    +-- inbox/                         # Completed task reports (markdown)
+    +-- queue/                         # File-based task queue (when beads disabled)
+    +-- logs/                          # Daemon logs + agent run logs (JSONL)
+    +-- daemon.json                    # Daemon heartbeat state
+    +-- daemon.pid                     # Daemon PID file
+    +-- scheduler.json                 # Scheduler dedup state (last run times)
 ```
 
 ## CLI Reference
@@ -257,21 +322,33 @@ night-shift/
 
 Creates `.nightshift/` directory structure and default `nightshift.yaml`. Use `--force` to overwrite an existing config.
 
-### `nightshift submit <prompt> [options]`
+### `nightshift agent init <name> [--force]`
 
-Queue a one-off task for the daemon to execute.
+Scaffolds a new agent directory under `agents/<name>/` with a starter `manifest.yaml` and prompt files. Registers the agent in `nightshift.yaml`. Use `--force` to overwrite an existing agent.
 
-| Flag | Description |
-|------|-------------|
-| `-t, --timeout <timeout>` | Task timeout (e.g. `30m`, `1h`) |
-| `-b, --budget <usd>` | Max budget in USD |
-| `-m, --model <model>` | Model to use (`sonnet`, `opus`) |
-| `-n, --name <name>` | Task name (auto-generated if omitted) |
-| `--tools <tools...>` | Allowed tools for the agent |
+### `nightshift agent validate <name|path>`
+
+Validates an agent's manifest, prompt files, template variables, and output schemas. Env var availability is checked as a warning (not a hard error). Accepts an agent name (resolves to `agents/<name>`) or a directory path.
+
+### `nightshift agent list [--json]`
+
+Shows all agents with bead count, schedule, and last run outcome. Includes both configured and unregistered agents. Use `--json` for machine-readable output.
+
+### `nightshift agent show <name>`
+
+Displays detailed agent information: manifest summary, bead pipeline, schedule, and recent runs.
+
+### `nightshift run --agent <name> [--var key=value...] [-n name] [-N]`
+
+Run an agent in the foreground. Variable overrides can be passed with `--var`. Use `-N`/`--notify` to send push notifications.
+
+### `nightshift submit --agent <name> [prompt] [-t timeout] [-n name]`
+
+Queue a task for the daemon to execute. The `--agent` flag is required. An optional prompt can be provided as a positional argument.
 
 ### `nightshift start`
 
-Fork the daemon as a detached background process. Validates config before starting. Refuses to start if a daemon is already running.
+Fork the daemon as a detached background process. Validates config and agent manifests before starting. Refuses to start if a daemon is already running.
 
 ### `nightshift stop [--force]`
 
@@ -279,11 +356,11 @@ Send SIGTERM to the daemon for graceful shutdown (drains active tasks). Use `--f
 
 ### `nightshift status`
 
-Display daemon state (running/stopped, PID, uptime, heartbeat age, active tasks, total executed, total cost) and queue depth.
+Display daemon state (running/stopped, PID, uptime, heartbeat age, active tasks, total executed) and queue depth.
 
 ### `nightshift schedule`
 
-Show all recurring tasks from config with their cron schedule, next run time, timeout, and budget.
+Show all scheduled agents with their cron expression and next run time.
 
 ### `nightshift inbox [-n <count>] [--read <file>]`
 
@@ -300,8 +377,7 @@ List the most recent inbox reports (default 10). Use `--read <filename>` to disp
 
 ```yaml
 workspace: ./workspace            # Working directory for agent file output
-inbox: ./inbox                    # (unused, reports go to .nightshift/inbox/)
-max_concurrent: 2                 # Max parallel claude -p processes
+max_concurrent: 2                 # Max parallel agent runs
 default_timeout: "30m"            # Default task timeout
 
 beads:
@@ -312,123 +388,42 @@ daemon:
   heartbeat_interval_ms: 10000    # How often the daemon writes heartbeat state
   log_retention_days: 30          # Days to keep daemon log files
 
-recurring:                        # Recurring tasks evaluated by cron schedule
-  - name: "daily-standup-prep"
-    schedule: "0 6 * * 1-5"      # Cron expression (croner syntax)
-    prompt: |
-      Check Jira for my team's recent updates and prepare
-      standup notes for today's meeting.
-    allowed_tools:                # Tool restrictions for this task
-      - "mcp__jira__*"
-      - "Read"
-      - "Write"
-    output: "inbox/standup-prep-{{date}}.md"   # Optional custom output path
-    timeout: "15m"                # Override default timeout
-    max_budget_usd: 2.00          # Cost cap for this task
-    notify: true                  # Send Ntfy push notifications for this task
-    # model: "sonnet"             # Optional model override
-    # mcp_config: "./custom.json" # Optional per-task MCP config
+agents_dir: ./agents              # Path to agents directory
+
+agents:
+  - name: code-agent
+    variables:
+      repo_url: "git@gitlab.com:team/project.git"
+    fallback_categories:
+      - tests
+      - refactoring
+      - docs
+
+schedule:
+  - agent: code-agent
+    cron: "0 2 * * 1-5"          # 2 AM on weekdays
+    variables:
+      category: "refactoring"
+  - agent: code-agent
+    cron: "0 2 * * 6"
+    variables:
+      category: "tests"
 
 one_off_defaults:
   timeout: "30m"                  # Default timeout for submitted tasks
   max_budget_usd: 5.00            # Default budget for submitted tasks
-  # model: "sonnet"               # Default model for submitted tasks
 
 # Push notifications (optional)
-ntfy:
-  topic: "https://ntfy.sh/my-nightshift"   # Ntfy topic URL
-  # token: "tk_..."                         # Optional bearer auth token
-  # base_url: "https://ntfy.sh"            # Override for self-hosted ntfy
-
-# Code improvement agent (optional)
-code_agent:
-  repo_url: "git@gitlab.com:team/project.git"  # SSH URL of target repo
-  confluence_page_id: "12345678"                # Pre-existing Confluence page ID for run log
-  category_schedule:                            # Day-of-week → improvement category
-    monday: [tests]
-    tuesday: [refactoring]
-    wednesday: [docs]
-    thursday: [security]
-    friday: [performance]
-  # prompts:                                    # Override default bead prompt templates
-  #   analyze: "./prompts/analyze.md"
-  #   implement: "./prompts/implement.md"
-  #   verify: "./prompts/verify.md"
-  #   mr: "./prompts/mr.md"
-  #   log: "./prompts/log.md"
-  # reviewer: "username"                        # GitLab reviewer for MRs
-  # allowed_commands: ["npm test", "npm run build"]  # Commands the agent can run
-  # max_tokens: 50000                           # Token budget per bead
-  # log_mcp_config: "./mcp-atlassian.json"      # MCP config for Confluence log bead
+# ntfy:
+#   topic: "https://ntfy.sh/my-nightshift"
+#   token: "tk_..."
+#   base_url: "https://ntfy.sh"
 ```
 
 ### Timeout Format
 
 Durations accept: `ms` (milliseconds), `s` (seconds), `m` (minutes), `h` (hours).
 Examples: `"30m"`, `"2h"`, `"90s"`, `"5000ms"`.
-
-### Template Variables
-
-Output paths support `{{variable}}` substitution:
-
-| Variable     | Example          |
-|-------------|------------------|
-| `{{date}}`  | `2026-02-19`     |
-| `{{datetime}}` | `2026-02-19_03-00-05` |
-| `{{time}}`  | `03-00-05`       |
-| `{{year}}`  | `2026`           |
-| `{{month}}` | `02`             |
-| `{{day}}`   | `19`             |
-| `{{name}}`  | task name        |
-
-## Code Improvement Agent
-
-When `code_agent` is configured in `nightshift.yaml` and a recurring task named `"code-agent"` is defined, the daemon automatically routes it through the code improvement pipeline instead of the generic `AgentRunner`.
-
-The pipeline runs a **4-bead sequence** — each bead is a focused `claude -p` invocation with restricted tools:
-
-1. **Analyze** — scans the repo for improvement candidates in the day's category, outputs a ranked list or `NO_IMPROVEMENT`
-2. **Implement** — applies the selected improvement (up to 3 attempts with `git reset --hard` between retries)
-3. **Verify** — runs build + tests to confirm the change doesn't break anything
-4. **MR** — creates a feature branch, squash-commits, pushes, and opens a merge request via `glab`
-
-After the pipeline, results are logged to a local JSONL file (`.nightshift/logs/code-agent-runs.jsonl`) and optionally to a Confluence page via a **log bead** using MCP Atlassian tools.
-
-**Security**: `GITLAB_TOKEN` is passed only to the MR bead via an explicit environment allowlist. All other beads receive a minimal safe env (`HOME`, `PATH`, `USER`, `LANG`, `SHELL`, `TERM`). The prompt loader prepends a hardcoded injection mitigation preamble to every bead prompt.
-
-**Category fallback**: if the day's category yields `NO_IMPROVEMENT`, the agent tries remaining categories in order (tests, refactoring, docs, security, performance) until one produces a candidate or all are exhausted.
-
-Example recurring task config:
-
-```yaml
-recurring:
-  - name: "code-agent"
-    schedule: "0 2 * * 1-5"        # 2 AM on weekdays
-    prompt: "Run the code improvement agent"
-    notify: true                    # Push notification on start/end
-    timeout: "30m"
-    max_budget_usd: 5.00
-```
-
-## Agent Execution
-
-Each task runs as a spawned child process:
-
-```bash
-claude -p "<prompt>" \
-  --output-format json \
-  --dangerously-skip-permissions \
-  --no-session-persistence \
-  --allowedTools "Tool1" "Tool2" \
-  --max-budget-usd 5.00 \
-  --model sonnet \
-  --append-system-prompt "You are executing a night-shift task autonomously. ..."
-```
-
-- `--dangerously-skip-permissions`: required for non-interactive execution. Safety comes from `--allowedTools` per task.
-- `--output-format json`: structured output with `session_id`, `duration_ms`, `total_cost_usd`, `result`, `is_error`, `num_turns`.
-- `--no-session-persistence`: automated runs don't pollute the user's session history.
-- MCP servers are inherited from the user's existing Claude Code config.
 
 ## Inbox Reports
 
@@ -439,19 +434,17 @@ Each completed task produces a markdown file in `.nightshift/inbox/`:
 ```markdown
 ---
 task_id: ns-a3f2b1c4
-task_name: daily-standup-prep
-origin: recurring
+task_name: code-agent-ns-a3f2b1c4
+origin: scheduled
 status: completed
-started_at: 2026-02-20T03:00:05Z
-completed_at: 2026-02-20T03:02:34Z
-duration_seconds: 149
-cost_usd: 0.42
-num_turns: 8
+started_at: 2026-02-20T02:00:05Z
+completed_at: 2026-02-20T02:12:34Z
+duration_seconds: 749
 ---
 
-# daily-standup-prep
+# code-agent-ns-a3f2b1c4
 
-**Status**: Completed | **Duration**: 2m 29s | **Cost**: $0.42
+**Status**: Completed | **Duration**: 12m 29s
 
 ## Result
 
@@ -459,7 +452,7 @@ num_turns: 8
 
 ## Original Prompt
 
-> Check Jira for my team's recent updates...
+> Run the code improvement agent
 ```
 
 The YAML frontmatter is machine-parseable (used by `nightshift inbox`). The body is human-readable.
@@ -470,10 +463,10 @@ When `beads.enabled: true` (default), tasks are tracked as beads via the `bd` CL
 
 - All night-shift tasks carry the label `nightshift`
 - One-off tasks: label `nightshift:one-off`
-- Recurring tasks: label `nightshift:recurring:<name>`
+- Scheduled tasks: label `nightshift:scheduled:<agent-name>`
 - Failed tasks: additional label `nightshift:failed`
 - Atomic claiming via `bd update <id> --claim` prevents double-execution
-- Task metadata (timeout, budget, tools, prompt) is encoded in the bead description
+- Task metadata (timeout, agent name) is encoded in the bead description
 
 When `beads.enabled: false`, tasks are stored as JSON files in `.nightshift/queue/` and claimed by updating the file status. This fallback requires no external tools.
 
@@ -482,7 +475,7 @@ When `beads.enabled: false`, tasks are stored as JSON files in `.nightshift/queu
 - **Start**: `nightshift start` forks the daemon via `child_process.fork({ detached: true })`
 - **Health**: PID file at `.nightshift/daemon.pid`, heartbeat JSON at `.nightshift/daemon.json` updated every 10s
 - **Stale detection**: a daemon with no heartbeat for 60s is considered dead
-- **Stop**: `nightshift stop` sends SIGTERM → daemon sets status to `stopping` → drains active tasks → writes final reports → removes PID file → exits
+- **Stop**: `nightshift stop` sends SIGTERM -- daemon sets status to `stopping` -- drains active tasks -- writes final reports -- removes PID file -- exits
 - **Force stop**: `nightshift stop --force` sends SIGKILL
 - **Crash recovery**: on startup, the orchestrator checks for stale state and cleans up
 
@@ -491,7 +484,7 @@ When `beads.enabled: false`, tasks are stored as JSON files in `.nightshift/queu
 ```bash
 npm run dev -- <command>       # run CLI via tsx (no build step)
 npm run typecheck              # type check without emitting
-npm test                       # run all tests
+npm test                       # run all tests (384 across 30 files)
 npm run test:watch             # run tests in watch mode
 npm run build                  # compile to dist/
 ```
@@ -503,21 +496,15 @@ npm run build                  # compile to dist/
 | `commander` + `@commander-js/extra-typings` | CLI framework with TypeScript inference |
 | `croner` | Cron expression parsing and next-run evaluation |
 | `yaml` | YAML config parsing and serialization |
-| `zod` | Config schema validation with defaults |
+| `zod` | Config and manifest schema validation |
 | `chalk` | Terminal colors and formatting |
 | `date-fns` | Date formatting for reports and templates |
 | `vitest` | Test framework |
 | `tsx` | TypeScript execution for development |
 
-### Tests
-
-244 tests across 21 test files:
-
-- **Unit**: config loading/validation, timeout parsing, process spawning, template rendering, report generation, beads mapper, scheduler cron evaluation, daemon health checks, ntfy client, prompt loader, bead runner, code-agent runner, agent pool dispatch, git harness, run logger
-- **Integration**: full CLI flow for `init`, `config validate`, `config show`
-
 ### Key Design Decisions
 
+- **Manifest-driven pipelines**: agents are fully declarative YAML -- no code required to create a new agent.
 - **Poll-based, not event-driven**: beads is a CLI tool, not a service. Polling at 30s intervals is the simplest reliable approach.
 - **Spawn, not exec**: all child processes use `child_process.spawn` with argument arrays. No shell interpolation, no injection risk.
 - **Atomic file writes**: reports and state files are written to a `.tmp` file first, then renamed. No partial reads.
@@ -528,13 +515,11 @@ npm run build                  # compile to dist/
 ## What's Not Implemented Yet
 
 - **Log rotation**: `log_retention_days` is defined in config but cleanup is not wired up
-- **Crash recovery for in-progress tasks**: the plan mentions reopening in-progress beads on startup, but this isn't implemented in the orchestrator
+- **Crash recovery for in-progress tasks**: reopening in-progress beads on startup is not implemented in the orchestrator
 - **`inbox` config field**: the top-level `inbox` field in config is unused; reports always go to `.nightshift/inbox/`
 - **Task dependencies**: beads supports dependency graphs (`bd dep add`), but no CLI command exposes this
-- **Per-task MCP config**: the `mcp_config` field is plumbed through types and agent-runner args, but no CLI flag for `submit`
-- **Model flag in recurring tasks**: plumbed through but not exposed in schedule display
-- **Hot-reload of ntfy config**: changes to `ntfy` or `code_agent` config require a daemon restart
-- **Multi-category arrays**: `resolveCategory()` uses only the first element of a category array; multi-value arrays silently drop all but `[0]`
+- **Per-task MCP config**: the `mcp_config` field is plumbed through types and bead-runner, but no CLI flag for `submit`
+- **Hot-reload of config**: changes to `nightshift.yaml` require a daemon restart
 
 ## Contributing
 
