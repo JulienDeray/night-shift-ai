@@ -46,21 +46,75 @@
 
 ---
 
+## Milestone: v2.0 — Pluggable Agent Architecture
+
+**Shipped:** 2026-03-09
+**Phases:** 9 | **Plans:** 19
+
+### What Was Built
+- Pluggable agent architecture: agents as directories with manifest.yaml and prompt files, driven by generic AgentEngine
+- BeadPlugin interface with typed contracts, BeadRegistry for plugin resolution, Zod-validated manifest schema
+- Config schema rewritten from hardcoded code-agent to `agents:` array with cron scheduling
+- Startup validation gate: daemon fails at start (not 2am) if agent manifests are broken
+- Code-agent fully migrated from hardcoded pipeline to configured agent template with zero functionality loss
+- All legacy code-agent source files deleted — single dispatch path through AgentEngine
+- Developer experience CLI: agent init, validate, list, show with 21 comprehensive tests
+- Documentation: README rewrite + docs/agents.md reference guide
+
+### What Worked
+- Phase dependency ordering held throughout 9 phases — each phase built cleanly on the last
+- Audit-driven gap closure (Phases 12-13) caught a real integration bug (scheduler dispatch wiring) before shipping
+- Hard config schema break (`.strict()`) instead of expand-and-contract simplified implementation significantly for a personal tool
+- BeadRegistry as DI instance (not singleton) made testing clean across all phases
+- Summary frontmatter and VERIFICATION.md files made milestone audit straightforward
+
+### What Was Inefficient
+- First milestone audit was run before gap-closure phases were planned — needed a second audit pass
+- SUMMARY frontmatter `requirements_completed` was left empty in plans 06-02 and 08-01 (metadata-only debt)
+- Phase 10 had flaky parallel test runs due to pre-existing tmpdir race conditions (not introduced by v2.0, but surfaced during it)
+- Nyquist validation was skipped for most phases (VALIDATION.md missing for phases 5-10)
+
+### Patterns Established
+- Agent directory convention: `agents/<name>/manifest.yaml` + prompt files
+- Two-pass validation: ManifestSchema.safeParse for schema, loadManifest for env vars
+- Engine statelessness: AgentEngine + BeadRegistry created fresh per dispatch
+- Per-bead configuration from manifest (model, tools, env, timeout) overrides engine defaults
+- Deferred template resolution: mcpConfig stored as raw string, rendered at plugin execution time
+- Scaffold + validate pattern: `agent init` produces output that passes `agent validate`
+
+### Key Lessons
+1. Audit-then-fix before milestone completion catches real integration bugs — the scheduler dispatch wiring gap was a genuine bug that would have affected production use
+2. Hard schema breaks are appropriate for personal tools — expand-and-contract adds complexity only justified for tools with external users
+3. Generic engines should have zero domain-specific logic — the AgentEngine pattern proved correct when code-agent migrated with zero engine changes
+4. Startup validation is high-value low-cost — checking manifests before the first poll tick prevents 2am failures
+5. Gap-closure phases (decimal or dedicated) are a natural part of milestone completion — plan for 1-2 at the end
+
+### Cost Observations
+- Model mix: balanced profile (default)
+- Notable: 19 plans across 9 phases in 13 days, 101 commits
+
+---
+
 ## Cross-Milestone Trends
 
 ### Process Evolution
 
-| Milestone | Sessions | Phases | Key Change |
-|-----------|----------|--------|------------|
-| v1.0 | ~4 | 4 | Initial milestone — established TDD, bead pipeline, and security isolation patterns |
+| Milestone | Phases | Plans | Commits | Key Change |
+|-----------|--------|-------|---------|------------|
+| v1.0 | 4 | 8 | 42 | Established TDD, bead pipeline, and security isolation patterns |
+| v2.0 | 9 | 19 | 101 | Pluggable agent architecture, generic engine, audit-driven gap closure |
 
 ### Cumulative Quality
 
-| Milestone | Tests | Coverage | Zero-Dep Additions |
-|-----------|-------|----------|-------------------|
-| v1.0 | 238+ | N/A | 0 (zero new npm dependencies) |
+| Milestone | LOC | Tests | Zero-Dep Additions |
+|-----------|-----|-------|-------------------|
+| v1.0 | 9,068 | 238+ | 0 (zero new npm dependencies) |
+| v2.0 | 12,752 | 384+ | 0 (zero new npm dependencies) |
 
 ### Top Lessons (Verified Across Milestones)
 
 1. Structural security (allowlist construction) beats procedural security (key deletion)
-2. Well-scoped plans (~2 min each) execute cleanly and produce atomic commits
+2. Well-scoped plans execute cleanly and produce atomic commits
+3. Audit-then-fix before milestone completion catches real integration bugs
+4. Generic engines with zero domain-specific logic scale to new agent types cleanly
+5. Startup validation prevents late-night failures — check configuration eagerly
