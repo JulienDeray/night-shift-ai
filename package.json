@@ -1,6 +1,6 @@
 {
   "name": "night-shift",
-  "version": "0.1.0",
+  "version": "2.0.0",
   "description": "Local-first framework for queuing tasks to be executed autonomously by AI agents during off-hours",
   "type": "module",
   "license": "MIT",
