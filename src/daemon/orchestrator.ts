@@ -233,8 +233,13 @@ export class Orchestrator {
       });
     }
 
-    // 1. Evaluate cron schedules → create beads for due recurring tasks
-    await this.scheduler.evaluateSchedules();
+    // 1. Evaluate cron schedules and dispatch due tasks
+    const scheduledTasks = await this.scheduler.evaluateSchedules();
+    for (const task of scheduledTasks) {
+      if (!this.pool.canAccept()) break;
+      this.pool.dispatch(task);
+      this.notifyTaskStart(task);
+    }
 
     // 2. Collect completed tasks
     const completed = this.pool.collectCompleted();
