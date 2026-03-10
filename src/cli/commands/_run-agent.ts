@@ -57,6 +57,10 @@ export async function runAgentForeground(
   const agentsRoot = path.resolve(configDir, config.agentsDir);
   const agentDir = path.join(agentsRoot, agentName);
 
+  // Merge agent-level config variables with CLI --var overrides (CLI wins)
+  const agentDecl = config.agents.find((a) => a.name === agentName);
+  const mergedVars = { ...(agentDecl?.variables ?? {}), ...vars };
+
   // Create registry and engine
   const registry = new BeadRegistry();
   registry.register("standard", (_bead, _manifest) => new StandardBeadPlugin());
@@ -68,7 +72,7 @@ export async function runAgentForeground(
     agentDir,
     agentsRoot,
     taskId,
-    Object.keys(vars).length > 0 ? vars : undefined,
+    Object.keys(mergedVars).length > 0 ? mergedVars : undefined,
   );
 
   const durationSec = Math.round(result.totalDurationMs / 1000);

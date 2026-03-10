@@ -44,6 +44,10 @@ export const submitCommand = new Command("submit")
         }
       }
 
+      // Merge agent-level config variables with CLI --var overrides (CLI wins)
+      const agentDecl = config.agents.find((a) => a.name === options.agent);
+      const mergedVars = { ...(agentDecl?.variables ?? {}), ...vars };
+
       const task: NightShiftTask = {
         id: taskId,
         name: taskName,
@@ -53,7 +57,7 @@ export const submitCommand = new Command("submit")
         timeout: options.timeout ?? config.oneOffDefaults.timeout,
         createdAt: new Date().toISOString(),
         agentName: options.agent,
-        ...(Object.keys(vars).length > 0 && { variables: vars }),
+        ...(Object.keys(mergedVars).length > 0 && { variables: mergedVars }),
       };
 
       if (config.beads.enabled) {
