@@ -23,6 +23,10 @@ export function getLogsDir(base: string = process.cwd()): string {
   return path.resolve(base, NIGHTSHIFT_DIR, "logs");
 }
 
+export function getRunOutputDir(runId: string, base: string = process.cwd()): string {
+  return path.resolve(base, NIGHTSHIFT_DIR, "logs", "runs", runId);
+}
+
 export function getDaemonPidPath(base: string = process.cwd()): string {
   return path.resolve(base, NIGHTSHIFT_DIR, "daemon.pid");
 }

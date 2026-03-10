@@ -21,6 +21,7 @@ import {
   RegistryError,
 } from "../core/errors.js";
 import { spawnWithTimeout } from "../utils/process.js";
+import { getRunOutputDir, ensureDir } from "../core/paths.js";
 
 // ---------------------------------------------------------------------------
 // Error categorization
@@ -81,6 +82,24 @@ export class AgentEngine {
       cwd: workDir,
     });
     await result;
+  }
+
+  /**
+   * Writes full bead output to .nightshift/logs/runs/<runId>/<beadName>.json.
+   * Best-effort: logs a warning on failure, never throws.
+   */
+  private async writeBeadOutput(runId: string, beadName: string, rawOutput: string): Promise<void> {
+    try {
+      const dir = getRunOutputDir(runId);
+      await ensureDir(dir);
+      await fs.writeFile(path.join(dir, `${beadName}.json`), rawOutput, "utf-8");
+    } catch (err) {
+      this.logger.warn("Failed to write per-bead output file", {
+        runId,
+        bead: beadName,
+        error: String(err).slice(0, 200),
+      });
+    }
   }
 
   /**
@@ -166,7 +185,7 @@ export class AgentEngine {
         index: i,
       });
 
-      let rawOutput: string;
+      let rawOutput = "";
       let timedOut = false;
 
       try {
@@ -260,6 +279,9 @@ export class AgentEngine {
           durationMs,
           outputPreview: rawOutput.slice(0, 200),
         });
+
+        // Write full bead output to file — best-effort, never throws
+        await this.writeBeadOutput(runId, bead.name, rawOutput);
       } catch (err) {
         const durationMs = Date.now() - beadStart;
 
@@ -295,6 +317,11 @@ export class AgentEngine {
           error: String(err).slice(0, 500),
           category,
         });
+
+        // Write partial bead output if available — best-effort, never throws
+        if (rawOutput) {
+          await this.writeBeadOutput(runId, bead.name, rawOutput);
+        }
 
         // Rollback: cleanup temp dir (warn on failure, never rethrow)
         await tmpDirManager.cleanup(tmpDir);
