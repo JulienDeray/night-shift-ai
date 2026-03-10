@@ -24,6 +24,7 @@ const mockEnsureDir = vi.mocked(ensureDir);
 function makeEntry(overrides: Partial<RunLogEntry> = {}): RunLogEntry {
   return {
     date: "2026-02-25T14:00:00Z",
+    run_id: "test-run-id-001",
     agent_name: "code-agent",
     final_output: "https://gitlab.com/team/repo/-/merge_requests/42",
     duration_seconds: 120,
@@ -71,7 +72,7 @@ describe("run-logger", () => {
     expect(() => JSON.parse(withoutTrailingNewline)).not.toThrow();
   });
 
-  it("JSON line contains exactly the locked fields: date, agent_name, final_output, duration_seconds, summary", async () => {
+  it("JSON line contains exactly the locked fields: date, run_id, agent_name, final_output, duration_seconds, summary", async () => {
     const entry = makeEntry();
     await appendRunLog(entry, "/base");
 
@@ -80,7 +81,7 @@ describe("run-logger", () => {
 
     const keys = Object.keys(parsed).sort();
     expect(keys).toEqual(
-      ["agent_name", "date", "duration_seconds", "final_output", "summary"],
+      ["agent_name", "date", "duration_seconds", "final_output", "run_id", "summary"],
     );
   });
 

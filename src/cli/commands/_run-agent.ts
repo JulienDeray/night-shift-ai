@@ -99,6 +99,7 @@ export async function runAgentForeground(
 
   console.log(info(`Agent:    ${agentName}`));
   console.log(info(`Duration: ${formatDuration(durationSec)}`));
+  console.log(info(`Logs:     .nightshift/logs/runs/${result.runId}`));
 
   if (result.finalOutput) {
     const outputStr =

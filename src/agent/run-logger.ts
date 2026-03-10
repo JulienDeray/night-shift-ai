@@ -4,6 +4,7 @@ import { getLogsDir, ensureDir } from "../core/paths.js";
 
 export interface RunLogEntry {
   date: string;
+  run_id: string;
   agent_name: string;
   final_output: unknown | null;
   duration_seconds: number;

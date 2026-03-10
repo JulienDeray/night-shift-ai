@@ -335,7 +335,9 @@ export class Orchestrator {
 
     this.logger.info(`Task ${task.id} (${task.name}) completed`, {
       status: result.status === "SUCCESS" ? "completed" : "failed",
+      runId: result.runId,
       durationMs: result.totalDurationMs,
+      perBead: result.perBead.map((b) => ({ name: b.name, status: b.status })),
     });
 
     // Write inbox report
@@ -384,6 +386,7 @@ export class Orchestrator {
         : result.error?.slice(0, 200) ?? "Unknown error";
       await appendRunLog({
         date: new Date().toISOString(),
+        run_id: result.runId,
         agent_name: result.agentName,
         final_output: result.finalOutput,
         duration_seconds: Math.round(result.totalDurationMs / 1000),
