@@ -92,4 +92,79 @@ one_off_defaults:
     expect(res.stdout).toContain("Pending");
     expect(res.stdout).toContain("1");
   });
+
+  it("lists pending tasks with ID, name, and agent", async () => {
+    const queueDir = path.join(tmpDir, ".nightshift", "queue");
+    await writeJsonFile(path.join(queueDir, "ns-aaa00001.json"), {
+      id: "ns-aaa00001",
+      name: "lint-check",
+      origin: "one-off",
+      prompt: "Run lint",
+      status: "pending",
+      timeout: "10m",
+      createdAt: new Date().toISOString(),
+      agentName: "code-agent",
+    });
+    await writeJsonFile(path.join(queueDir, "ns-aaa00002.json"), {
+      id: "ns-aaa00002",
+      name: "deploy-staging",
+      origin: "one-off",
+      prompt: "Deploy to staging",
+      status: "pending",
+      timeout: "10m",
+      createdAt: new Date().toISOString(),
+      agentName: "deploy-agent",
+    });
+
+    const res = await run(["status"]);
+
+    expect(res.exitCode).toBe(0);
+    expect(res.stdout).toContain("ns-aaa00001");
+    expect(res.stdout).toContain("lint-check");
+    expect(res.stdout).toContain("code-agent");
+    expect(res.stdout).toContain("ns-aaa00002");
+    expect(res.stdout).toContain("deploy-staging");
+    expect(res.stdout).toContain("deploy-agent");
+  });
+
+  it("lists running tasks when daemon is active", async () => {
+    const state: DaemonState = {
+      pid: process.pid,
+      startedAt: new Date().toISOString(),
+      lastHeartbeat: new Date().toISOString(),
+      activeTasks: 1,
+      totalExecuted: 5,
+      totalCostUsd: 1.23,
+      status: "running",
+    };
+    await writeJsonFile(path.join(tmpDir, ".nightshift", "daemon.json"), state);
+
+    const queueDir = path.join(tmpDir, ".nightshift", "queue");
+    await writeJsonFile(path.join(queueDir, "ns-bbb00001.json"), {
+      id: "ns-bbb00001",
+      name: "build-task",
+      origin: "one-off",
+      prompt: "Build the project",
+      status: "running",
+      timeout: "20m",
+      createdAt: new Date().toISOString(),
+      agentName: "build-agent",
+    });
+
+    const res = await run(["status"]);
+
+    expect(res.exitCode).toBe(0);
+    expect(res.stdout).toContain("ns-bbb00001");
+    expect(res.stdout).toContain("running");
+  });
+
+  it("shows no task table when queue is empty", async () => {
+    const res = await run(["status"]);
+
+    expect(res.exitCode).toBe(0);
+    expect(res.stdout).toContain("Pending");
+    // No table headers should appear when queue is empty
+    expect(res.stdout).not.toContain("│ ID");
+    expect(res.stdout).not.toContain("│ Name");
+  });
 });
