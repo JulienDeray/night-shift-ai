@@ -5,7 +5,7 @@ milestone_name: Pluggable Agent Architecture
 status: shipped
 stopped_at: Milestone v2.0 complete
 last_updated: "2026-03-10"
-last_activity: 2026-03-10 — Completed quick task 6: Add cancel command to remove/dequeue pending tasks
+last_activity: 2026-03-10 — Completed quick task 7: Enhance status command to list individual tasks
 progress:
   total_phases: 9
   completed_phases: 9
@@ -69,9 +69,10 @@ Carried from v1.0 (need empirical validation):
 | 4 | Fix false-positive MR_CREATED outcome when MR bead fails | 2026-02-25 | 6286003 | [4-investigate-why-mr-was-not-created-despi](./quick/4-investigate-why-mr-was-not-created-despi/) |
 | 5 | Add synchronous agent execution support (--sync flag) | 2026-03-10 | 19d9576 | [5-add-synchronous-agent-execution-support](./quick/5-add-synchronous-agent-execution-support/) |
 | 6 | Add cancel command to remove/dequeue pending tasks | 2026-03-10 | ab7f961 | [6-add-a-cancel-command-to-remove-dequeue-p](./quick/6-add-a-cancel-command-to-remove-dequeue-p/) |
+| 7 | Enhance status command to list individual tasks | 2026-03-10 | 7c7cb29 | [7-enhance-status-command-to-list-individua](./quick/7-enhance-status-command-to-list-individua/) |
 
 ## Session Continuity
 
 Last session: 2026-03-10
-Stopped at: Quick task 6 complete (cancel command)
+Stopped at: Quick task 7 complete (enhance status command with task table)
 Resume file: None
