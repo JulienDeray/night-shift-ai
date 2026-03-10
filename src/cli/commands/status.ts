@@ -43,6 +43,19 @@ export const statusCommand = new Command("status")
           const running = daemonUp ? state.activeTasks : 0;
           console.log(`  Ready:   ${ready.length}`);
           console.log(`  Running: ${running}`);
+
+          if (ready.length > 0) {
+            const rows = ready.map((bead) => {
+              const name = bead.title.length > 30 ? bead.title.slice(0, 30) + "..." : bead.title;
+              const owner = bead.owner || "-";
+              const status = statusColor("ready");
+              const created = formatDistanceToNow(new Date(bead.created_at)) + " ago";
+              return [bead.id, name, owner, status, created];
+            });
+
+            console.log("");
+            console.log(table(["ID", "Name", "Owner", "Status", "Created"], rows));
+          }
         } catch {
           console.log(dim("  (beads not available)"));
         }
