@@ -5,7 +5,7 @@ milestone_name: Pluggable Agent Architecture
 status: shipped
 stopped_at: Milestone v2.0 complete
 last_updated: "2026-03-10"
-last_activity: 2026-03-10 — Completed quick task 8: Write per-bead output files and make bead IDs visible in logs
+last_activity: 2026-03-10 — Completed quick task 9: Fix bead-runner to extract result field from Claude CLI JSON envelope
 progress:
   total_phases: 9
   completed_phases: 9
@@ -71,6 +71,7 @@ Carried from v1.0 (need empirical validation):
 | 6 | Add cancel command to remove/dequeue pending tasks | 2026-03-10 | ab7f961 | [6-add-a-cancel-command-to-remove-dequeue-p](./quick/6-add-a-cancel-command-to-remove-dequeue-p/) |
 | 7 | Enhance status command to list individual tasks | 2026-03-10 | 7c7cb29 | [7-enhance-status-command-to-list-individua](./quick/7-enhance-status-command-to-list-individua/) |
 | 8 | Write per-bead output files and make bead IDs visible in logs | 2026-03-10 | bcb60c7 | [8-write-per-bead-output-files-and-make-bea](./quick/8-write-per-bead-output-files-and-make-bea/) |
+| 9 | Fix bead-runner to extract result field from Claude CLI JSON envelope | 2026-03-10 | 5ca495d | [9-fix-bead-runner-to-extract-result-field-](./quick/9-fix-bead-runner-to-extract-result-field-/) |
 
 ## Session Continuity
 
