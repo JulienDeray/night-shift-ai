@@ -10,6 +10,7 @@ import {
   loadManifest,
   extractLastJsonBlock,
   validateBeadOutput,
+  preprocessNullable,
 } from "../../src/agent/manifest-loader.js";
 import {
   ManifestError,
@@ -520,5 +521,137 @@ describe("extractLastJsonBlock", () => {
     const jsonContent = '{\n  "result": "ok",\n  "count": 42\n}';
     const text = `\`\`\`json\n${jsonContent}\n\`\`\``;
     expect(extractLastJsonBlock(text)).toBe(jsonContent);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 8. preprocessNullable — nullable field transformation
+// ---------------------------------------------------------------------------
+
+describe("preprocessNullable — nullable field transformation", () => {
+  it("transforms {type: 'string', nullable: true} to {type: ['string', 'null']} and removes nullable key", () => {
+    const input = { type: "string", nullable: true };
+    const result = preprocessNullable(input);
+    expect(result).toEqual({ type: ["string", "null"] });
+    expect(result).not.toHaveProperty("nullable");
+  });
+
+  it("transforms {type: 'integer', nullable: true} to {type: ['integer', 'null']}", () => {
+    const input = { type: "integer", nullable: true };
+    const result = preprocessNullable(input);
+    expect(result).toEqual({ type: ["integer", "null"] });
+  });
+
+  it("recursively processes nested properties in objects", () => {
+    const input = {
+      type: "object",
+      properties: {
+        name: { type: "string", nullable: true },
+      },
+    };
+    const result = preprocessNullable(input);
+    expect(result).toEqual({
+      type: "object",
+      properties: {
+        name: { type: ["string", "null"] },
+      },
+    });
+  });
+
+  it("recursively processes items in arrays", () => {
+    const input = {
+      type: "array",
+      items: { type: "number", nullable: true },
+    };
+    const result = preprocessNullable(input);
+    expect(result).toEqual({
+      type: "array",
+      items: { type: ["number", "null"] },
+    });
+  });
+
+  it("leaves fields without nullable: true untouched", () => {
+    const input = { type: "string" };
+    const result = preprocessNullable(input);
+    expect(result).toEqual({ type: "string" });
+  });
+
+  it("leaves fields with nullable: false as-is (removes nullable key, does not convert type)", () => {
+    const input = { type: "string", nullable: false };
+    const result = preprocessNullable(input);
+    expect(result).toEqual({ type: "string" });
+    expect(result).not.toHaveProperty("nullable");
+  });
+
+  it("does not mutate the input object", () => {
+    const input = { type: "string", nullable: true };
+    preprocessNullable(input);
+    expect(input).toEqual({ type: "string", nullable: true });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 9. Nullable field integration tests (output schema compilation)
+// ---------------------------------------------------------------------------
+
+describe("loadManifest — nullable field integration", () => {
+  it("manifest with nullable: true on a string property compiles and accepts both string and null", async () => {
+    const manifest = {
+      ...VALID_MANIFEST,
+      beads: [
+        {
+          ...VALID_MANIFEST.beads[0],
+          outputSchema: {
+            type: "object",
+            properties: {
+              result: { type: "string" },
+              note: { type: "string", nullable: true },
+            },
+            required: ["result"],
+          },
+        },
+      ],
+    };
+    const { agentsRoot, agentDir, cleanup } = await createTempAgent(manifest);
+    try {
+      const loaded = await loadManifest(agentDir, agentsRoot);
+      const compiled = loaded.beads[0].compiledOutputSchema;
+      // accepts string value
+      expect(compiled.safeParse({ result: "ok", note: "some note" }).success).toBe(true);
+      // accepts null value for nullable field
+      expect(compiled.safeParse({ result: "ok", note: null }).success).toBe(true);
+      // accepts missing optional field
+      expect(compiled.safeParse({ result: "ok" }).success).toBe(true);
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it("manifest without nullable on a string property rejects null", async () => {
+    const manifest = {
+      ...VALID_MANIFEST,
+      beads: [
+        {
+          ...VALID_MANIFEST.beads[0],
+          outputSchema: {
+            type: "object",
+            properties: {
+              result: { type: "string" },
+              note: { type: "string" },
+            },
+            required: ["result"],
+          },
+        },
+      ],
+    };
+    const { agentsRoot, agentDir, cleanup } = await createTempAgent(manifest);
+    try {
+      const loaded = await loadManifest(agentDir, agentsRoot);
+      const compiled = loaded.beads[0].compiledOutputSchema;
+      // rejects null for non-nullable field
+      expect(compiled.safeParse({ result: "ok", note: null }).success).toBe(false);
+    } finally {
+      await cleanup();
+    }
   });
 });

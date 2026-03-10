@@ -100,6 +100,49 @@ function mergeEnv(agentEnv: ResolvedEnvVar[], beadEnv: ResolvedEnvVar[]): Resolv
 }
 
 /**
+ * Transforms JSON Schema objects with `nullable: true` (OpenAPI 3.0-style shorthand)
+ * into standard JSON Schema `type: [originalType, "null"]` syntax.
+ *
+ * Rules:
+ * - `nullable: true` with a string `type`: converts to array type and removes `nullable`
+ * - `nullable: false`: removes the `nullable` key without changing `type`
+ * - Recursively processes `properties` and `items`
+ * - Returns a new object (does not mutate input)
+ */
+export function preprocessNullable(schema: Record<string, unknown>): Record<string, unknown> {
+  const result: Record<string, unknown> = { ...schema };
+
+  // Handle nullable at this level
+  if ("nullable" in result) {
+    const nullable = result.nullable;
+    delete result.nullable;
+    if (nullable === true && typeof result.type === "string") {
+      result.type = [result.type, "null"];
+    }
+  }
+
+  // Recurse into properties
+  if (result.properties && typeof result.properties === "object" && result.properties !== null) {
+    const processedProps: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(result.properties as Record<string, unknown>)) {
+      if (value && typeof value === "object" && !Array.isArray(value)) {
+        processedProps[key] = preprocessNullable(value as Record<string, unknown>);
+      } else {
+        processedProps[key] = value;
+      }
+    }
+    result.properties = processedProps;
+  }
+
+  // Recurse into items (object form only)
+  if (result.items && typeof result.items === "object" && !Array.isArray(result.items)) {
+    result.items = preprocessNullable(result.items as Record<string, unknown>);
+  }
+
+  return result;
+}
+
+/**
  * Compiles a raw JSON Schema object to a Zod schema at load time.
  * Throws ManifestError if the schema uses unsupported features.
  */
@@ -108,7 +151,7 @@ function compileOutputSchema(
   beadName: string,
 ): z.ZodTypeAny {
   try {
-    return z.fromJSONSchema(jsonSchema) as z.ZodTypeAny;
+    return z.fromJSONSchema(preprocessNullable(jsonSchema)) as z.ZodTypeAny;
   } catch (err) {
     throw new ManifestError(
       `Bead "${beadName}": invalid outputSchema — ${err instanceof Error ? err.message : String(err)}`,
