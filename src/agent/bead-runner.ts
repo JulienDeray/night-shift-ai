@@ -151,7 +151,7 @@ export async function runBead(options: {
       const parsed = JSON.parse(spawnResult.stdout) as ClaudeJsonOutput;
       costUsd = parsed.total_cost_usd ?? 0;
       durationMs = parsed.duration_ms ?? durationMs;
-      stdout = spawnResult.stdout;
+      stdout = parsed.result;
     } catch {
       // Non-JSON stdout — leave costUsd/durationMs at defaults
       // stdout already set to raw output
