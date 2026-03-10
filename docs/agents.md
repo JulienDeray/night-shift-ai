@@ -469,6 +469,34 @@ outputSchema:
     - status
 ```
 
+### Nullable Fields
+
+To allow a field to accept `null` values, add `nullable: true` to the field definition:
+
+```yaml
+outputSchema:
+  type: object
+  properties:
+    name:
+      type: string
+    epic_key:
+      type: string
+      nullable: true
+  required:
+    - name
+```
+
+With `nullable: true`, the field accepts both its declared type and `null`. Without it, `null` values cause a `BEAD_CONTRACT_VIOLATION`.
+
+Under the hood, `nullable: true` is an OpenAPI 3.0-style shorthand. The manifest loader transforms it to standard JSON Schema `type: ["string", "null"]` before compilation. You can also use the array type syntax directly if you prefer:
+
+```yaml
+    epic_key:
+      type:
+        - string
+        - "null"
+```
+
 ## Environment Variables
 
 Beads execute in a minimal, isolated environment. Only explicitly declared env vars are passed through.
