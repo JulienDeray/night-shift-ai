@@ -72,7 +72,7 @@ Carried from v1.0 (need empirical validation):
 | 7 | Enhance status command to list individual tasks | 2026-03-10 | 7c7cb29 | [7-enhance-status-command-to-list-individua](./quick/7-enhance-status-command-to-list-individua/) |
 | 8 | Write per-bead output files and make bead IDs visible in logs | 2026-03-10 | bcb60c7 | [8-write-per-bead-output-files-and-make-bea](./quick/8-write-per-bead-output-files-and-make-bea/) |
 | 9 | Fix bead-runner to extract result field from Claude CLI JSON envelope | 2026-03-10 | 5ca495d | [9-fix-bead-runner-to-extract-result-field-](./quick/9-fix-bead-runner-to-extract-result-field-/) |
-| 10 | Add nullable support for outputSchema in agent manifests | 2026-03-10 | e90a924 | [10-add-nullable-support-for-outputschema-in](./quick/10-add-nullable-support-for-outputschema-in/) |
+| 10 | Add nullable support for outputSchema in agent manifests | 2026-03-10 | b55644b | [10-add-nullable-support-for-outputschema-in](./quick/10-add-nullable-support-for-outputschema-in/) |
 
 ## Session Continuity
 
