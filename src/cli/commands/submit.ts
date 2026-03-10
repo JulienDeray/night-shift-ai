@@ -16,6 +16,7 @@ export const submitCommand = new Command("submit")
   .option("-a, --agent <name>", "Agent name to use (required)")
   .option("-t, --timeout <timeout>", "Task timeout (e.g. 30m, 1h)")
   .option("-n, --name <name>", "Task name")
+  .option("--var <keyvalue...>", "Variable overrides as key=value pairs")
   .option("-s, --sync", "Queue the task and immediately execute the agent synchronously")
   .action(async (prompt, options) => {
     try {
@@ -29,6 +30,20 @@ export const submitCommand = new Command("submit")
       const taskId = `ns-${crypto.randomBytes(4).toString("hex")}`;
       const taskName = options.name ?? `${options.agent}-${taskId}`;
 
+      // Parse --var key=value pairs into a Record
+      const vars: Record<string, string> = {};
+      if (options.var) {
+        for (const kv of options.var) {
+          const eqIdx = kv.indexOf("=");
+          if (eqIdx === -1) {
+            console.error(error(`Invalid --var format (expected key=value): ${kv}`));
+            process.exitCode = 1;
+            return;
+          }
+          vars[kv.slice(0, eqIdx)] = kv.slice(eqIdx + 1);
+        }
+      }
+
       const task: NightShiftTask = {
         id: taskId,
         name: taskName,
@@ -38,6 +53,7 @@ export const submitCommand = new Command("submit")
         timeout: options.timeout ?? config.oneOffDefaults.timeout,
         createdAt: new Date().toISOString(),
         agentName: options.agent,
+        ...(Object.keys(vars).length > 0 && { variables: vars }),
       };
 
       if (config.beads.enabled) {
@@ -66,6 +82,7 @@ export const submitCommand = new Command("submit")
           agentName: options.agent,
           taskId: task.id,
           taskName,
+          vars,
           ntfyConfig: config.ntfy,
         });
       }
