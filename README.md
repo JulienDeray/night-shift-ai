@@ -83,9 +83,11 @@ agents/
 
 **Key features:**
 - Template variables (`{{variable_name}}`) in prompts, with bead output references (`{{beads.clone.output.repoDir}}`)
-- Output schema contracts -- every bead declares a JSON Schema; violations abort the pipeline
-- Retry support -- a bead can retry from an earlier bead (e.g., verify retries from implement)
-- Environment variable isolation -- minimal safe env by default, explicit allowlisting per bead
+- Output schema contracts -- every bead declares a JSON Schema; violations abort the pipeline. Supports `nullable: true` on fields (OpenAPI 3.0 shorthand for accepting `null` values)
+- Retry support -- a bead can declare `retry: { maxAttempts: N, retryFrom: <bead> }` to re-execute from a preceding bead on failure (e.g., verify retries from implement up to 3 times). Retry triggers when the bead output contains `passed: false`; the working directory is `git reset --hard` before each retry, and the `retry_error` variable is populated with the failure's `error_details`
+- Per-bead MCP config -- a bead can declare `mcpConfig: "path/to/mcp.json"` (supports template variables) to load MCP server connections for that bead only
+- Environment variable isolation -- minimal safe env by default (`HOME`, `PATH`, `USER`, `LANG`, `SHELL`, `TERM`), explicit allowlisting per bead via `env` (passthrough strings or `{name, value}` objects)
+- Tool restriction -- `allowedTools` at agent or bead level controls which Claude tools are available. Bead-level **replaces** agent-level entirely (no merge)
 
 Night-shift ships with `code-agent` as a built-in example. See [docs/agents.md](docs/agents.md) for the full agent system reference.
 
@@ -518,7 +520,7 @@ npm run build                  # compile to dist/
 - **Crash recovery for in-progress tasks**: reopening in-progress beads on startup is not implemented in the orchestrator
 - **`inbox` config field**: the top-level `inbox` field in config is unused; reports always go to `.nightshift/inbox/`
 - **Task dependencies**: beads supports dependency graphs (`bd dep add`), but no CLI command exposes this
-- **Per-task MCP config**: the `mcp_config` field is plumbed through types and bead-runner, but no CLI flag for `submit`
+- **Per-task MCP config via CLI**: bead-level `mcpConfig` works in manifests, but there is no `--mcp-config` CLI flag on `nightshift submit` to override it at runtime
 - **Hot-reload of config**: changes to `nightshift.yaml` require a daemon restart
 
 ## Contributing

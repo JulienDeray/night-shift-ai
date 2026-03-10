@@ -182,7 +182,21 @@ retry:
   retryFrom: implement  # Name of a preceding bead to restart from
 ```
 
-When a bead with retry fails, the engine re-executes the pipeline starting from `retryFrom` up to `maxAttempts` times. The `retryFrom` bead must appear **before** the current bead in the pipeline -- this is enforced at schema validation time.
+The `retryFrom` bead must appear **before** the current bead in the pipeline — this is enforced at schema validation time.
+
+**How retry triggers:**
+
+Retry is NOT triggered by bead exceptions or crashes. It triggers when the bead **succeeds** (produces valid JSON matching its schema) but the output contains `passed: false`. This means:
+
+1. The bead must include a `passed` boolean field in its `outputSchema`
+2. When `passed` is `false`, the engine checks for retry config
+3. If retries remain, the engine:
+   a. Reads `error_details` from the bead output and injects it as the `retry_error` template variable
+   b. Runs `git reset --hard HEAD` on the working directory to restore a clean state
+   c. Re-executes from the `retryFrom` bead
+4. If retries are exhausted (`retryCount > maxAttempts`), execution continues to the next bead
+
+Bead failures (exceptions, timeouts, missing output) are categorized as FATAL or TRANSIENT errors and abort the pipeline immediately — they do not trigger retry.
 
 **How code-agent uses retry:** The `verify` bead retries from `implement`. If verification fails (tests break), the engine re-runs `implement` and `verify` up to 3 times. The `retry_error` variable is populated with the error details from the failed verify run, so the implement bead can see what went wrong and adapt its approach.
 
