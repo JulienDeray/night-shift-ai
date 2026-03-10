@@ -976,4 +976,75 @@ describe("AgentEngine", () => {
       expect(result.beadOutputs!["implement"]).toBeUndefined();
     });
   });
+
+  // -------------------------------------------------------------------------
+  // 10. Per-bead output files
+  // -------------------------------------------------------------------------
+
+  describe("per-bead output files", () => {
+    it("writes <beadName>.json to .nightshift/logs/runs/<runId>/ after successful bead", async () => {
+      const { agentsRoot, agentDir, cleanup: c } = await createTempAgent();
+      cleanup = c;
+      mockRunBead.mockResolvedValue(makeBeadResult(VALID_RESULT_OUTPUT));
+
+      const writeFileSpy = vi.spyOn(fs, "writeFile").mockResolvedValue(undefined);
+      vi.spyOn(fs, "mkdir").mockResolvedValue(undefined);
+
+      const engine = new AgentEngine(makeRegistry(), silentLogger());
+      const result = await engine.run(agentDir, agentsRoot, "task-bead-file");
+
+      // Should have called writeFile with a path containing the runId and bead name
+      const writeFileCalls = writeFileSpy.mock.calls;
+      const beadFileCalls = writeFileCalls.filter(
+        ([filePath]) => String(filePath).includes(result.runId) && String(filePath).endsWith("analyze.json"),
+      );
+      expect(beadFileCalls.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it("written file content is the full raw output string", async () => {
+      const { agentsRoot, agentDir, cleanup: c } = await createTempAgent();
+      cleanup = c;
+      const rawOutput = VALID_RESULT_OUTPUT;
+      mockRunBead.mockResolvedValue(makeBeadResult(rawOutput));
+
+      const writeFileSpy = vi.spyOn(fs, "writeFile").mockResolvedValue(undefined);
+      vi.spyOn(fs, "mkdir").mockResolvedValue(undefined);
+
+      const engine = new AgentEngine(makeRegistry(), silentLogger());
+      const result = await engine.run(agentDir, agentsRoot, "task-bead-content");
+
+      const beadFileCall = writeFileSpy.mock.calls.find(
+        ([filePath]) => String(filePath).includes(result.runId) && String(filePath).endsWith("analyze.json"),
+      );
+      expect(beadFileCall).toBeDefined();
+      expect(beadFileCall![1]).toBe(rawOutput);
+    });
+
+    it("still writes output file even when bead fails", async () => {
+      const { agentsRoot, agentDir, cleanup: c } = await createTempAgent();
+      cleanup = c;
+
+      // Return a result that doesn't match the schema (causes validation failure, but rawOutput is available)
+      const partialOutput = '```json\n{"wrong":"field"}\n```';
+      mockRunBead.mockResolvedValue(makeBeadResult(partialOutput));
+
+      const writeFileSpy = vi.spyOn(fs, "writeFile").mockResolvedValue(undefined);
+      vi.spyOn(fs, "mkdir").mockResolvedValue(undefined);
+
+      const engine = new AgentEngine(makeRegistry(), silentLogger());
+      const result = await engine.run(agentDir, agentsRoot, "task-bead-fail-file");
+
+      // Even though bead failed due to schema mismatch, the file should still be written
+      const beadFileCalls = writeFileSpy.mock.calls.filter(
+        ([filePath]) => String(filePath).includes(result.runId) && String(filePath).endsWith("analyze.json"),
+      );
+      expect(beadFileCalls.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it("getRunOutputDir returns correct path .nightshift/logs/runs/<runId>", async () => {
+      const { getRunOutputDir } = await import("../../src/core/paths.js");
+      const dir = getRunOutputDir("my-run-id", "/base");
+      expect(dir).toBe("/base/.nightshift/logs/runs/my-run-id");
+    });
+  });
 });
