@@ -5,7 +5,7 @@ milestone_name: Pluggable Agent Architecture
 status: shipped
 stopped_at: Milestone v2.0 complete
 last_updated: "2026-03-10"
-last_activity: 2026-03-10 — Completed quick task 7: Enhance status command to list individual tasks
+last_activity: 2026-03-10 — Completed quick task 8: Write per-bead output files and make bead IDs visible in logs
 progress:
   total_phases: 9
   completed_phases: 9
@@ -70,9 +70,10 @@ Carried from v1.0 (need empirical validation):
 | 5 | Add synchronous agent execution support (--sync flag) | 2026-03-10 | 19d9576 | [5-add-synchronous-agent-execution-support](./quick/5-add-synchronous-agent-execution-support/) |
 | 6 | Add cancel command to remove/dequeue pending tasks | 2026-03-10 | ab7f961 | [6-add-a-cancel-command-to-remove-dequeue-p](./quick/6-add-a-cancel-command-to-remove-dequeue-p/) |
 | 7 | Enhance status command to list individual tasks | 2026-03-10 | 7c7cb29 | [7-enhance-status-command-to-list-individua](./quick/7-enhance-status-command-to-list-individua/) |
+| 8 | Write per-bead output files and make bead IDs visible in logs | 2026-03-10 | bcb60c7 | [8-write-per-bead-output-files-and-make-bea](./quick/8-write-per-bead-output-files-and-make-bea/) |
 
 ## Session Continuity
 
 Last session: 2026-03-10
-Stopped at: Quick task 7 complete (enhance status command with task table)
+Stopped at: Quick task 8 complete (per-bead output files and runId visibility)
 Resume file: None
