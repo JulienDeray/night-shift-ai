@@ -165,3 +165,91 @@ ${overrides}`;
     expect(res.stdout).toContain("Timeout:");
   });
 });
+
+describe("nightshift submit --sync", () => {
+  let tmpDir: string;
+  const bin = path.resolve("bin/nightshift.ts");
+
+  function run(
+    args: string[],
+  ): Promise<{ stdout: string; stderr: string; exitCode: number | null }> {
+    const { result } = spawnWithTimeout("npx", ["tsx", bin, ...args], {
+      timeoutMs: 15000,
+      cwd: tmpDir,
+    });
+    return result;
+  }
+
+  async function writeConfig(): Promise<void> {
+    const config = `workspace: ./workspace
+inbox: ./inbox
+max_concurrent: 2
+default_timeout: "30m"
+
+beads:
+  enabled: false
+
+daemon:
+  poll_interval_ms: 30000
+  heartbeat_interval_ms: 10000
+  log_retention_days: 30
+
+agents_dir: ./agents
+agents:
+  - name: my-agent
+schedule: []
+
+one_off_defaults:
+  timeout: "30m"
+  max_budget_usd: 5.00
+`;
+    await fs.writeFile(path.join(tmpDir, "nightshift.yaml"), config);
+  }
+
+  beforeEach(async () => {
+    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "nightshift-submit-sync-"));
+    await run(["init"]);
+    await writeConfig();
+  });
+
+  afterEach(async () => {
+    await fs.rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it("--sync flag is accepted (appears in help output)", async () => {
+    const res = await run(["submit", "--help"]);
+
+    expect(res.exitCode).toBe(0);
+    const combined = res.stdout + res.stderr;
+    expect(combined).toMatch(/--sync|-s/);
+  });
+
+  it("without --sync, submit still queues normally and does not run agent", async () => {
+    const res = await run(["submit", "--agent", "my-agent", "Queue only"]);
+
+    expect(res.exitCode).toBe(0);
+    expect(res.stdout).toContain("Task queued");
+    // Should NOT say "Running agent" when not using --sync
+    expect(res.stdout).not.toContain("Running agent");
+  });
+
+  it("with --sync and non-existent agent, exits non-zero with an error message", async () => {
+    const res = await run(["submit", "--agent", "non-existent-agent", "--sync", "Run this"]);
+
+    expect(res.exitCode).not.toBe(0);
+    const combined = res.stdout + res.stderr;
+    // Should contain some error indication
+    expect(combined.toLowerCase()).toMatch(/error|fail|not found/);
+  });
+
+  it("with --sync, prints 'Running agent' to indicate synchronous execution started", async () => {
+    // We can't easily set up a full agent in integration tests, but we can verify
+    // the output indicates sync mode was triggered before failure occurs
+    const res = await run(["submit", "--agent", "non-existent-agent", "--sync", "Run sync"]);
+
+    // The command should have attempted sync execution (printed "Running agent")
+    // even if the agent doesn't exist and ultimately fails
+    const combined = res.stdout + res.stderr;
+    expect(combined).toMatch(/Running agent/i);
+  });
+});
