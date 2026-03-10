@@ -8,6 +8,7 @@ import { getQueueDir } from "../../core/paths.js";
 import { success, error, info } from "../formatters.js";
 import path from "node:path";
 import type { NightShiftTask } from "../../core/types.js";
+import { runAgentForeground } from "./_run-agent.js";
 
 export const submitCommand = new Command("submit")
   .description("Submit a one-off task for the daemon to execute")
@@ -15,6 +16,7 @@ export const submitCommand = new Command("submit")
   .option("-a, --agent <name>", "Agent name to use (required)")
   .option("-t, --timeout <timeout>", "Task timeout (e.g. 30m, 1h)")
   .option("-n, --name <name>", "Task name")
+  .option("-s, --sync", "Queue the task and immediately execute the agent synchronously")
   .action(async (prompt, options) => {
     try {
       if (!options.agent) {
@@ -58,6 +60,15 @@ export const submitCommand = new Command("submit")
         console.log(info(`Prompt:  "${prompt.slice(0, 80)}${prompt.length > 80 ? "..." : ""}"`));
       }
       console.log(info(`Timeout: ${task.timeout}`));
+
+      if (options.sync) {
+        await runAgentForeground({
+          agentName: options.agent,
+          taskId: task.id,
+          taskName,
+          ntfyConfig: config.ntfy,
+        });
+      }
     } catch (err) {
       console.error(error(err instanceof Error ? err.message : String(err)));
       process.exitCode = 1;
