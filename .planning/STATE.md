@@ -67,9 +67,10 @@ Carried from v1.0 (need empirical validation):
 | 2 | Implement nightshift run command | 2026-02-25 | acad107 | [2-implement-a-nightshift-command-to-run-a-](./quick/2-implement-a-nightshift-command-to-run-a-/) |
 | 3 | Load GitLab token from .env file | 2026-02-25 | 9fafd83 | [3-load-gitlab-token-from-env-file-if-avail](./quick/3-load-gitlab-token-from-env-file-if-avail/) |
 | 4 | Fix false-positive MR_CREATED outcome when MR bead fails | 2026-02-25 | 6286003 | [4-investigate-why-mr-was-not-created-despi](./quick/4-investigate-why-mr-was-not-created-despi/) |
+| 5 | Add synchronous agent execution support (--sync flag) | 2026-03-10 | 19d9576 | [5-add-synchronous-agent-execution-support](./quick/5-add-synchronous-agent-execution-support/) |
 
 ## Session Continuity
 
-Last session: 2026-03-09
-Stopped at: Milestone v2.0 complete
+Last session: 2026-03-10
+Stopped at: Quick task 5 complete (--sync flag on submit)
 Resume file: None
