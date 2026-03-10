@@ -1,6 +1,7 @@
 import { Command } from "@commander-js/extra-typings";
 import { initCommand } from "./commands/init.js";
 import { submitCommand } from "./commands/submit.js";
+import { cancelCommand } from "./commands/cancel.js";
 import { runCommand } from "./commands/run.js";
 import { scheduleCommand } from "./commands/schedule.js";
 import { statusCommand } from "./commands/status.js";
@@ -17,6 +18,7 @@ export const program = new Command()
 
 program.addCommand(initCommand);
 program.addCommand(submitCommand);
+program.addCommand(cancelCommand);
 program.addCommand(runCommand);
 program.addCommand(scheduleCommand);
 program.addCommand(statusCommand);
