@@ -250,7 +250,31 @@ describe("ManifestSchema", () => {
     expect(result.success).toBe(false);
     if (!result.success) {
       const messages = result.error.issues.map((i) => i.message);
-      expect(messages.some((m) => m.includes("nonexistent") && m.includes("preceding bead"))).toBe(true);
+      expect(messages.some((m) => m.includes("nonexistent") && (m.includes("preceding bead") || m.includes("preceding or current bead")))).toBe(true);
+    }
+  });
+
+  it("retry with retryFrom referencing current bead (self-retry) passes validation", () => {
+    const result = ManifestSchema.safeParse(validManifest({
+      beads: [
+        { name: "implement", type: "standard", prompt: "prompts/implement.md", outputSchema: {} },
+        { name: "verify", type: "standard", prompt: "prompts/verify.md", outputSchema: {}, retry: { maxAttempts: 3, retryFrom: "verify" } },
+      ],
+    }));
+    expect(result.success).toBe(true);
+  });
+
+  it("retry with retryFrom referencing a following bead fails validation", () => {
+    const result = ManifestSchema.safeParse(validManifest({
+      beads: [
+        { name: "implement", type: "standard", prompt: "prompts/implement.md", outputSchema: {}, retry: { maxAttempts: 3, retryFrom: "verify" } },
+        { name: "verify", type: "standard", prompt: "prompts/verify.md", outputSchema: {} },
+      ],
+    }));
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const messages = result.error.issues.map((i) => i.message);
+      expect(messages.some((m) => m.includes("verify") && (m.includes("preceding bead") || m.includes("preceding or current bead")))).toBe(true);
     }
   });
 });

@@ -79,16 +79,16 @@ export const ManifestSchema = z.object({
         message: `Duplicate bead names: ${[...new Set(dupes)].join(', ')}`,
       });
     }
-    // Validate retry.retryFrom references a preceding bead name
+    // Validate retry.retryFrom references a preceding or current bead name
     for (let i = 0; i < beads.length; i++) {
       const bead = beads[i];
       if (bead.retry) {
-        const precedingNames = names.slice(0, i);
-        if (!precedingNames.includes(bead.retry.retryFrom)) {
+        const validNames = names.slice(0, i + 1);
+        if (!validNames.includes(bead.retry.retryFrom)) {
           ctx.addIssue({
             code: 'custom',
             path: [i, 'retry', 'retryFrom'],
-            message: `"${bead.retry.retryFrom}" is not a preceding bead name. Preceding beads: [${precedingNames.join(', ')}]`,
+            message: `"${bead.retry.retryFrom}" is not a preceding or current bead name. Valid beads: [${validNames.join(', ')}]`,
           });
         }
       }
