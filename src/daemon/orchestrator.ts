@@ -351,7 +351,7 @@ export class Orchestrator {
     }
 
     // Close bead
-    if (this.beads) {
+    if (this.beads && task.origin !== "recurring") {
       try {
         if (result.status !== "SUCCESS") {
           await this.beads.update(task.id, {
