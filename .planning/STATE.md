@@ -4,8 +4,8 @@ milestone: v2.0
 milestone_name: Pluggable Agent Architecture
 status: shipped
 stopped_at: Milestone v2.0 complete
-last_updated: "2026-03-10"
-last_activity: 2026-03-10 — Completed quick task 10: Add nullable support for outputSchema in agent manifests
+last_updated: "2026-03-11"
+last_activity: 2026-03-11 — Completed quick task 11: Add manifest validation before start and post-spawn liveness check
 progress:
   total_phases: 9
   completed_phases: 9
@@ -73,9 +73,10 @@ Carried from v1.0 (need empirical validation):
 | 8 | Write per-bead output files and make bead IDs visible in logs | 2026-03-10 | bcb60c7 | [8-write-per-bead-output-files-and-make-bea](./quick/8-write-per-bead-output-files-and-make-bea/) |
 | 9 | Fix bead-runner to extract result field from Claude CLI JSON envelope | 2026-03-10 | 5ca495d | [9-fix-bead-runner-to-extract-result-field-](./quick/9-fix-bead-runner-to-extract-result-field-/) |
 | 10 | Add nullable support for outputSchema in agent manifests | 2026-03-10 | b55644b | [10-add-nullable-support-for-outputschema-in](./quick/10-add-nullable-support-for-outputschema-in/) |
+| 11 | Add manifest validation before start and post-spawn liveness check | 2026-03-11 | 795b5d1 | [11-add-manifest-validation-before-start-and](./quick/11-add-manifest-validation-before-start-and/) |
 
 ## Session Continuity
 
-Last session: 2026-03-10
-Stopped at: Quick task 10 complete (nullable support for outputSchema)
+Last session: 2026-03-11
+Stopped at: Quick task 11 complete (manifest validation before start and post-spawn liveness check)
 Resume file: None
