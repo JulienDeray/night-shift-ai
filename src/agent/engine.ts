@@ -227,6 +227,50 @@ export class AgentEngine {
 
         perBead.push({ name: bead.name, status: "SUCCESS", durationMs });
 
+        // Detect semantic failure: bead output is valid JSON but indicates failure
+        if (
+          typeof parsed === "object" &&
+          parsed !== null &&
+          "status" in parsed &&
+          (parsed as Record<string, unknown>).status === "FAILED"
+        ) {
+          // Overwrite the SUCCESS we just pushed with FAILED
+          perBead[perBead.length - 1] = { name: bead.name, status: "FAILED", durationMs, error: "Bead output status: FAILED" };
+
+          // Mark remaining beads as SKIPPED
+          for (let j = i + 1; j < manifest.beads.length; j++) {
+            perBead.push({
+              name: manifest.beads[j].name,
+              status: "SKIPPED",
+              durationMs: 0,
+            });
+          }
+
+          this.logger.error("Bead reported semantic failure", {
+            runId,
+            bead: bead.name,
+            outputPreview: rawOutput.slice(0, 500),
+          });
+
+          // Write bead output before returning
+          await this.writeBeadOutput(runId, bead.name, rawOutput);
+          await tmpDirManager.cleanup(tmpDir);
+
+          const totalDurationMs = Date.now() - startTime;
+          return {
+            runId,
+            agentName: manifest.name,
+            status: "FATAL" as const,
+            finalOutput: null,
+            perBead,
+            totalDurationMs,
+            failedBeadIndex: i,
+            errorCategory: "FATAL" as const,
+            error: `Bead "${bead.name}" output status: FAILED`,
+            beadOutputs,
+          };
+        }
+
         // Check retry trigger: if bead has retry config and output has passed === false
         if (
           bead.retry &&
