@@ -3,8 +3,9 @@ import { spawn } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadConfig } from "../../core/config.js";
-import { getDaemonPidPath } from "../../core/paths.js";
+import { getDaemonPidPath, getConfigPath } from "../../core/paths.js";
 import { readDaemonState, isDaemonRunning } from "../../daemon/health.js";
+import { validateAgentsAtStartup } from "../../daemon/orchestrator.js";
 import { success, error, warn } from "../formatters.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -14,13 +15,20 @@ export const startCommand = new Command("start")
   .action(async () => {
     try {
       // Validate config first
-      await loadConfig();
+      const config = await loadConfig();
 
       // Check if already running
       const state = await readDaemonState();
       if (state && isDaemonRunning(state)) {
         console.log(warn(`Daemon already running (PID ${state.pid})`));
         return;
+      }
+
+      // Pre-spawn manifest validation: catch invalid manifests before spawning
+      // the daemon so errors are visible in the CLI instead of silently crashing.
+      if (config.agents.length > 0) {
+        console.log("Validating agent manifests...");
+        await validateAgentsAtStartup(config, path.dirname(getConfigPath()));
       }
 
       // Spawn daemon as a fully detached process.
@@ -38,6 +46,27 @@ export const startCommand = new Command("start")
       const pid = child.pid;
       if (!pid) {
         console.error(error("Failed to start daemon: no PID returned"));
+        process.exitCode = 1;
+        return;
+      }
+
+      // Post-spawn liveness check: wait briefly then confirm the daemon is still alive.
+      await new Promise<void>((resolve) => setTimeout(resolve, 1000));
+
+      let processAlive = false;
+      try {
+        process.kill(pid, 0);
+        processAlive = true;
+      } catch {
+        processAlive = false;
+      }
+
+      if (!processAlive) {
+        console.error(
+          error(
+            "Daemon process exited immediately after starting. Check logs for details.",
+          ),
+        );
         process.exitCode = 1;
         return;
       }
