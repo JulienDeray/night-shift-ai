@@ -5,7 +5,7 @@ milestone_name: Pluggable Agent Architecture
 status: shipped
 stopped_at: Milestone v2.0 complete
 last_updated: "2026-03-11"
-last_activity: 2026-03-11 — Completed quick task 12: Allow retryFrom self-reference (self-retry without git reset)
+last_activity: 2026-03-11 — Completed quick task 13: Fix preflight/submit failure not halting pipeline
 progress:
   total_phases: 9
   completed_phases: 9
@@ -75,9 +75,10 @@ Carried from v1.0 (need empirical validation):
 | 10 | Add nullable support for outputSchema in agent manifests | 2026-03-10 | b55644b | [10-add-nullable-support-for-outputschema-in](./quick/10-add-nullable-support-for-outputschema-in/) |
 | 11 | Add manifest validation before start and post-spawn liveness check | 2026-03-11 | 795b5d1 | [11-add-manifest-validation-before-start-and](./quick/11-add-manifest-validation-before-start-and/) |
 | 12 | Allow retryFrom self-reference (self-retry without git reset) | 2026-03-11 | 8106a46 | [12-allow-for-the-retry-from-the-end-to-be-t](./quick/12-allow-for-the-retry-from-the-end-to-be-t/) |
+| 13 | Fix preflight/submit failure not halting pipeline | 2026-03-11 | 8a19d4b | [13-investigate-preflight-submit-failure-not](./quick/13-investigate-preflight-submit-failure-not/) |
 
 ## Session Continuity
 
 Last session: 2026-03-11
-Stopped at: Quick task 12 complete (allow retryFrom self-reference, skip git reset on self-retry)
+Stopped at: Quick task 13 complete (semantic failure detection, recurring task bead close guard)
 Resume file: None
