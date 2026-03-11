@@ -31,6 +31,15 @@ function makeConfig(overrides?: Partial<NightShiftConfig>): NightShiftConfig {
   };
 }
 
+/**
+ * Seed a fresh scheduler so all schedule keys get their initial lastRuns entry.
+ * Returns the seeding tasks (should be empty after the fix).
+ */
+async function seedScheduler(scheduler: Scheduler): Promise<void> {
+  const tasks = await scheduler.evaluateSchedules();
+  expect(tasks).toHaveLength(0);
+}
+
 // ---------------------------------------------------------------------------
 // Test suite
 // ---------------------------------------------------------------------------
@@ -88,12 +97,12 @@ describe("Scheduler.evaluateSchedules()", () => {
   });
 
   // -------------------------------------------------------------------------
-  // 3. Creates task for a due schedule entry
+  // 3. Creates task for a due schedule entry (after seeding)
   // -------------------------------------------------------------------------
 
   it("creates task for due schedule entry", async () => {
     vi.useFakeTimers();
-    // Tuesday 2026-01-06 at 02:01 — cron "0 2 * * 1-5" fires Mon-Fri at 02:00
+    // Tuesday 2026-01-06 at 02:01 — seed the scheduler
     vi.setSystemTime(new Date("2026-01-06T02:01:00Z"));
 
     const config = makeConfig({
@@ -102,6 +111,10 @@ describe("Scheduler.evaluateSchedules()", () => {
     });
 
     const scheduler = new Scheduler(config, logger);
+    await seedScheduler(scheduler);
+
+    // Advance to Wednesday 02:01 — next cron trigger at 02:00
+    vi.setSystemTime(new Date("2026-01-07T02:01:00Z"));
     const tasks = await scheduler.evaluateSchedules();
 
     expect(tasks).toHaveLength(1);
@@ -126,7 +139,10 @@ describe("Scheduler.evaluateSchedules()", () => {
     });
 
     const scheduler = new Scheduler(config, logger);
+    await seedScheduler(scheduler);
 
+    // Advance to next trigger and dispatch
+    vi.setSystemTime(new Date("2026-01-07T02:01:00Z"));
     const tasks1 = await scheduler.evaluateSchedules();
     expect(tasks1).toHaveLength(1);
 
@@ -161,6 +177,9 @@ describe("Scheduler.evaluateSchedules()", () => {
     });
 
     const scheduler = new Scheduler(config, logger);
+    await seedScheduler(scheduler);
+
+    vi.setSystemTime(new Date("2026-01-07T02:01:00Z"));
     const tasks = await scheduler.evaluateSchedules();
 
     expect(tasks).toHaveLength(1);
@@ -191,6 +210,9 @@ describe("Scheduler.evaluateSchedules()", () => {
     });
 
     const scheduler = new Scheduler(config, logger);
+    await seedScheduler(scheduler);
+
+    vi.setSystemTime(new Date("2026-01-07T02:01:00Z"));
     const tasks = await scheduler.evaluateSchedules();
 
     expect(tasks).toHaveLength(1);
@@ -211,6 +233,9 @@ describe("Scheduler.evaluateSchedules()", () => {
     });
 
     const scheduler = new Scheduler(config, logger);
+    await seedScheduler(scheduler);
+
+    vi.setSystemTime(new Date("2026-01-07T02:01:00Z"));
     await scheduler.evaluateSchedules();
 
     const statePath = path.join(tmpDir, ".nightshift", "scheduler.json");
@@ -266,6 +291,9 @@ describe("Scheduler.evaluateSchedules()", () => {
     });
 
     const scheduler = new Scheduler(config, logger);
+    await seedScheduler(scheduler);
+
+    vi.setSystemTime(new Date("2026-01-07T02:01:00Z"));
     const tasks = await scheduler.evaluateSchedules();
 
     expect(tasks).toHaveLength(1);
@@ -296,6 +324,9 @@ describe("Scheduler.evaluateSchedules()", () => {
     });
 
     const scheduler = new Scheduler(config, logger);
+    await seedScheduler(scheduler);
+
+    vi.setSystemTime(new Date("2026-01-07T02:01:00Z"));
     const tasks = await scheduler.evaluateSchedules();
 
     expect(tasks).toHaveLength(1);
@@ -312,6 +343,9 @@ describe("Scheduler.evaluateSchedules()", () => {
     });
 
     const scheduler = new Scheduler(config, logger);
+    await seedScheduler(scheduler);
+
+    vi.setSystemTime(new Date("2026-01-07T02:01:00Z"));
     const tasks = await scheduler.evaluateSchedules();
 
     expect(tasks).toHaveLength(1);
@@ -328,6 +362,9 @@ describe("Scheduler.evaluateSchedules()", () => {
     });
 
     const scheduler = new Scheduler(config, logger);
+    await seedScheduler(scheduler);
+
+    vi.setSystemTime(new Date("2026-01-07T02:01:00Z"));
     const tasks = await scheduler.evaluateSchedules();
 
     expect(tasks).toHaveLength(1);
@@ -409,6 +446,9 @@ describe("Scheduler.evaluateSchedules()", () => {
     });
 
     const scheduler = new Scheduler(config, logger);
+    await seedScheduler(scheduler);
+
+    vi.setSystemTime(new Date("2026-01-07T02:01:00Z"));
     const tasks = await scheduler.evaluateSchedules();
 
     expect(tasks).toHaveLength(2);
@@ -431,6 +471,9 @@ describe("Scheduler.evaluateSchedules()", () => {
     });
 
     const scheduler = new Scheduler(config, logger);
+    await seedScheduler(scheduler);
+
+    vi.setSystemTime(new Date("2026-01-07T02:01:00Z"));
     await scheduler.evaluateSchedules();
 
     const statePath = path.join(tmpDir, ".nightshift", "scheduler.json");
@@ -453,9 +496,47 @@ describe("Scheduler.evaluateSchedules()", () => {
     });
 
     const scheduler = new Scheduler(config, logger);
+    await seedScheduler(scheduler);
+
+    vi.setSystemTime(new Date("2026-01-07T02:01:00Z"));
     const tasks = await scheduler.evaluateSchedules();
 
     expect(tasks).toHaveLength(1);
     expect(tasks[0].variables).toBeUndefined();
+  });
+
+  // -------------------------------------------------------------------------
+  // 15. New schedule does not dispatch retroactively
+  // -------------------------------------------------------------------------
+
+  it("does not dispatch for a newly added schedule (no prior state)", async () => {
+    vi.useFakeTimers();
+    // Wednesday 2026-01-07 at 10:00 — cron "0 2 * * 4" fires Thursday at 02:00
+    // Previous run would be last Thursday (2026-01-01), but since no prior state
+    // exists, the scheduler should seed and NOT dispatch.
+    vi.setSystemTime(new Date("2026-01-07T10:00:00Z"));
+
+    const config = makeConfig({
+      agents: [{ name: "weekly-agent" }],
+      schedule: [{ agent: "weekly-agent", cron: "0 2 * * 4", enabled: true }],
+    });
+
+    const scheduler = new Scheduler(config, logger);
+
+    // First call: seeds the state, returns no tasks
+    const tasks1 = await scheduler.evaluateSchedules();
+    expect(tasks1).toHaveLength(0);
+
+    // Verify state was seeded
+    const statePath = path.join(tmpDir, ".nightshift", "scheduler.json");
+    const state = await readJsonFile<{ lastRuns: Record<string, string> }>(statePath);
+    expect(state).not.toBeNull();
+    expect(state!.lastRuns["weekly-agent:0 2 * * 4"]).toBe("2026-01-07T10:00:00.000Z");
+
+    // Advance to Thursday 02:01 — next cron trigger fires
+    vi.setSystemTime(new Date("2026-01-08T02:01:00Z"));
+    const tasks2 = await scheduler.evaluateSchedules();
+    expect(tasks2).toHaveLength(1);
+    expect(tasks2[0].agentName).toBe("weekly-agent");
   });
 });

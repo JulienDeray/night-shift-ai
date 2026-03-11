@@ -37,12 +37,20 @@ export class Scheduler {
   async evaluateSchedules(): Promise<NightShiftTask[]> {
     const now = new Date();
     const tasks: NightShiftTask[] = [];
+    let needsSave = false;
 
     for (const entry of this.config.schedule) {
       if (!entry.enabled) continue;
 
       const key = `${entry.agent}:${entry.cron}`;
       const lastRun = this.state.lastRuns[key];
+
+      if (!lastRun) {
+        // New schedule — seed state so it waits for the next occurrence
+        this.state.lastRuns[key] = now.toISOString();
+        needsSave = true;
+        continue;
+      }
 
       const cron = new Cron(entry.cron);
       const prevRuns = cron.previousRuns(1, now);
@@ -81,7 +89,7 @@ export class Scheduler {
       });
     }
 
-    if (tasks.length > 0) {
+    if (tasks.length > 0 || needsSave) {
       await this.saveState();
     }
 
