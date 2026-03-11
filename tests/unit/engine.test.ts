@@ -940,6 +940,105 @@ describe("AgentEngine", () => {
       expect(result.beadOutputs!["implement"]).toEqual({ result: "implemented" });
     });
 
+    it("self-retry: re-executes same bead when retryFrom references itself", async () => {
+      const { agentsRoot, agentDir, cleanup: c } = await createTempAgent({
+        beads: [
+          {
+            name: "verify",
+            type: "standard",
+            prompt: "prompts/verify.md",
+            outputSchema: PASSED_OUTPUT_SCHEMA,
+            retry: { maxAttempts: 3, retryFrom: "verify" },
+          },
+        ],
+        promptContents: {
+          "prompts/verify.md": "Verify the work.",
+        },
+      });
+      cleanup = c;
+
+      // First attempt fails, second passes
+      mockRunBead
+        .mockResolvedValueOnce(makeBeadResult(VERIFY_FAIL))
+        .mockResolvedValueOnce(makeBeadResult(VERIFY_PASS));
+
+      const engine = new AgentEngine(makeRegistry(), silentLogger());
+      const result = await engine.run(agentDir, agentsRoot, "task-self-retry");
+
+      expect(result.status).toBe("SUCCESS");
+      // verify called twice (fail then pass)
+      const verifyCalls = mockRunBead.mock.calls.filter(
+        (call) => call[0].beadName === "verify",
+      );
+      expect(verifyCalls).toHaveLength(2);
+    });
+
+    it("self-retry: does NOT call git reset --hard", async () => {
+      const spawnSpy = vi.spyOn(processUtils, "spawnWithTimeout");
+
+      const { agentsRoot, agentDir, cleanup: c } = await createTempAgent({
+        beads: [
+          {
+            name: "verify",
+            type: "standard",
+            prompt: "prompts/verify.md",
+            outputSchema: PASSED_OUTPUT_SCHEMA,
+            retry: { maxAttempts: 3, retryFrom: "verify" },
+          },
+        ],
+        promptContents: {
+          "prompts/verify.md": "Verify the work.",
+        },
+      });
+      cleanup = c;
+
+      mockRunBead
+        .mockResolvedValueOnce(makeBeadResult(VERIFY_FAIL))
+        .mockResolvedValueOnce(makeBeadResult(VERIFY_PASS));
+
+      const engine = new AgentEngine(makeRegistry(), silentLogger());
+      await engine.run(agentDir, agentsRoot, "task-self-retry-no-reset");
+
+      // spawnWithTimeout should NOT have been called with git reset
+      const gitResetCalls = spawnSpy.mock.calls.filter(
+        (call) => call[0] === "git" && JSON.stringify(call[1]) === JSON.stringify(["reset", "--hard", "HEAD"]),
+      );
+      expect(gitResetCalls.length).toBe(0);
+    });
+
+    it("self-retry: respects maxAttempts", async () => {
+      const { agentsRoot, agentDir, cleanup: c } = await createTempAgent({
+        beads: [
+          {
+            name: "verify",
+            type: "standard",
+            prompt: "prompts/verify.md",
+            outputSchema: PASSED_OUTPUT_SCHEMA,
+            retry: { maxAttempts: 2, retryFrom: "verify" },
+          },
+        ],
+        promptContents: {
+          "prompts/verify.md": "Verify the work.",
+        },
+      });
+      cleanup = c;
+
+      // always fails
+      mockRunBead.mockResolvedValue(makeBeadResult(VERIFY_FAIL));
+
+      const engine = new AgentEngine(makeRegistry(), silentLogger());
+      const result = await engine.run(agentDir, agentsRoot, "task-self-retry-exhaust");
+
+      // Pipeline completes as SUCCESS (exhausted retry is not an error)
+      expect(result.status).toBe("SUCCESS");
+
+      // verify called 3 times: 1 initial + 2 retries (maxAttempts)
+      const verifyCalls = mockRunBead.mock.calls.filter(
+        (call) => call[0].beadName === "verify",
+      );
+      expect(verifyCalls).toHaveLength(3);
+    });
+
     it("populates beadOutputs on failure with outputs of completed beads", async () => {
       const { agentsRoot, agentDir, cleanup: c } = await createTempAgent({
         beads: [

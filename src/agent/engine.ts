@@ -257,10 +257,12 @@ export class AgentEngine {
               },
             };
 
-            // Reset working directory before retry
-            await this.resetWorkDir(ctx.workDir);
+            // Reset working directory before retry (skip for self-retry — nothing to undo)
+            if (retryFromIndex !== i) {
+              await this.resetWorkDir(ctx.workDir);
+            }
 
-            // Jump back to retryFrom bead
+            // Jump back to retryFrom bead (or re-run current bead for self-retry)
             i = retryFromIndex;
             continue;
           }
