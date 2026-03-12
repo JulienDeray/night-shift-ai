@@ -20,15 +20,18 @@ const LOG_LEVEL_PRIORITY: Record<LogLevel, number> = {
 
 export class Logger {
   private logFile: string | null = null;
+  private logsDir: string | null = null;
   private minLevel: LogLevel;
   private stdout: boolean;
 
   constructor(options?: {
     logFile?: string;
+    logsDir?: string;
     minLevel?: LogLevel;
     stdout?: boolean;
   }) {
     this.logFile = options?.logFile ?? null;
+    this.logsDir = options?.logsDir ?? null;
     this.minLevel = options?.minLevel ?? "info";
     this.stdout = options?.stdout ?? false;
   }
@@ -38,7 +41,7 @@ export class Logger {
     await ensureDir(logsDir);
     const date = new Date().toISOString().split("T")[0];
     const logFile = path.join(logsDir, `daemon-${date}.log`);
-    return new Logger({ logFile, minLevel: "debug", stdout: false });
+    return new Logger({ logFile, logsDir, minLevel: "debug", stdout: false });
   }
 
   static createCliLogger(verbose: boolean = false): Logger {
@@ -69,8 +72,12 @@ export class Logger {
       }
     }
 
-    if (this.logFile) {
-      await fs.appendFile(this.logFile, line + "\n");
+    const logFile = this.logsDir
+      ? path.join(this.logsDir, `daemon-${new Date().toISOString().split("T")[0]}.log`)
+      : this.logFile;
+
+    if (logFile) {
+      await fs.appendFile(logFile, line + "\n");
     }
   }
 
