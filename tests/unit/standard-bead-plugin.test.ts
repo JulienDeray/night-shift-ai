@@ -157,7 +157,7 @@ describe("StandardBeadPlugin", () => {
     await expect(plugin.execute(ctx)).rejects.toThrow(/timed out/);
   });
 
-  it("forwards GITLAB_TOKEN when env includes GITLAB_TOKEN entry", async () => {
+  it("forwards all bead env vars to runBead", async () => {
     mockRunBead.mockResolvedValue({
       exitCode: 0,
       stdout: "ok",
@@ -169,16 +169,22 @@ describe("StandardBeadPlugin", () => {
 
     const plugin = new StandardBeadPlugin();
     const bead = makeResolvedBead({
-      env: [{ name: "GITLAB_TOKEN", value: "my-secret-token" }],
+      env: [
+        { name: "GITLAB_TOKEN", value: "my-secret-token" },
+        { name: "BAMBOOHR_API_KEY", value: "bamboo-key" },
+      ],
     });
     const ctx = makeContext(agentDir, { currentBead: bead });
     await plugin.execute(ctx);
 
     const callArgs = mockRunBead.mock.calls[0][0];
-    expect(callArgs.gitlabToken).toBe("my-secret-token");
+    expect(callArgs.envVars).toEqual([
+      { name: "GITLAB_TOKEN", value: "my-secret-token" },
+      { name: "BAMBOOHR_API_KEY", value: "bamboo-key" },
+    ]);
   });
 
-  it("passes gitlabToken: undefined when env has no GITLAB_TOKEN entry", async () => {
+  it("passes empty envVars when bead has no env entries", async () => {
     mockRunBead.mockResolvedValue({
       exitCode: 0,
       stdout: "ok",
@@ -189,14 +195,11 @@ describe("StandardBeadPlugin", () => {
     });
 
     const plugin = new StandardBeadPlugin();
-    const bead = makeResolvedBead({
-      env: [{ name: "SOME_OTHER_VAR", value: "value" }],
-    });
-    const ctx = makeContext(agentDir, { currentBead: bead });
+    const ctx = makeContext(agentDir);
     await plugin.execute(ctx);
 
     const callArgs = mockRunBead.mock.calls[0][0];
-    expect(callArgs.gitlabToken).toBeUndefined();
+    expect(callArgs.envVars).toEqual([]);
   });
 
   it("passes allowedTools and model from currentBead to runBead", async () => {

@@ -25,18 +25,14 @@ export interface BeadResult {
 /**
  * Constructs a sanitized environment for a bead invocation.
  *
- * GITLAB_TOKEN is forwarded when the caller provides a non-undefined
- * gitlabToken argument. The decision of whether to pass GITLAB_TOKEN
- * belongs to the caller (e.g., StandardBeadPlugin inspects the resolved
- * bead env; the old code-agent-runner only passes it for the "mr" bead).
- *
  * We start from a minimal allowlist of safe env vars rather than spreading
- * process.env — this prevents accidental token leakage if GITLAB_TOKEN
- * happens to be set in the parent process environment.
+ * process.env — this prevents accidental token leakage. Additional env vars
+ * declared in the manifest (e.g. GITLAB_TOKEN, BAMBOOHR_API_KEY) are
+ * forwarded explicitly via the envVars parameter.
  */
 export function buildBeadEnv(
   beadName: string,
-  gitlabToken: string | undefined,
+  envVars?: Array<{ name: string; value: string }>,
 ): NodeJS.ProcessEnv {
   const safeEnv: NodeJS.ProcessEnv = {
     HOME: process.env.HOME,
@@ -47,9 +43,11 @@ export function buildBeadEnv(
     TERM: process.env.TERM,
   };
 
-  // Forward GITLAB_TOKEN when the caller explicitly provides it
-  if (gitlabToken) {
-    safeEnv.GITLAB_TOKEN = gitlabToken;
+  // Forward all declared bead env vars (from manifest env entries)
+  if (envVars) {
+    for (const entry of envVars) {
+      safeEnv[entry.name] = entry.value;
+    }
   }
 
   return safeEnv;
@@ -64,7 +62,7 @@ export function buildBeadEnv(
  * Note: --allowedTools values are separate array elements, consistent with
  * the existing AgentRunner.buildArgs pattern in agent-runner.ts.
  *
- * SECURITY: GITLAB_TOKEN is never placed in the args array — it is forwarded
+ * SECURITY: Secrets are never placed in the args array — they are forwarded
  * only via the env option in buildBeadEnv.
  *
  * When options.allowedTools is provided, it replaces the default ["Bash", "Read", "Write"].
@@ -111,9 +109,8 @@ export function buildBeadArgs(
  *
  * SECURITY:
  * - env is always constructed via buildBeadEnv (never process.env directly)
- * - GITLAB_TOKEN forwarded only when caller passes a non-undefined gitlabToken
+ * - Only env vars explicitly declared in the manifest are forwarded
  * - Rendered prompt is never logged (may contain sensitive repo analysis)
- * - Log bead receives mcpConfigPath and Atlassian-only allowedTools, no GITLAB_TOKEN
  */
 export async function runBead(options: {
   beadName: string;
@@ -121,12 +118,12 @@ export async function runBead(options: {
   model: string;
   cwd: string;
   timeoutMs: number;
-  gitlabToken?: string;
   maxTokens?: number;
   mcpConfigPath?: string;
   allowedTools?: string[];
+  envVars?: Array<{ name: string; value: string }>;
 }): Promise<BeadResult> {
-  const env = buildBeadEnv(options.beadName, options.gitlabToken);
+  const env = buildBeadEnv(options.beadName, options.envVars);
   const args = buildBeadArgs(options.prompt, options.model, options.maxTokens, {
     mcpConfigPath: options.mcpConfigPath,
     allowedTools: options.allowedTools,

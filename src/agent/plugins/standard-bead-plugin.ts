@@ -27,13 +27,7 @@ export class StandardBeadPlugin implements BeadPlugin {
     // 3. Parse timeout from bead config
     const timeoutMs = parseTimeout(ctx.currentBead.timeout);
 
-    // 4. Resolve GITLAB_TOKEN from resolved env entries (if present)
-    const gitlabTokenEntry = ctx.currentBead.env.find(
-      (e) => e.name === "GITLAB_TOKEN",
-    );
-    const gitlabToken = gitlabTokenEntry?.value;
-
-    // 5. Resolve mcpConfigPath from bead config (if present)
+    // 4. Resolve mcpConfigPath from bead config (if present)
     // mcpConfig may contain template variables, so render through template engine first
     let mcpConfigPath: string | undefined;
     if (ctx.currentBead.mcpConfig) {
@@ -44,19 +38,19 @@ export class StandardBeadPlugin implements BeadPlugin {
         : path.join(ctx.agentDir, renderedMcpConfig);
     }
 
-    // 6. Call runBead with the mapped parameters
+    // 5. Call runBead with the mapped parameters
     const result = await runBead({
       beadName: ctx.currentBead.name,
       prompt: renderedPrompt,
       model: ctx.currentBead.model,
       cwd: ctx.workDir,
       timeoutMs,
-      gitlabToken,
       allowedTools: ctx.currentBead.allowedTools,
       mcpConfigPath,
+      envVars: ctx.currentBead.env,
     });
 
-    // 7. Handle errors — non-zero exit or timeout both throw
+    // 6. Handle errors — non-zero exit or timeout both throw
     if (result.timedOut) {
       throw new Error(
         `Bead "${ctx.currentBead.name}" timed out after ${timeoutMs}ms`,
@@ -69,7 +63,7 @@ export class StandardBeadPlugin implements BeadPlugin {
       );
     }
 
-    // 8. Return raw output — engine handles validation
+    // 7. Return raw output — engine handles validation
     return { rawOutput: result.stdout };
   }
 }

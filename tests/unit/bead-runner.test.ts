@@ -102,14 +102,20 @@ describe("runBead", () => {
 });
 
 describe("buildBeadEnv", () => {
-  it("includes GITLAB_TOKEN when provided", () => {
-    const env = buildBeadEnv("test", "token-123");
+  it("forwards declared env vars", () => {
+    const env = buildBeadEnv("test", [
+      { name: "GITLAB_TOKEN", value: "token-123" },
+      { name: "BAMBOOHR_API_KEY", value: "key-456" },
+    ]);
     expect(env.GITLAB_TOKEN).toBe("token-123");
+    expect(env.BAMBOOHR_API_KEY).toBe("key-456");
   });
 
-  it("excludes GITLAB_TOKEN when undefined", () => {
-    const env = buildBeadEnv("test", undefined);
+  it("returns only safe defaults when no env vars declared", () => {
+    const env = buildBeadEnv("test");
     expect(env.GITLAB_TOKEN).toBeUndefined();
+    expect(env.HOME).toBeDefined();
+    expect(env.PATH).toBeDefined();
   });
 });
 
