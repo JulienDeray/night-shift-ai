@@ -4,8 +4,8 @@ milestone: v2.0
 milestone_name: Pluggable Agent Architecture
 status: shipped
 stopped_at: Milestone v2.0 complete
-last_updated: "2026-03-11"
-last_activity: 2026-03-11 — Completed quick task 13: Fix preflight/submit failure not halting pipeline
+last_updated: "2026-03-12"
+last_activity: 2026-03-12 — Completed quick task 14: Fix log rotation — daemon keeps logging to same file
 progress:
   total_phases: 9
   completed_phases: 9
@@ -76,9 +76,10 @@ Carried from v1.0 (need empirical validation):
 | 11 | Add manifest validation before start and post-spawn liveness check | 2026-03-11 | 795b5d1 | [11-add-manifest-validation-before-start-and](./quick/11-add-manifest-validation-before-start-and/) |
 | 12 | Allow retryFrom self-reference (self-retry without git reset) | 2026-03-11 | 8106a46 | [12-allow-for-the-retry-from-the-end-to-be-t](./quick/12-allow-for-the-retry-from-the-end-to-be-t/) |
 | 13 | Fix preflight/submit failure not halting pipeline | 2026-03-11 | 8a19d4b | [13-investigate-preflight-submit-failure-not](./quick/13-investigate-preflight-submit-failure-not/) |
+| 14 | Fix log rotation — daemon keeps logging to same file | 2026-03-12 | b1d255a | [14-fix-log-rotation-daemon-keeps-logging-to](./quick/14-fix-log-rotation-daemon-keeps-logging-to/) |
 
 ## Session Continuity
 
-Last session: 2026-03-11
-Stopped at: Quick task 13 complete (semantic failure detection, recurring task bead close guard)
+Last session: 2026-03-12
+Stopped at: Quick task 14 complete (daemon log rotation via dynamic date recomputation on each write)
 Resume file: None
