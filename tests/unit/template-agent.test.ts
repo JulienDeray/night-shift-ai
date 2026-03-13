@@ -8,7 +8,7 @@ import {
   buildBuiltIns,
   BUILT_IN_VARS,
 } from "../../src/agent/template.js";
-import { ManifestError } from "../../src/core/errors.js";
+import { NightShiftError } from "../../src/core/errors.js";
 import { renderTemplate } from "../../src/utils/template.js";
 
 // ---------------------------------------------------------------------------
@@ -18,7 +18,10 @@ import { renderTemplate } from "../../src/utils/template.js";
 describe("validateVariableNames", () => {
   it("collision with built-in name produces hard error", () => {
     expect(() => validateVariableNames(["task_id", "my_var"])).toThrowError(
-      ManifestError,
+      NightShiftError,
+    );
+    expect(() => validateVariableNames(["task_id", "my_var"])).toThrowError(
+      expect.objectContaining({ code: "MANIFEST" }),
     );
     expect(() => validateVariableNames(["task_id", "my_var"])).toThrow(
       /collision/,
@@ -49,7 +52,10 @@ describe("validateVariableNames", () => {
 
   it("rejects all four built-in names individually", () => {
     for (const name of BUILT_IN_VARS) {
-      expect(() => validateVariableNames([name])).toThrowError(ManifestError);
+      expect(() => validateVariableNames([name])).toThrowError(NightShiftError);
+      expect(() => validateVariableNames([name])).toThrowError(
+        expect.objectContaining({ code: "MANIFEST" }),
+      );
     }
   });
 });
@@ -263,7 +269,10 @@ describe("validateTemplateVars", () => {
   it("throws for undefined static variable", () => {
     expect(() =>
       validateTemplateVars("{{task_id}} {{nonexistent}}", { task_id: "123" }),
-    ).toThrowError(ManifestError);
+    ).toThrowError(NightShiftError);
+    expect(() =>
+      validateTemplateVars("{{task_id}} {{nonexistent}}", { task_id: "123" }),
+    ).toThrowError(expect.objectContaining({ code: "MANIFEST" }));
     expect(() =>
       validateTemplateVars("{{task_id}} {{nonexistent}}", { task_id: "123" }),
     ).toThrow(/undefined variables/);

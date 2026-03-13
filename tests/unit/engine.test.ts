@@ -21,11 +21,7 @@ vi.mock("../../src/utils/process.js", () => ({
 import { spawnWithTimeout } from "../../src/utils/process.js";
 import { AgentEngine } from "../../src/agent/engine.js";
 import { Logger } from "../../src/core/logger.js";
-import {
-  StepContractViolationError,
-  StepOutputMissingError,
-  ManifestError,
-} from "../../src/core/errors.js";
+import { NightShiftError } from "../../src/core/errors.js";
 
 const mockSpawn = vi.mocked(spawnWithTimeout);
 
@@ -513,7 +509,8 @@ describe("AgentEngine", () => {
       cleanup = c;
 
       const engine = new AgentEngine(silentLogger());
-      await expect(engine.dryRun(agentDir, agentsRoot)).rejects.toThrow(ManifestError);
+      await expect(engine.dryRun(agentDir, agentsRoot)).rejects.toThrow(NightShiftError);
+      await expect(engine.dryRun(agentDir, agentsRoot)).rejects.toMatchObject({ code: "MANIFEST" });
     });
 
     it("does not create any nightshift-* temp directories during dry-run", async () => {

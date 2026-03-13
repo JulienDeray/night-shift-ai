@@ -4,7 +4,7 @@ import path from "node:path";
 import os from "node:os";
 import { z } from "zod";
 import type { NightShiftConfig } from "../../src/core/types.js";
-import { ConfigError } from "../../src/core/errors.js";
+import { NightShiftError } from "../../src/core/errors.js";
 
 // ---------------------------------------------------------------------------
 // Mock loadManifest
@@ -124,9 +124,8 @@ describe("validateAgentsAtStartup", () => {
 
   // 3. Fails when agent directory does not exist (loadManifest throws)
   it("fails when agent directory does not exist", async () => {
-    const { ManifestError } = await import("../../src/core/errors.js");
     vi.mocked(loadManifest).mockRejectedValue(
-      new ManifestError("Cannot read manifest at /nonexistent/agent/manifest.yaml: ENOENT"),
+      new NightShiftError("Cannot read manifest at /nonexistent/agent/manifest.yaml: ENOENT", "MANIFEST"),
     );
 
     const config = makeConfig({
@@ -135,16 +134,16 @@ describe("validateAgentsAtStartup", () => {
     });
 
     const err = await validateAgentsAtStartup(config, tmpDir).catch((e) => e);
-    expect(err).toBeInstanceOf(ConfigError);
+    expect(err).toBeInstanceOf(NightShiftError);
+    expect((err as NightShiftError).code).toBe("CONFIG");
     expect(err.message).toContain("missing-agent");
     expect(err.message).toContain("Startup validation failed");
   });
 
   // 4. Fails when manifest has invalid schema (loadManifest throws ManifestError)
   it("fails when manifest has invalid schema", async () => {
-    const { ManifestError } = await import("../../src/core/errors.js");
     vi.mocked(loadManifest).mockRejectedValue(
-      new ManifestError("Manifest validation failed:\n  manifest.yaml: name: Required"),
+      new NightShiftError("Manifest validation failed:\n  manifest.yaml: name: Required", "MANIFEST"),
     );
 
     const config = makeConfig({
@@ -153,7 +152,8 @@ describe("validateAgentsAtStartup", () => {
     });
 
     const err = await validateAgentsAtStartup(config, tmpDir).catch((e) => e);
-    expect(err).toBeInstanceOf(ConfigError);
+    expect(err).toBeInstanceOf(NightShiftError);
+    expect((err as NightShiftError).code).toBe("CONFIG");
     expect(err.message).toContain("broken-agent");
     expect(err.message).toContain("Manifest validation failed");
   });
@@ -177,7 +177,8 @@ describe("validateAgentsAtStartup", () => {
     });
 
     const err = await validateAgentsAtStartup(config, tmpDir).catch((e) => e);
-    expect(err).toBeInstanceOf(ConfigError);
+    expect(err).toBeInstanceOf(NightShiftError);
+    expect((err as NightShiftError).code).toBe("CONFIG");
     expect(err.message).toContain("prompt file not found");
     expect(err.message).toContain("analyze");
   });
@@ -206,7 +207,8 @@ describe("validateAgentsAtStartup", () => {
     });
 
     const err = await validateAgentsAtStartup(config, tmpDir).catch((e) => e);
-    expect(err).toBeInstanceOf(ConfigError);
+    expect(err).toBeInstanceOf(NightShiftError);
+    expect((err as NightShiftError).code).toBe("CONFIG");
     expect(err.message).toContain("undefined variables");
     expect(err.message).toContain("custom_var");
   });
@@ -349,10 +351,9 @@ describe("validateAgentsAtStartup", () => {
 
   // 12. Collects errors from multiple agents
   it("collects errors from multiple agents", async () => {
-    const { ManifestError } = await import("../../src/core/errors.js");
     vi.mocked(loadManifest)
-      .mockRejectedValueOnce(new ManifestError("Cannot read manifest for agent-one"))
-      .mockRejectedValueOnce(new ManifestError("Cannot read manifest for agent-two"));
+      .mockRejectedValueOnce(new NightShiftError("Cannot read manifest for agent-one", "MANIFEST"))
+      .mockRejectedValueOnce(new NightShiftError("Cannot read manifest for agent-two", "MANIFEST"));
 
     const config = makeConfig({
       agents: [{ name: "agent-one" }, { name: "agent-two" }],
@@ -360,7 +361,8 @@ describe("validateAgentsAtStartup", () => {
     });
 
     const err = await validateAgentsAtStartup(config, tmpDir).catch((e) => e);
-    expect(err).toBeInstanceOf(ConfigError);
+    expect(err).toBeInstanceOf(NightShiftError);
+    expect((err as NightShiftError).code).toBe("CONFIG");
     expect(err.message).toContain("2 error(s)");
     expect(err.message).toContain("agent-one");
     expect(err.message).toContain("agent-two");
@@ -388,7 +390,8 @@ describe("validateAgentsAtStartup", () => {
     });
 
     const err = await validateAgentsAtStartup(config, tmpDir).catch((e) => e);
-    expect(err).toBeInstanceOf(ConfigError);
+    expect(err).toBeInstanceOf(NightShiftError);
+    expect((err as NightShiftError).code).toBe("CONFIG");
     expect(err.message).toContain("analyze");
     expect(err.message).toContain("verify");
     expect(err.message).toContain("prompt file not found");
@@ -396,10 +399,10 @@ describe("validateAgentsAtStartup", () => {
 
   // 14. Env var check is delegated to loadManifest
   it("env var check is delegated to loadManifest", async () => {
-    const { ManifestError } = await import("../../src/core/errors.js");
     vi.mocked(loadManifest).mockRejectedValue(
-      new ManifestError(
+      new NightShiftError(
         'env var "REQUIRED_TOKEN" (passthrough) is not set in the host environment',
+        "MANIFEST",
       ),
     );
 
@@ -409,7 +412,8 @@ describe("validateAgentsAtStartup", () => {
     });
 
     const err = await validateAgentsAtStartup(config, tmpDir).catch((e) => e);
-    expect(err).toBeInstanceOf(ConfigError);
+    expect(err).toBeInstanceOf(NightShiftError);
+    expect((err as NightShiftError).code).toBe("CONFIG");
     expect(err.message).toContain("env-var-agent");
     expect(err.message).toContain("REQUIRED_TOKEN");
   });

@@ -12,12 +12,7 @@ import {
   validateStepOutput,
   preprocessNullable,
 } from "../../src/agent/manifest-loader.js";
-import {
-  ManifestError,
-  ManifestSecurityError,
-  StepContractViolationError,
-  StepOutputMissingError,
-} from "../../src/core/errors.js";
+import { NightShiftError } from "../../src/core/errors.js";
 
 // ---------------------------------------------------------------------------
 // Helper: create a temporary agent directory with a manifest.yaml
@@ -77,7 +72,10 @@ describe("assertContained — path containment", () => {
       await fs.mkdir(agentsRoot, { recursive: true });
       await fs.mkdir(evilAgent, { recursive: true });
       await expect(assertContained(evilAgent, agentsRoot, "agent directory")).rejects.toThrow(
-        ManifestSecurityError,
+        NightShiftError,
+      );
+      await expect(assertContained(evilAgent, agentsRoot, "agent directory")).rejects.toMatchObject(
+        { code: "MANIFEST_SECURITY" },
       );
       await expect(assertContained(evilAgent, agentsRoot, "agent directory")).rejects.toThrow(
         "Path containment violation",
@@ -97,7 +95,10 @@ describe("assertContained — path containment", () => {
       await fs.mkdir(outsideDir, { recursive: true });
       await fs.symlink(outsideDir, linkedAgent);
       await expect(assertContained(linkedAgent, agentsRoot, "agent directory")).rejects.toThrow(
-        ManifestSecurityError,
+        NightShiftError,
+      );
+      await expect(assertContained(linkedAgent, agentsRoot, "agent directory")).rejects.toMatchObject(
+        { code: "MANIFEST_SECURITY" },
       );
     } finally {
       await fs.rm(tmpDir, { recursive: true, force: true });
@@ -125,7 +126,10 @@ describe("assertContained — path containment", () => {
       await fs.mkdir(agentsRoot, { recursive: true });
       await fs.mkdir(fileInExtra, { recursive: true });
       await expect(assertContained(fileInExtra, agentsRoot, "file")).rejects.toThrow(
-        ManifestSecurityError,
+        NightShiftError,
+      );
+      await expect(assertContained(fileInExtra, agentsRoot, "file")).rejects.toMatchObject(
+        { code: "MANIFEST_SECURITY" },
       );
     } finally {
       await fs.rm(tmpDir, { recursive: true, force: true });
@@ -161,7 +165,8 @@ describe("loadManifest — loading", () => {
       const agentDir = path.join(agentsRoot, "empty-agent");
       await fs.mkdir(agentDir, { recursive: true });
       // No manifest.yaml written
-      await expect(loadManifest(agentDir, agentsRoot)).rejects.toThrow(ManifestError);
+      await expect(loadManifest(agentDir, agentsRoot)).rejects.toThrow(NightShiftError);
+      await expect(loadManifest(agentDir, agentsRoot)).rejects.toMatchObject({ code: "MANIFEST" });
       await expect(loadManifest(agentDir, agentsRoot)).rejects.toThrow("Cannot read manifest");
     } finally {
       await fs.rm(tmpDir, { recursive: true, force: true });
@@ -178,7 +183,8 @@ describe("loadManifest — loading", () => {
         path.join(agentDir, "manifest.yaml"),
         "name: valid\nbad: [unclosed bracket",
       );
-      await expect(loadManifest(agentDir, agentsRoot)).rejects.toThrow(ManifestError);
+      await expect(loadManifest(agentDir, agentsRoot)).rejects.toThrow(NightShiftError);
+      await expect(loadManifest(agentDir, agentsRoot)).rejects.toMatchObject({ code: "MANIFEST" });
       await expect(loadManifest(agentDir, agentsRoot)).rejects.toThrow("Invalid YAML");
     } finally {
       await fs.rm(tmpDir, { recursive: true, force: true });
@@ -196,7 +202,8 @@ describe("loadManifest — loading", () => {
         path.join(agentDir, "manifest.yaml"),
         stringifyYaml({ steps: [] }),
       );
-      await expect(loadManifest(agentDir, agentsRoot)).rejects.toThrow(ManifestError);
+      await expect(loadManifest(agentDir, agentsRoot)).rejects.toThrow(NightShiftError);
+      await expect(loadManifest(agentDir, agentsRoot)).rejects.toMatchObject({ code: "MANIFEST" });
       const err = await loadManifest(agentDir, agentsRoot).catch((e) => e);
       expect(err.message).toContain("name");
       expect(err.message).toContain("description");
@@ -363,7 +370,8 @@ describe("loadManifest — env resolution", () => {
       env: ["NONEXISTENT_VAR_12345"],
     });
     try {
-      await expect(loadManifest(agentDir, agentsRoot)).rejects.toThrow(ManifestError);
+      await expect(loadManifest(agentDir, agentsRoot)).rejects.toThrow(NightShiftError);
+      await expect(loadManifest(agentDir, agentsRoot)).rejects.toMatchObject({ code: "MANIFEST" });
       await expect(loadManifest(agentDir, agentsRoot)).rejects.toThrow(
         "not set in the host environment",
       );
@@ -419,7 +427,8 @@ describe("loadManifest — output schema compilation", () => {
       ],
     });
     try {
-      await expect(loadManifest(agentDir, agentsRoot)).rejects.toThrow(ManifestError);
+      await expect(loadManifest(agentDir, agentsRoot)).rejects.toThrow(NightShiftError);
+      await expect(loadManifest(agentDir, agentsRoot)).rejects.toMatchObject({ code: "MANIFEST" });
       await expect(loadManifest(agentDir, agentsRoot)).rejects.toThrow("invalid outputSchema");
     } finally {
       await cleanup();
@@ -444,20 +453,26 @@ describe("validateStepOutput", () => {
     expect(parsed).toEqual({ result: "ok" });
   });
 
-  it("output violating schema throws StepContractViolationError", () => {
+  it("output violating schema throws NightShiftError with code STEP_CONTRACT_VIOLATION", () => {
     const rawOutput = '```json\n{"result":42}\n```';
     expect(() => validateStepOutput(rawOutput, resultSchema, "test-step")).toThrow(
-      StepContractViolationError,
+      NightShiftError,
+    );
+    expect(() => validateStepOutput(rawOutput, resultSchema, "test-step")).toThrowError(
+      expect.objectContaining({ code: "STEP_CONTRACT_VIOLATION" }),
     );
     expect(() => validateStepOutput(rawOutput, resultSchema, "test-step")).toThrow(
       "STEP_CONTRACT_VIOLATION",
     );
   });
 
-  it("no JSON block throws StepOutputMissingError", () => {
+  it("no JSON block throws NightShiftError with code STEP_OUTPUT_MISSING", () => {
     const rawOutput = "This is plain text without any code blocks.";
     expect(() => validateStepOutput(rawOutput, resultSchema, "test-step")).toThrow(
-      StepOutputMissingError,
+      NightShiftError,
+    );
+    expect(() => validateStepOutput(rawOutput, resultSchema, "test-step")).toThrowError(
+      expect.objectContaining({ code: "STEP_OUTPUT_MISSING" }),
     );
     expect(() => validateStepOutput(rawOutput, resultSchema, "test-step")).toThrow(
       "STEP_OUTPUT_MISSING",
