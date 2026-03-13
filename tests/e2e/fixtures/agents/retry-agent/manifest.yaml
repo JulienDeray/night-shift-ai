@@ -1,0 +1,32 @@
+name: retry-agent
+description: 2-step agent where review step has retry config returning passed:false for retry exhaustion testing
+steps:
+  - name: work
+    prompt: prompts/work.md
+    timeout: "30s"
+    outputSchema:
+      type: object
+      properties:
+        result:
+          type: string
+      required: [result]
+    env:
+      - name: MOCK_CLAUDE_RESPONSE_FILE
+        value: "{{response_file}}"
+  - name: review
+    prompt: prompts/review.md
+    timeout: "30s"
+    outputSchema:
+      type: object
+      properties:
+        passed:
+          type: boolean
+        error_details:
+          type: string
+      required: [passed, error_details]
+    retry:
+      maxAttempts: 2
+      retryFrom: work
+    env:
+      - name: MOCK_CLAUDE_RESPONSE_FILE
+        value: "{{retry_fail_response_file}}"

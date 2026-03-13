@@ -10,6 +10,14 @@ const DEFAULT_RESPONSE_FILE = path.join(
   PROJECT_ROOT,
   "tests/e2e/fixtures/mock-claude/responses/success.json",
 );
+const FAILURE_RESPONSE_FILE = path.join(
+  PROJECT_ROOT,
+  "tests/e2e/fixtures/mock-claude/responses/failure.json",
+);
+const RETRY_FAIL_RESPONSE_FILE = path.join(
+  PROJECT_ROOT,
+  "tests/e2e/fixtures/mock-claude/responses/retry-fail.json",
+);
 
 /**
  * Writes nightshift.yaml to tmpDir with E2E-appropriate settings and copies
@@ -30,7 +38,7 @@ export async function writeE2EConfig(
   const pollIntervalMs = options.pollIntervalMs ?? 500;
   const heartbeatIntervalMs = options.heartbeatIntervalMs ?? 1000;
 
-  const agentsList = agentNames.map((name) => `  - name: ${name}`).join("\n");
+  const agentsList = agentNames.map((name) => `  - name: ${name}\n    notify: true`).join("\n");
 
   const ntfyBlock = options.ntfyPort
     ? `
@@ -99,9 +107,11 @@ async function copyAgentDir(
     } else {
       let content = await fs.readFile(srcPath, "utf-8");
 
-      // Rewrite manifest.yaml: substitute {{response_file}} with the actual path
+      // Rewrite manifest.yaml: substitute response file placeholders with actual paths
       if (entry.name === "manifest.yaml") {
         content = content.replace(/\{\{response_file\}\}/g, DEFAULT_RESPONSE_FILE);
+        content = content.replace(/\{\{failure_response_file\}\}/g, FAILURE_RESPONSE_FILE);
+        content = content.replace(/\{\{retry_fail_response_file\}\}/g, RETRY_FAIL_RESPONSE_FILE);
       }
 
       await fs.writeFile(destPath, content, "utf-8");

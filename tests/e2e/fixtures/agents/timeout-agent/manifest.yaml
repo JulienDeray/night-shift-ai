@@ -1,0 +1,15 @@
+name: timeout-agent
+description: Single-step agent with 2s timeout — mock shim sleeps 10s to trigger timeout
+steps:
+  - name: run
+    prompt: prompts/run.md
+    timeout: "2s"
+    outputSchema:
+      type: object
+      properties:
+        result:
+          type: string
+      required: [result]
+    env:
+      - name: MOCK_CLAUDE_SLEEP_MS
+        value: "10000"

@@ -1,0 +1,29 @@
+name: multi-step-failure-agent
+description: 2-step agent where step1 returns status:FAILED for semantic failure testing
+steps:
+  - name: step1
+    prompt: prompts/step1.md
+    timeout: "30s"
+    outputSchema:
+      type: object
+      properties:
+        status:
+          type: string
+        error:
+          type: string
+      required: [status, error]
+    env:
+      - name: MOCK_CLAUDE_RESPONSE_FILE
+        value: "{{failure_response_file}}"
+  - name: step2
+    prompt: prompts/step2.md
+    timeout: "30s"
+    outputSchema:
+      type: object
+      properties:
+        result:
+          type: string
+      required: [result]
+    env:
+      - name: MOCK_CLAUDE_RESPONSE_FILE
+        value: "{{response_file}}"
