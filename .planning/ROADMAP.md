@@ -82,7 +82,11 @@ Plans:
   2. Unnecessary indirection layers are collapsed — call sites reach their targets without superfluous wrappers
   3. No v1.0 or v2.0 compatibility shims, migration helpers, or deprecated code paths remain
   4. All existing tests pass after cleanup with no regressions
-**Plans**: TBD
+**Plans**: 3 plans
+Plans:
+- [ ] 16-01-PLAN.md — Delete dead v1.0 prompt files and inline prompt-loader into engine
+- [ ] 16-02-PLAN.md — Collapse error class hierarchy into single NightShiftError with code field
+- [ ] 16-03-PLAN.md — Remove dead exports, merge tiny files, clean stale comments and Zod fields
 
 ### Phase 17: E2E Testing Framework
 **Goal**: A full E2E test harness covers the daemon lifecycle, agent execution, CLI commands, error scenarios, and external service boundaries — with no real network calls
@@ -115,5 +119,5 @@ Plans:
 | 13. Phase 11 Verification | v2.0 | 1/1 | Complete | 2026-03-09 |
 | 14. Bead Removal | 3/3 | Complete    | 2026-03-13 | - |
 | 15. Notifications | 2/2 | Complete    | 2026-03-13 | - |
-| 16. Codebase Cleanup | v3.0 | 0/? | Not started | - |
+| 16. Codebase Cleanup | v3.0 | 0/3 | Not started | - |
 | 17. E2E Testing Framework | v3.0 | 0/? | Not started | - |
