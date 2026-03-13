@@ -10,7 +10,7 @@ Requirements for v3.0 Consolidation milestone. Each maps to roadmap phases.
 ### Bead Removal
 
 - [x] **BEAD-01**: BeadPlugin interface, BeadRegistry, and BeadRunner are deleted from codebase
-- [ ] **BEAD-02**: AgentEngine executes pipeline steps inline without bead abstraction
+- [x] **BEAD-02**: AgentEngine executes pipeline steps inline without bead abstraction
 - [x] **BEAD-03**: Manifest schema simplified — steps defined directly, no bead ID references
 - [ ] **BEAD-04**: All bead-related tests updated or removed, no regressions in agent execution
 
@@ -65,7 +65,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | Requirement | Phase | Status |
 |-------------|-------|--------|
 | BEAD-01 | Phase 14 | Complete |
-| BEAD-02 | Phase 14 | Pending |
+| BEAD-02 | Phase 14 | Complete |
 | BEAD-03 | Phase 14 | Complete |
 | BEAD-04 | Phase 14 | Pending |
 | NTFY-01 | Phase 15 | Pending |

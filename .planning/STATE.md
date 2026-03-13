@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Consolidation
 status: planning
-stopped_at: Completed 14-01-PLAN.md
-last_updated: "2026-03-13T13:45:35.931Z"
+stopped_at: Completed 14-02-PLAN.md
+last_updated: "2026-03-13T13:55:40.354Z"
 last_activity: 2026-03-13 — Roadmap created, phases 14-17 defined
 progress:
   total_phases: 4
   completed_phases: 0
   total_plans: 3
-  completed_plans: 1
+  completed_plans: 2
   percent: 0
 ---
 
@@ -51,6 +51,8 @@ Progress: [░░░░░░░░░░] 0%
 
 Full decision log in PROJECT.md Key Decisions table.
 - [Phase 14-bead-removal]: AgentPipelineContext moved from bead-plugin.ts into engine-types.ts; type field dropped from StepSchema; BeadsError/RegistryError deleted; TempDirManager creates flat tmpDir
+- [Phase 14-bead-removal]: AgentEngine constructor takes only logger — no registry parameter; inline step execution in engine.ts
+- [Phase 14-bead-removal]: Orchestrator uses file-queue only — BeadsClient and all beads branches removed
 
 ### Pending Todos
 
@@ -70,6 +72,6 @@ Most recent: quick-14 (daemon log rotation via dynamic date recomputation, 2026-
 
 ## Session Continuity
 
-Last session: 2026-03-13T13:45:35.929Z
-Stopped at: Completed 14-01-PLAN.md
+Last session: 2026-03-13T13:55:40.351Z
+Stopped at: Completed 14-02-PLAN.md
 Resume file: None
