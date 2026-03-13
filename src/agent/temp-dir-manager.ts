@@ -8,9 +8,9 @@ const DEFAULT_MAX_AGE_MS = 60 * 60 * 1000; // 1 hour
 /**
  * Manages temporary directories for AgentEngine pipeline runs.
  *
- * Each run gets an isolated `/tmp/nightshift-{runId}/` directory with
- * `repo/` and `handoff/` subdirectories. The engine owns the lifecycle
- * of these directories.
+ * Each run gets an isolated flat `/tmp/nightshift-{runId}/` directory.
+ * Steps use this directory directly as their working directory.
+ * The engine owns the lifecycle of these directories.
  *
  * Cleanup failures are treated as warnings (never rethrown) per the
  * locked CONTEXT.md decision: rollback failures must not mask the
@@ -20,27 +20,19 @@ export class TempDirManager {
   constructor(private readonly logger: Logger) {}
 
   /**
-   * Creates the run-scoped temp directory structure:
+   * Creates the run-scoped flat temp directory:
    *   /tmp/nightshift-{runId}/
-   *   /tmp/nightshift-{runId}/repo/
-   *   /tmp/nightshift-{runId}/handoff/
    *
-   * Returns the paths to all three directories.
+   * Returns the path to the directory.
    */
   async create(runId: string): Promise<{
     tmpDir: string;
-    repoDir: string;
-    handoffDir: string;
   }> {
     const tmpDir = path.join(os.tmpdir(), `nightshift-${runId}`);
-    const repoDir = path.join(tmpDir, "repo");
-    const handoffDir = path.join(tmpDir, "handoff");
 
     await fs.mkdir(tmpDir, { recursive: true });
-    await fs.mkdir(repoDir, { recursive: true });
-    await fs.mkdir(handoffDir, { recursive: true });
 
-    return { tmpDir, repoDir, handoffDir };
+    return { tmpDir };
   }
 
   /**

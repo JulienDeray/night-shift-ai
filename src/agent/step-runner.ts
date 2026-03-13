@@ -11,9 +11,9 @@ interface ClaudeJsonOutput {
 }
 
 /**
- * Result type for a single bead invocation.
+ * Result type for a single step invocation.
  */
-export interface BeadResult {
+export interface StepResult {
   exitCode: number;
   stdout: string;
   stderr: string;
@@ -23,15 +23,15 @@ export interface BeadResult {
 }
 
 /**
- * Constructs a sanitized environment for a bead invocation.
+ * Constructs a sanitized environment for a step invocation.
  *
  * We start from a minimal allowlist of safe env vars rather than spreading
  * process.env — this prevents accidental token leakage. Additional env vars
  * declared in the manifest (e.g. GITLAB_TOKEN, BAMBOOHR_API_KEY) are
  * forwarded explicitly via the envVars parameter.
  */
-export function buildBeadEnv(
-  beadName: string,
+export function buildStepEnv(
+  stepName: string,
   envVars?: Array<{ name: string; value: string }>,
 ): NodeJS.ProcessEnv {
   const safeEnv: NodeJS.ProcessEnv = {
@@ -43,7 +43,7 @@ export function buildBeadEnv(
     TERM: process.env.TERM,
   };
 
-  // Forward all declared bead env vars (from manifest env entries)
+  // Forward all declared step env vars (from manifest env entries)
   if (envVars) {
     for (const entry of envVars) {
       safeEnv[entry.name] = entry.value;
@@ -54,7 +54,7 @@ export function buildBeadEnv(
 }
 
 /**
- * Constructs the Claude CLI argument array for a bead invocation.
+ * Constructs the Claude CLI argument array for a step invocation.
  *
  * AGENT-09 enforcement: --allowedTools Bash Read Write restricts the agent
  * to only the minimum needed tools (no WebFetch, browser, MCP tools).
@@ -63,12 +63,12 @@ export function buildBeadEnv(
  * the existing AgentRunner.buildArgs pattern in agent-runner.ts.
  *
  * SECURITY: Secrets are never placed in the args array — they are forwarded
- * only via the env option in buildBeadEnv.
+ * only via the env option in buildStepEnv.
  *
  * When options.allowedTools is provided, it replaces the default ["Bash", "Read", "Write"].
  * When options.mcpConfigPath is provided, "--mcp-config <path>" is appended to args.
  */
-export function buildBeadArgs(
+export function buildStepArgs(
   prompt: string,
   model: string,
   maxTokens?: number,
@@ -100,20 +100,20 @@ export function buildBeadArgs(
 }
 
 /**
- * Runs a single Claude CLI bead invocation.
+ * Runs a single Claude CLI step invocation.
  *
- * Wraps spawnWithTimeout and returns a BeadResult. Does NOT throw on non-zero
+ * Wraps spawnWithTimeout and returns a StepResult. Does NOT throw on non-zero
  * exit codes or parse failures — the pipeline orchestrator decides how to
  * handle errors. This allows the orchestrator to implement fallback and retry
  * logic without dealing with exceptions.
  *
  * SECURITY:
- * - env is always constructed via buildBeadEnv (never process.env directly)
+ * - env is always constructed via buildStepEnv (never process.env directly)
  * - Only env vars explicitly declared in the manifest are forwarded
  * - Rendered prompt is never logged (may contain sensitive repo analysis)
  */
-export async function runBead(options: {
-  beadName: string;
+export async function runStep(options: {
+  stepName: string;
   prompt: string;
   model: string;
   cwd: string;
@@ -122,9 +122,9 @@ export async function runBead(options: {
   mcpConfigPath?: string;
   allowedTools?: string[];
   envVars?: Array<{ name: string; value: string }>;
-}): Promise<BeadResult> {
-  const env = buildBeadEnv(options.beadName, options.envVars);
-  const args = buildBeadArgs(options.prompt, options.model, options.maxTokens, {
+}): Promise<StepResult> {
+  const env = buildStepEnv(options.stepName, options.envVars);
+  const args = buildStepArgs(options.prompt, options.model, options.maxTokens, {
     mcpConfigPath: options.mcpConfigPath,
     allowedTools: options.allowedTools,
   });
@@ -138,7 +138,7 @@ export async function runBead(options: {
   const spawnResult = await result;
 
   // Attempt to parse JSON output from claude -p
-  // On parse failure, populate BeadResult with error info but do NOT throw
+  // On parse failure, populate StepResult with error info but do NOT throw
   let costUsd = 0;
   let durationMs = spawnResult.timedOut ? options.timeoutMs : 0;
   let stdout = spawnResult.stdout;

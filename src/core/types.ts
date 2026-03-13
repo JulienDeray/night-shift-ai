@@ -56,16 +56,11 @@ export interface DaemonConfig {
   logRetentionDays: number;
 }
 
-export interface BeadsConfig {
-  enabled: boolean;
-}
-
 export interface NightShiftConfig {
   workspace: string;
   inbox: string;
   maxConcurrent: number;
   defaultTimeout: string;
-  beads: BeadsConfig;
   daemon: DaemonConfig;
   agentsDir: string;
   agents: AgentDeclaration[];
@@ -93,7 +88,7 @@ export interface InboxEntry {
   completedAt: string;
   durationSeconds: number;
   agentName: string;
-  beadCount: number;
+  stepCount: number;
   resultSummary: string;
   originalPrompt: string;
   filePath: string;

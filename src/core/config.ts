@@ -39,11 +39,6 @@ const ConfigSchema = z
     inbox: z.string().default("./inbox"),
     max_concurrent: z.number().int().positive().default(2),
     default_timeout: z.string().default("30m"),
-    beads: z
-      .object({
-        enabled: z.boolean().default(true),
-      })
-      .default({ enabled: true }),
     daemon: z
       .object({
         poll_interval_ms: z.number().int().positive().default(30000),
@@ -115,9 +110,6 @@ function mapConfig(raw: RawConfig): NightShiftConfig {
     inbox: raw.inbox,
     maxConcurrent: raw.max_concurrent,
     defaultTimeout: raw.default_timeout,
-    beads: {
-      enabled: raw.beads.enabled,
-    },
     daemon: {
       pollIntervalMs: raw.daemon.poll_interval_ms,
       heartbeatIntervalMs: raw.daemon.heartbeat_interval_ms,
@@ -204,9 +196,6 @@ export function getDefaultConfigYaml(): string {
 inbox: ./inbox
 max_concurrent: 2
 default_timeout: "30m"
-
-beads:
-  enabled: true
 
 daemon:
   poll_interval_ms: 30000
