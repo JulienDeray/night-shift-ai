@@ -31,8 +31,8 @@ Requirements for v3.0 Consolidation milestone. Each maps to roadmap phases.
 ### Testing
 
 - [x] **TEST-01**: E2E test harness that starts and stops a real daemon process
-- [ ] **TEST-02**: Happy path test: daemon start -> agent submit -> execution -> output verification -> daemon stop
-- [ ] **TEST-03**: CLI command tests: status, submit, cancel, schedule, inbox with expected output
+- [x] **TEST-02**: Happy path test: daemon start -> agent submit -> execution -> output verification -> daemon stop
+- [x] **TEST-03**: CLI command tests: status, submit, cancel, schedule, inbox with expected output
 - [x] **TEST-04**: Error scenario tests: agent failures, timeouts, invalid manifests
 - [x] **TEST-05**: External service mocking: Claude CLI, GitLab, ntfy — no real calls during tests
 
@@ -77,8 +77,8 @@ Which phases cover which requirements. Updated during roadmap creation.
 | CLEAN-03 | Phase 16 | Complete |
 | CLEAN-04 | Phase 16 | Complete |
 | TEST-01 | Phase 17 | Complete |
-| TEST-02 | Phase 17 | Pending |
-| TEST-03 | Phase 17 | Pending |
+| TEST-02 | Phase 17 | Complete |
+| TEST-03 | Phase 17 | Complete |
 | TEST-04 | Phase 17 | Complete |
 | TEST-05 | Phase 17 | Complete |
 

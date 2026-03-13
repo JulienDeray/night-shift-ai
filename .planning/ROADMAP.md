@@ -40,7 +40,7 @@
 - [x] **Phase 14: Bead Removal** - Delete BeadPlugin/BeadRegistry/BeadRunner and inline pipeline execution into AgentEngine (completed 2026-03-13)
 - [x] **Phase 15: Notifications** - Replace raw JSON ntfy payloads with human-readable, agent-agnostic messages (1/2 plans complete) (completed 2026-03-13)
 - [x] **Phase 16: Codebase Cleanup** - Audit and remove dead code, over-abstracted patterns, and legacy remnants (completed 2026-03-13)
-- [ ] **Phase 17: E2E Testing Framework** - Build a full E2E harness covering the daemon lifecycle, CLI, errors, and mocked externals
+- [x] **Phase 17: E2E Testing Framework** - Build a full E2E harness covering the daemon lifecycle, CLI, errors, and mocked externals (completed 2026-03-13)
 
 ## Phase Details
 
@@ -124,4 +124,4 @@ Plans:
 | 14. Bead Removal | 3/3 | Complete    | 2026-03-13 | - |
 | 15. Notifications | 2/2 | Complete    | 2026-03-13 | - |
 | 16. Codebase Cleanup | 3/3 | Complete    | 2026-03-13 | - |
-| 17. E2E Testing Framework | 2/3 | In Progress|  | - |
+| 17. E2E Testing Framework | 3/3 | Complete   | 2026-03-13 | - |
