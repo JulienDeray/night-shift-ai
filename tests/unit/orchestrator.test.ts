@@ -22,7 +22,6 @@ function makeConfig(): NightShiftConfig {
     inbox: "./inbox",
     maxConcurrent: 2,
     defaultTimeout: "30m",
-    beads: { enabled: false },
     daemon: {
       pollIntervalMs: 30000,
       heartbeatIntervalMs: 10000,
@@ -55,7 +54,7 @@ function makeResult(overrides: Partial<AgentRunResult> = {}): AgentRunResult {
     agentName: "code-agent",
     status: "SUCCESS",
     finalOutput: null,
-    perBead: [],
+    perStep: [],
     totalDurationMs: 1000,
     ...overrides,
   };
@@ -491,7 +490,6 @@ describe("scheduled task dispatch", () => {
     (orchestrator as any).scheduler = mockScheduler;
     (orchestrator as any).pool = mockPool;
     (orchestrator as any).config = makeConfig();
-    (orchestrator as any).beads = null;
     (orchestrator as any).ntfy = null;
 
     // Mock loadConfig to return current config (hot-reload step)

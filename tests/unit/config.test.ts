@@ -28,7 +28,6 @@ describe("config", () => {
     expect(config.inbox).toBe("./inbox");
     expect(config.maxConcurrent).toBe(2);
     expect(config.defaultTimeout).toBe("30m");
-    expect(config.beads.enabled).toBe(true);
     expect(config.daemon.pollIntervalMs).toBe(30000);
     expect(config.daemon.heartbeatIntervalMs).toBe(10000);
     expect(config.daemon.logRetentionDays).toBe(30);
@@ -89,7 +88,6 @@ workspace: ./w
     expect(config.inbox).toBe("./inbox");
     expect(config.maxConcurrent).toBe(2);
     expect(config.defaultTimeout).toBe("30m");
-    expect(config.beads.enabled).toBe(true);
     expect(config.daemon.pollIntervalMs).toBe(30000);
     expect(config.agentsDir).toBe("./agents");
     expect(config.agents).toEqual([]);

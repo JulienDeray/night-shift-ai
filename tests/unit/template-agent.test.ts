@@ -96,13 +96,13 @@ describe("buildTemplateVars — precedence", () => {
     expect(result["repo"]).toBe("overridden");
   });
 
-  it("bead outputs accessible under beads namespace", () => {
+  it("step outputs accessible under steps namespace", () => {
     const result = buildTemplateVars(dummyBuiltIns, {}, {}, {
       analyze: { output: { summary: "found issues" }, rawOutput: "raw text" },
     });
-    const beads = result["beads"] as Record<string, unknown>;
-    expect(beads).toBeDefined();
-    const analyze = beads["analyze"] as {
+    const steps = result["steps"] as Record<string, unknown>;
+    expect(steps).toBeDefined();
+    const analyze = steps["analyze"] as {
       output: { summary: string };
       rawOutput: string;
     };
@@ -132,10 +132,10 @@ describe("resolveNestedValue — dot notation", () => {
 
   it("resolves nested dot notation", () => {
     const obj = {
-      beads: { analyze: { output: { summary: "found" } } },
+      steps: { analyze: { output: { summary: "found" } } },
     };
     expect(
-      resolveNestedValue(obj, "beads.analyze.output.summary"),
+      resolveNestedValue(obj, "steps.analyze.output.summary"),
     ).toBe("found");
   });
 
@@ -165,7 +165,7 @@ describe("resolveNestedValue — array indexing", () => {
 
   it("resolves nested path with array index", () => {
     const obj = {
-      beads: {
+      steps: {
         analyze: {
           output: {
             results: [{ name: "first" }, { name: "second" }],
@@ -174,7 +174,7 @@ describe("resolveNestedValue — array indexing", () => {
       },
     };
     expect(
-      resolveNestedValue(obj, "beads.analyze.output.results[0].name"),
+      resolveNestedValue(obj, "steps.analyze.output.results[0].name"),
     ).toBe("first");
   });
 
@@ -201,9 +201,9 @@ describe("renderAgentTemplate", () => {
   });
 
   it("renders dot notation variables", () => {
-    const vars = { beads: { analyze: { output: { summary: "all good" } } } };
+    const vars = { steps: { analyze: { output: { summary: "all good" } } } };
     expect(
-      renderAgentTemplate("Summary: {{beads.analyze.output.summary}}", vars),
+      renderAgentTemplate("Summary: {{steps.analyze.output.summary}}", vars),
     ).toBe("Summary: all good");
   });
 
@@ -272,10 +272,10 @@ describe("validateTemplateVars", () => {
     ).toThrow(/nonexistent/);
   });
 
-  it("skips beads.* prefixed variables", () => {
+  it("skips steps.* prefixed variables", () => {
     expect(() =>
       validateTemplateVars(
-        "{{task_id}} {{beads.analyze.output.summary}}",
+        "{{task_id}} {{steps.analyze.output.summary}}",
         { task_id: "123" },
       ),
     ).not.toThrow();

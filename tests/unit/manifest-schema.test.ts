@@ -6,9 +6,8 @@ function validManifest(overrides?: Partial<z.input<typeof ManifestSchema>>) {
   return {
     name: "test-agent",
     description: "A test agent",
-    beads: [{
+    steps: [{
       name: "analyze",
-      type: "standard",
       prompt: "prompts/analyze.md",
       outputSchema: { type: "object", properties: { result: { type: "string" } }, required: ["result"] },
     }],
@@ -29,7 +28,7 @@ describe("ManifestSchema", () => {
       const paths = result.error.issues.map((i) => i.path.join("."));
       expect(paths).toContain("name");
       expect(paths).toContain("description");
-      expect(paths).toContain("beads");
+      expect(paths).toContain("steps");
     }
   });
 
@@ -42,24 +41,24 @@ describe("ManifestSchema", () => {
     }
   });
 
-  it("duplicate bead names are rejected", () => {
+  it("duplicate step names are rejected", () => {
     const result = ManifestSchema.safeParse(validManifest({
-      beads: [
-        { name: "analyze", type: "standard", prompt: "prompts/analyze.md", outputSchema: {} },
-        { name: "analyze", type: "standard", prompt: "prompts/other.md", outputSchema: {} },
+      steps: [
+        { name: "analyze", prompt: "prompts/analyze.md", outputSchema: {} },
+        { name: "analyze", prompt: "prompts/other.md", outputSchema: {} },
       ],
     }));
     expect(result.success).toBe(false);
     if (!result.success) {
       const messages = result.error.issues.map((i) => i.message);
-      expect(messages.some((m) => m.includes("Duplicate bead names") && m.includes("analyze"))).toBe(true);
+      expect(messages.some((m) => m.includes("Duplicate step names") && m.includes("analyze"))).toBe(true);
     }
   });
 
   it("absolute prompt path is rejected", () => {
     const result = ManifestSchema.safeParse(validManifest({
-      beads: [
-        { name: "analyze", type: "standard", prompt: "/etc/passwd", outputSchema: {} },
+      steps: [
+        { name: "analyze", prompt: "/etc/passwd", outputSchema: {} },
       ],
     }));
     expect(result.success).toBe(false);
@@ -70,7 +69,7 @@ describe("ManifestSchema", () => {
   });
 
   it("all errors reported at once (not fail-on-first)", () => {
-    // Missing name, description, and beads + unknown field
+    // Missing name, description, and steps + unknown field
     const result = ManifestSchema.safeParse({ unknownField: "oops" });
     expect(result.success).toBe(false);
     if (!result.success) {
@@ -92,10 +91,10 @@ describe("ManifestSchema", () => {
     expect(result.success).toBe(true);
   });
 
-  it("outputSchema is required on all beads", () => {
+  it("outputSchema is required on all steps", () => {
     const result = ManifestSchema.safeParse(validManifest({
-      beads: [
-        { name: "analyze", type: "standard", prompt: "prompts/analyze.md" } as unknown as z.input<typeof ManifestSchema>["beads"][number],
+      steps: [
+        { name: "analyze", prompt: "prompts/analyze.md" } as unknown as z.input<typeof ManifestSchema>["steps"][number],
       ],
     }));
     expect(result.success).toBe(false);
@@ -112,10 +111,10 @@ describe("ManifestSchema", () => {
     expect(result.success).toBe(true);
   });
 
-  it("bead with unknown field is rejected (strict)", () => {
+  it("step with unknown field is rejected (strict)", () => {
     const result = ManifestSchema.safeParse(validManifest({
-      beads: [
-        { name: "analyze", type: "standard", prompt: "prompts/analyze.md", outputSchema: {}, unknownBeadField: "oops" } as unknown as z.input<typeof ManifestSchema>["beads"][number],
+      steps: [
+        { name: "analyze", prompt: "prompts/analyze.md", outputSchema: {}, unknownStepField: "oops" } as unknown as z.input<typeof ManifestSchema>["steps"][number],
       ],
     }));
     expect(result.success).toBe(false);
@@ -138,10 +137,10 @@ describe("ManifestSchema", () => {
     }
   });
 
-  it("unknown tool name in bead allowedTools is rejected", () => {
+  it("unknown tool name in step allowedTools is rejected", () => {
     const result = ManifestSchema.safeParse(validManifest({
-      beads: [
-        { name: "analyze", type: "standard", prompt: "prompts/analyze.md", outputSchema: {}, allowedTools: ["Bash", "FakeTool"] },
+      steps: [
+        { name: "analyze", prompt: "prompts/analyze.md", outputSchema: {}, allowedTools: ["Bash", "FakeTool"] },
       ],
     }));
     expect(result.success).toBe(false);
@@ -158,10 +157,10 @@ describe("ManifestSchema", () => {
     expect(result.success).toBe(true);
   });
 
-  it("valid tool names in bead allowedTools pass validation", () => {
+  it("valid tool names in step allowedTools pass validation", () => {
     const result = ManifestSchema.safeParse(validManifest({
-      beads: [
-        { name: "analyze", type: "standard", prompt: "prompts/analyze.md", outputSchema: {}, allowedTools: ["Bash", "WebFetch", "Grep"] },
+      steps: [
+        { name: "analyze", prompt: "prompts/analyze.md", outputSchema: {}, allowedTools: ["Bash", "WebFetch", "Grep"] },
       ],
     }));
     expect(result.success).toBe(true);
@@ -169,8 +168,8 @@ describe("ManifestSchema", () => {
 
   it("mcp__atlassian__getConfluencePage in allowedTools passes validation", () => {
     const result = ManifestSchema.safeParse(validManifest({
-      beads: [
-        { name: "log", type: "standard", prompt: "prompts/log.md", outputSchema: {}, allowedTools: ["Bash", "mcp__atlassian__getConfluencePage"] },
+      steps: [
+        { name: "log", prompt: "prompts/log.md", outputSchema: {}, allowedTools: ["Bash", "mcp__atlassian__getConfluencePage"] },
       ],
     }));
     expect(result.success).toBe(true);
@@ -178,8 +177,8 @@ describe("ManifestSchema", () => {
 
   it("mcp__ prefix with underscore-separated parts passes validation", () => {
     const result = ManifestSchema.safeParse(validManifest({
-      beads: [
-        { name: "log", type: "standard", prompt: "prompts/log.md", outputSchema: {}, allowedTools: ["mcp__some__tool", "mcp__other__thing__here"] },
+      steps: [
+        { name: "log", prompt: "prompts/log.md", outputSchema: {}, allowedTools: ["mcp__some__tool", "mcp__other__thing__here"] },
       ],
     }));
     expect(result.success).toBe(true);
@@ -187,8 +186,8 @@ describe("ManifestSchema", () => {
 
   it("non-mcp__ unknown tool is still rejected", () => {
     const result = ManifestSchema.safeParse(validManifest({
-      beads: [
-        { name: "log", type: "standard", prompt: "prompts/log.md", outputSchema: {}, allowedTools: ["Bash", "FakeUnknownTool"] },
+      steps: [
+        { name: "log", prompt: "prompts/log.md", outputSchema: {}, allowedTools: ["Bash", "FakeUnknownTool"] },
       ],
     }));
     expect(result.success).toBe(false);
@@ -199,28 +198,28 @@ describe("ManifestSchema", () => {
     }
   });
 
-  it("mcpConfig literal relative path on a bead passes validation", () => {
+  it("mcpConfig literal relative path on a step passes validation", () => {
     const result = ManifestSchema.safeParse(validManifest({
-      beads: [
-        { name: "log", type: "standard", prompt: "prompts/log.md", outputSchema: {}, mcpConfig: "mcp-config.json" },
+      steps: [
+        { name: "log", prompt: "prompts/log.md", outputSchema: {}, mcpConfig: "mcp-config.json" },
       ],
     }));
     expect(result.success).toBe(true);
   });
 
-  it("mcpConfig template variable on a bead passes validation", () => {
+  it("mcpConfig template variable on a step passes validation", () => {
     const result = ManifestSchema.safeParse(validManifest({
-      beads: [
-        { name: "log", type: "standard", prompt: "prompts/log.md", outputSchema: {}, mcpConfig: "{{mcp_config_path}}" },
+      steps: [
+        { name: "log", prompt: "prompts/log.md", outputSchema: {}, mcpConfig: "{{mcp_config_path}}" },
       ],
     }));
     expect(result.success).toBe(true);
   });
 
-  it("mcpConfig absolute path on a bead fails validation", () => {
+  it("mcpConfig absolute path on a step fails validation", () => {
     const result = ManifestSchema.safeParse(validManifest({
-      beads: [
-        { name: "log", type: "standard", prompt: "prompts/log.md", outputSchema: {}, mcpConfig: "/absolute/path/mcp.json" },
+      steps: [
+        { name: "log", prompt: "prompts/log.md", outputSchema: {}, mcpConfig: "/absolute/path/mcp.json" },
       ],
     }));
     expect(result.success).toBe(false);
@@ -230,51 +229,51 @@ describe("ManifestSchema", () => {
     }
   });
 
-  it("retry with valid retryFrom referencing preceding bead passes validation", () => {
+  it("retry with valid retryFrom referencing preceding step passes validation", () => {
     const result = ManifestSchema.safeParse(validManifest({
-      beads: [
-        { name: "implement", type: "standard", prompt: "prompts/implement.md", outputSchema: {} },
-        { name: "verify", type: "standard", prompt: "prompts/verify.md", outputSchema: {}, retry: { maxAttempts: 3, retryFrom: "implement" } },
+      steps: [
+        { name: "implement", prompt: "prompts/implement.md", outputSchema: {} },
+        { name: "verify", prompt: "prompts/verify.md", outputSchema: {}, retry: { maxAttempts: 3, retryFrom: "implement" } },
       ],
     }));
     expect(result.success).toBe(true);
   });
 
-  it("retry with retryFrom referencing nonexistent preceding bead fails validation", () => {
+  it("retry with retryFrom referencing nonexistent preceding step fails validation", () => {
     const result = ManifestSchema.safeParse(validManifest({
-      beads: [
-        { name: "implement", type: "standard", prompt: "prompts/implement.md", outputSchema: {} },
-        { name: "verify", type: "standard", prompt: "prompts/verify.md", outputSchema: {}, retry: { maxAttempts: 3, retryFrom: "nonexistent" } },
+      steps: [
+        { name: "implement", prompt: "prompts/implement.md", outputSchema: {} },
+        { name: "verify", prompt: "prompts/verify.md", outputSchema: {}, retry: { maxAttempts: 3, retryFrom: "nonexistent" } },
       ],
     }));
     expect(result.success).toBe(false);
     if (!result.success) {
       const messages = result.error.issues.map((i) => i.message);
-      expect(messages.some((m) => m.includes("nonexistent") && (m.includes("preceding bead") || m.includes("preceding or current bead")))).toBe(true);
+      expect(messages.some((m) => m.includes("nonexistent") && (m.includes("preceding step") || m.includes("preceding or current step")))).toBe(true);
     }
   });
 
-  it("retry with retryFrom referencing current bead (self-retry) passes validation", () => {
+  it("retry with retryFrom referencing current step (self-retry) passes validation", () => {
     const result = ManifestSchema.safeParse(validManifest({
-      beads: [
-        { name: "implement", type: "standard", prompt: "prompts/implement.md", outputSchema: {} },
-        { name: "verify", type: "standard", prompt: "prompts/verify.md", outputSchema: {}, retry: { maxAttempts: 3, retryFrom: "verify" } },
+      steps: [
+        { name: "implement", prompt: "prompts/implement.md", outputSchema: {} },
+        { name: "verify", prompt: "prompts/verify.md", outputSchema: {}, retry: { maxAttempts: 3, retryFrom: "verify" } },
       ],
     }));
     expect(result.success).toBe(true);
   });
 
-  it("retry with retryFrom referencing a following bead fails validation", () => {
+  it("retry with retryFrom referencing a following step fails validation", () => {
     const result = ManifestSchema.safeParse(validManifest({
-      beads: [
-        { name: "implement", type: "standard", prompt: "prompts/implement.md", outputSchema: {}, retry: { maxAttempts: 3, retryFrom: "verify" } },
-        { name: "verify", type: "standard", prompt: "prompts/verify.md", outputSchema: {} },
+      steps: [
+        { name: "implement", prompt: "prompts/implement.md", outputSchema: {}, retry: { maxAttempts: 3, retryFrom: "verify" } },
+        { name: "verify", prompt: "prompts/verify.md", outputSchema: {} },
       ],
     }));
     expect(result.success).toBe(false);
     if (!result.success) {
       const messages = result.error.issues.map((i) => i.message);
-      expect(messages.some((m) => m.includes("verify") && (m.includes("preceding bead") || m.includes("preceding or current bead")))).toBe(true);
+      expect(messages.some((m) => m.includes("verify") && (m.includes("preceding step") || m.includes("preceding or current step")))).toBe(true);
     }
   });
 });

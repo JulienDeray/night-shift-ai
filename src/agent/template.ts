@@ -29,23 +29,23 @@ export function validateVariableNames(userVarNames: string[]): void {
 /**
  * Merges variables with the following precedence (highest to lowest):
  *   built-ins > nightshift.yaml config overrides > manifest defaults
- * Bead outputs are nested under the "beads" namespace.
+ * Step outputs are nested under the "steps" namespace.
  */
 export function buildTemplateVars(
   builtIns: Record<BuiltInVar, string>,
   manifestVars: Record<string, string>,
   configOverrides: Record<string, string>,
-  beadOutputs: Record<string, { output: unknown; rawOutput: string }>,
+  stepOutputs: Record<string, { output: unknown; rawOutput: string }>,
 ): Record<string, unknown> {
   // Start with lowest precedence, overwrite with higher
   const merged: Record<string, unknown> = { ...manifestVars, ...configOverrides };
 
-  // Bead outputs accessible under "beads" namespace
-  const beads: Record<string, unknown> = {};
-  for (const [beadName, result] of Object.entries(beadOutputs)) {
-    beads[beadName] = { output: result.output, rawOutput: result.rawOutput };
+  // Step outputs accessible under "steps" namespace
+  const steps: Record<string, unknown> = {};
+  for (const [stepName, result] of Object.entries(stepOutputs)) {
+    steps[stepName] = { output: result.output, rawOutput: result.rawOutput };
   }
-  merged.beads = beads;
+  merged.steps = steps;
 
   // Built-ins have highest precedence — overwrite anything
   for (const [key, value] of Object.entries(builtIns)) {
@@ -57,7 +57,7 @@ export function buildTemplateVars(
 
 /**
  * Resolves a dot-notation / array-index path through a nested object.
- * Example: "beads.analyze.output.results[0].name"
+ * Example: "steps.analyze.output.results[0].name"
  */
 export function resolveNestedValue(
   obj: Record<string, unknown>,
@@ -97,9 +97,9 @@ export function renderAgentTemplate(
 }
 
 /**
- * Validates at load time that all non-beads.* placeholders in the template
+ * Validates at load time that all non-steps.* placeholders in the template
  * are present in vars. Throws ManifestError if any are undefined.
- * beads.* references are skipped — they are only resolved at runtime.
+ * steps.* references are skipped — they are only resolved at runtime.
  */
 export function validateTemplateVars(
   template: string,
@@ -110,8 +110,8 @@ export function validateTemplateVars(
   ].map((m) => m[1]);
 
   const unresolved = placeholders.filter((key) => {
-    // Skip beads.* references — only resolved at runtime
-    if (key.startsWith("beads.")) return false;
+    // Skip steps.* references — only resolved at runtime
+    if (key.startsWith("steps.")) return false;
     return resolveNestedValue(vars, key) === undefined;
   });
 

@@ -24,9 +24,6 @@ inbox: ./inbox
 max_concurrent: 2
 default_timeout: "30m"
 
-beads:
-  enabled: false
-
 daemon:
   poll_interval_ms: 30000
   heartbeat_interval_ms: 10000

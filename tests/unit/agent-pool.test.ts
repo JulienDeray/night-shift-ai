@@ -4,25 +4,11 @@ import { Logger } from "../../src/core/logger.js";
 import type { NightShiftTask } from "../../src/core/types.js";
 import type { AgentRunResult } from "../../src/agent/engine-types.js";
 
-// Mock AgentEngine and BeadRegistry before importing AgentPool
+// Mock AgentEngine before importing AgentPool
 vi.mock("../../src/agent/engine.js", () => ({
   AgentEngine: vi.fn().mockImplementation(() => ({
     run: (...args: unknown[]) => mockEngineRunFn(...args),
   })),
-}));
-
-vi.mock("../../src/agent/bead-registry.js", () => ({
-  BeadRegistry: vi.fn().mockImplementation(() => ({
-    register: vi.fn(),
-  })),
-}));
-
-vi.mock("../../src/agent/plugins/standard-bead-plugin.js", () => ({
-  StandardBeadPlugin: vi.fn().mockImplementation(() => ({})),
-}));
-
-vi.mock("../../src/agent/plugins/git-clone-bead-plugin.js", () => ({
-  GitCloneBeadPlugin: vi.fn().mockImplementation(() => ({})),
 }));
 
 let mockEngineRunFn = vi.fn();
@@ -33,7 +19,7 @@ function makeSuccessResult(overrides: Partial<AgentRunResult> = {}): AgentRunRes
     agentName: "test-agent",
     status: "SUCCESS",
     finalOutput: null,
-    perBead: [],
+    perStep: [],
     totalDurationMs: 100,
     ...overrides,
   };

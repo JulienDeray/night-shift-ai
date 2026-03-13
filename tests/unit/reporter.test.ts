@@ -22,7 +22,7 @@ const makeResult = (overrides?: Partial<AgentRunResult>): AgentRunResult => ({
   agentName: "test-agent",
   status: "SUCCESS",
   finalOutput: "I did the thing successfully.",
-  perBead: [
+  perStep: [
     { name: "analyze", status: "SUCCESS", durationMs: 5000 },
     { name: "implement", status: "SUCCESS", durationMs: 90000 },
   ],
@@ -47,7 +47,7 @@ describe("generateReport", () => {
     expect(report).toContain("status: completed");
     expect(report).toContain("duration_seconds: 149");
     expect(report).toContain("agent_name: test-agent");
-    expect(report).toContain("bead_count: 2");
+    expect(report).toContain("step_count: 2");
 
     // Check body
     expect(report).toContain("# test-task");
@@ -74,10 +74,10 @@ describe("generateReport", () => {
     expect(report).toContain("Something went wrong");
   });
 
-  it("includes per-bead summary in report body", () => {
+  it("includes per-step summary in report body", () => {
     const task = makeTask();
     const result = makeResult({
-      perBead: [
+      perStep: [
         { name: "analyze", status: "SUCCESS", durationMs: 5000 },
         { name: "implement", status: "FAILED", durationMs: 30000, error: "Build failed" },
         { name: "verify", status: "SKIPPED", durationMs: 0 },
@@ -237,7 +237,7 @@ describe("toInboxEntry", () => {
     const task = makeTask();
     const result = makeResult({
       agentName: "test-agent",
-      perBead: [
+      perStep: [
         { name: "analyze", status: "SUCCESS", durationMs: 1000 },
         { name: "implement", status: "SUCCESS", durationMs: 2000 },
       ],
@@ -253,7 +253,7 @@ describe("toInboxEntry", () => {
     expect(entry.status).toBe("completed");
     expect(entry.durationSeconds).toBe(149);
     expect(entry.agentName).toBe("test-agent");
-    expect(entry.beadCount).toBe(2);
+    expect(entry.stepCount).toBe(2);
     expect(entry.filePath).toBe("/path/to/report.md");
   });
 

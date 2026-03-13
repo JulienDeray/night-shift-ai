@@ -34,12 +34,11 @@ describe("scaffoldAgent", () => {
     expect(result.success).toBe(true);
   });
 
-  it("creates prompts/preamble.md, prompts/clone-stub.md, prompts/analyze.md", async () => {
+  it("creates prompts/preamble.md and prompts/analyze.md", async () => {
     await scaffoldAgent("my-agent", { base: tmpDir });
     const promptsDir = path.join(tmpDir, "agents", "my-agent", "prompts");
 
     await expect(fs.access(path.join(promptsDir, "preamble.md"))).resolves.toBeUndefined();
-    await expect(fs.access(path.join(promptsDir, "clone-stub.md"))).resolves.toBeUndefined();
     await expect(fs.access(path.join(promptsDir, "analyze.md"))).resolves.toBeUndefined();
   });
 
@@ -118,32 +117,21 @@ describe("scaffoldAgent", () => {
     expect(result.configUpdated).toBe(false);
   });
 
-  it("manifest variables include repo_url with empty string default", async () => {
+  it("manifest steps include analyze step (no type field)", async () => {
     await scaffoldAgent("my-agent", { base: tmpDir });
     const content = await fs.readFile(
       path.join(tmpDir, "agents", "my-agent", "manifest.yaml"),
       "utf-8",
     );
     const manifest = parseYaml(content) as Record<string, unknown>;
-    const variables = manifest.variables as Record<string, string>;
-    expect(variables).toHaveProperty("repo_url", "");
-  });
+    const steps = manifest.steps as Array<Record<string, unknown>>;
 
-  it("manifest beads include clone (git-clone type) and analyze (standard type)", async () => {
-    await scaffoldAgent("my-agent", { base: tmpDir });
-    const content = await fs.readFile(
-      path.join(tmpDir, "agents", "my-agent", "manifest.yaml"),
-      "utf-8",
-    );
-    const manifest = parseYaml(content) as Record<string, unknown>;
-    const beads = manifest.beads as Array<Record<string, unknown>>;
+    expect(Array.isArray(steps)).toBe(true);
+    expect(steps.length).toBeGreaterThanOrEqual(1);
 
-    const cloneBead = beads.find((b) => b.name === "clone");
-    expect(cloneBead).toBeDefined();
-    expect(cloneBead!.type).toBe("git-clone");
-
-    const analyzeBead = beads.find((b) => b.name === "analyze");
-    expect(analyzeBead).toBeDefined();
-    expect(analyzeBead!.type).toBe("standard");
+    const analyzeStep = steps.find((s) => s.name === "analyze");
+    expect(analyzeStep).toBeDefined();
+    // No type field in steps
+    expect(analyzeStep!.type).toBeUndefined();
   });
 });

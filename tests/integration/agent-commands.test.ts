@@ -102,7 +102,7 @@ describe("agent CLI commands", () => {
     expect(res.exitCode).toBe(0);
     expect(res.stdout).toContain("test-agent");
     expect(res.stdout).toContain("Name");
-    expect(res.stdout).toContain("Beads");
+    expect(res.stdout).toContain("Steps");
   });
 
   it("agent list --json outputs valid JSON array", async () => {
@@ -114,7 +114,7 @@ describe("agent CLI commands", () => {
     expect(Array.isArray(parsed)).toBe(true);
     expect(parsed.length).toBeGreaterThan(0);
     expect(parsed[0]).toHaveProperty("name", "test-agent");
-    expect(parsed[0]).toHaveProperty("beads");
+    expect(parsed[0]).toHaveProperty("steps");
   });
 
   it("agent list with no agents shows helpful empty message", async () => {
@@ -127,15 +127,14 @@ describe("agent CLI commands", () => {
 
   // ── agent show ──────────────────────────────────────────────────────────────
 
-  it("agent show displays manifest summary and bead pipeline", async () => {
+  it("agent show displays manifest summary and step pipeline", async () => {
     await run(["agent", "init", "test-agent"]);
     const res = await run(["agent", "show", "test-agent"]);
 
     expect(res.exitCode).toBe(0);
     expect(res.stdout).toContain("test-agent");
     expect(res.stdout).toContain("Manifest Summary");
-    expect(res.stdout).toContain("Bead Pipeline");
-    expect(res.stdout).toContain("clone");
+    expect(res.stdout).toContain("Step Pipeline");
     expect(res.stdout).toContain("analyze");
   });
 });

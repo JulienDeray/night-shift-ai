@@ -6,12 +6,12 @@ vi.mock("../../src/utils/process.js", () => ({
   parseTimeout: vi.fn(() => 30000),
 }));
 
-import { runBead, buildBeadEnv, buildBeadArgs } from "../../src/agent/bead-runner.js";
+import { runStep, buildStepEnv, buildStepArgs } from "../../src/agent/step-runner.js";
 import { spawnWithTimeout } from "../../src/utils/process.js";
 
 const mockSpawn = vi.mocked(spawnWithTimeout);
 
-describe("runBead", () => {
+describe("runStep", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -39,8 +39,8 @@ describe("runBead", () => {
       kill: vi.fn(),
     });
 
-    const result = await runBead({
-      beadName: "preflight",
+    const result = await runStep({
+      stepName: "preflight",
       prompt: "test prompt",
       model: "sonnet",
       cwd: "/tmp",
@@ -66,8 +66,8 @@ describe("runBead", () => {
       kill: vi.fn(),
     });
 
-    const result = await runBead({
-      beadName: "preflight",
+    const result = await runStep({
+      stepName: "preflight",
       prompt: "test prompt",
       model: "sonnet",
       cwd: "/tmp",
@@ -88,8 +88,8 @@ describe("runBead", () => {
       kill: vi.fn(),
     });
 
-    const result = await runBead({
-      beadName: "preflight",
+    const result = await runStep({
+      stepName: "preflight",
       prompt: "test prompt",
       model: "sonnet",
       cwd: "/tmp",
@@ -101,9 +101,9 @@ describe("runBead", () => {
   });
 });
 
-describe("buildBeadEnv", () => {
+describe("buildStepEnv", () => {
   it("forwards declared env vars", () => {
-    const env = buildBeadEnv("test", [
+    const env = buildStepEnv("test", [
       { name: "GITLAB_TOKEN", value: "token-123" },
       { name: "BAMBOOHR_API_KEY", value: "key-456" },
     ]);
@@ -112,22 +112,22 @@ describe("buildBeadEnv", () => {
   });
 
   it("returns only safe defaults when no env vars declared", () => {
-    const env = buildBeadEnv("test");
+    const env = buildStepEnv("test");
     expect(env.GITLAB_TOKEN).toBeUndefined();
     expect(env.HOME).toBeDefined();
     expect(env.PATH).toBeDefined();
   });
 });
 
-describe("buildBeadArgs", () => {
+describe("buildStepArgs", () => {
   it("includes --output-format json flag", () => {
-    const args = buildBeadArgs("prompt", "sonnet");
+    const args = buildStepArgs("prompt", "sonnet");
     expect(args).toContain("--output-format");
     expect(args).toContain("json");
   });
 
   it("includes --mcp-config when mcpConfigPath provided", () => {
-    const args = buildBeadArgs("prompt", "sonnet", undefined, {
+    const args = buildStepArgs("prompt", "sonnet", undefined, {
       mcpConfigPath: "/path/to/mcp.json",
     });
     expect(args).toContain("--mcp-config");

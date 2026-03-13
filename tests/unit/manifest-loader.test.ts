@@ -9,14 +9,14 @@ import {
   assertContained,
   loadManifest,
   extractLastJsonBlock,
-  validateBeadOutput,
+  validateStepOutput,
   preprocessNullable,
 } from "../../src/agent/manifest-loader.js";
 import {
   ManifestError,
   ManifestSecurityError,
-  BeadContractViolationError,
-  BeadOutputMissingError,
+  StepContractViolationError,
+  StepOutputMissingError,
 } from "../../src/core/errors.js";
 
 // ---------------------------------------------------------------------------
@@ -51,10 +51,9 @@ async function createTempAgent(
 const VALID_MANIFEST = {
   name: "test-agent",
   description: "A test agent for unit tests",
-  beads: [
+  steps: [
     {
       name: "analyze",
-      type: "standard",
       prompt: "prompts/analyze.md",
       outputSchema: {
         type: "object",
@@ -148,8 +147,8 @@ describe("loadManifest — loading", () => {
       expect(loaded.agentDir).toBeTruthy();
       expect(path.isAbsolute(loaded.agentDir)).toBe(true);
       expect(loaded.variables).toEqual({});
-      expect(loaded.beads).toHaveLength(1);
-      expect(loaded.beads[0].name).toBe("analyze");
+      expect(loaded.steps).toHaveLength(1);
+      expect(loaded.steps[0].name).toBe("analyze");
     } finally {
       await cleanup();
     }
@@ -192,10 +191,10 @@ describe("loadManifest — loading", () => {
       const agentsRoot = path.join(tmpDir, "agents-root");
       const agentDir = path.join(agentsRoot, "invalid-agent");
       await fs.mkdir(agentDir, { recursive: true });
-      // Missing name, description, and beads is empty array (min 1 required)
+      // Missing name, description, and steps is empty array (min 1 required)
       await fs.writeFile(
         path.join(agentDir, "manifest.yaml"),
-        stringifyYaml({ beads: [] }),
+        stringifyYaml({ steps: [] }),
       );
       await expect(loadManifest(agentDir, agentsRoot)).rejects.toThrow(ManifestError);
       const err = await loadManifest(agentDir, agentsRoot).catch((e) => e);
@@ -212,97 +211,97 @@ describe("loadManifest — loading", () => {
 // ---------------------------------------------------------------------------
 
 describe("loadManifest — inheritance resolution", () => {
-  it("bead model overrides agent-level model", async () => {
+  it("step model overrides agent-level model", async () => {
     const { agentsRoot, agentDir, cleanup } = await createTempAgent({
       ...VALID_MANIFEST,
       model: "claude-haiku",
-      beads: [{ ...VALID_MANIFEST.beads[0], model: "claude-opus" }],
+      steps: [{ ...VALID_MANIFEST.steps[0], model: "claude-opus" }],
     });
     try {
       const loaded = await loadManifest(agentDir, agentsRoot);
-      expect(loaded.beads[0].model).toBe("claude-opus");
+      expect(loaded.steps[0].model).toBe("claude-opus");
     } finally {
       await cleanup();
     }
   });
 
-  it("bead inherits agent-level model when not specified", async () => {
+  it("step inherits agent-level model when not specified", async () => {
     const { agentsRoot, agentDir, cleanup } = await createTempAgent({
       ...VALID_MANIFEST,
       model: "claude-haiku",
     });
     try {
       const loaded = await loadManifest(agentDir, agentsRoot);
-      expect(loaded.beads[0].model).toBe("claude-haiku");
+      expect(loaded.steps[0].model).toBe("claude-haiku");
     } finally {
       await cleanup();
     }
   });
 
-  it("bead uses default model when neither agent nor bead specifies", async () => {
+  it("step uses default model when neither agent nor step specifies", async () => {
     const { agentsRoot, agentDir, cleanup } = await createTempAgent(VALID_MANIFEST);
     try {
       const loaded = await loadManifest(agentDir, agentsRoot);
-      expect(loaded.beads[0].model).toBe("claude-sonnet-4-20250514");
+      expect(loaded.steps[0].model).toBe("claude-sonnet-4-20250514");
     } finally {
       await cleanup();
     }
   });
 
-  it("bead timeout overrides agent-level timeout", async () => {
+  it("step timeout overrides agent-level timeout", async () => {
     const { agentsRoot, agentDir, cleanup } = await createTempAgent({
       ...VALID_MANIFEST,
       timeout: "5m",
-      beads: [{ ...VALID_MANIFEST.beads[0], timeout: "30m" }],
+      steps: [{ ...VALID_MANIFEST.steps[0], timeout: "30m" }],
     });
     try {
       const loaded = await loadManifest(agentDir, agentsRoot);
-      expect(loaded.beads[0].timeout).toBe("30m");
+      expect(loaded.steps[0].timeout).toBe("30m");
     } finally {
       await cleanup();
     }
   });
 
-  it("bead inherits agent-level timeout when not specified", async () => {
+  it("step inherits agent-level timeout when not specified", async () => {
     const { agentsRoot, agentDir, cleanup } = await createTempAgent({
       ...VALID_MANIFEST,
       timeout: "5m",
     });
     try {
       const loaded = await loadManifest(agentDir, agentsRoot);
-      expect(loaded.beads[0].timeout).toBe("5m");
+      expect(loaded.steps[0].timeout).toBe("5m");
     } finally {
       await cleanup();
     }
   });
 
-  it("bead allowedTools replaces agent-level entirely (not merged)", async () => {
+  it("step allowedTools replaces agent-level entirely (not merged)", async () => {
     const { agentsRoot, agentDir, cleanup } = await createTempAgent({
       ...VALID_MANIFEST,
       allowedTools: ["Bash"],
-      beads: [
-        { ...VALID_MANIFEST.beads[0], allowedTools: ["Bash", "Read", "Write", "WebFetch"] },
+      steps: [
+        { ...VALID_MANIFEST.steps[0], allowedTools: ["Bash", "Read", "Write", "WebFetch"] },
       ],
     });
     try {
       const loaded = await loadManifest(agentDir, agentsRoot);
-      expect(loaded.beads[0].allowedTools).toEqual(["Bash", "Read", "Write", "WebFetch"]);
+      expect(loaded.steps[0].allowedTools).toEqual(["Bash", "Read", "Write", "WebFetch"]);
     } finally {
       await cleanup();
     }
   });
 
-  it("bead env merges with agent-level env (both kept)", async () => {
+  it("step env merges with agent-level env (both kept)", async () => {
     vi.stubEnv("HOME", "/home/test");
     vi.stubEnv("PATH", "/usr/bin");
     const { agentsRoot, agentDir, cleanup } = await createTempAgent({
       ...VALID_MANIFEST,
       env: ["HOME"],
-      beads: [{ ...VALID_MANIFEST.beads[0], env: ["PATH"] }],
+      steps: [{ ...VALID_MANIFEST.steps[0], env: ["PATH"] }],
     });
     try {
       const loaded = await loadManifest(agentDir, agentsRoot);
-      const envNames = loaded.beads[0].env.map((e) => e.name);
+      const envNames = loaded.steps[0].env.map((e) => e.name);
       expect(envNames).toContain("HOME");
       expect(envNames).toContain("PATH");
     } finally {
@@ -311,21 +310,21 @@ describe("loadManifest — inheritance resolution", () => {
     }
   });
 
-  it("bead env wins collision with agent-level env", async () => {
+  it("step env wins collision with agent-level env", async () => {
     const { agentsRoot, agentDir, cleanup } = await createTempAgent({
       ...VALID_MANIFEST,
       env: [{ name: "MY_VAR", value: "agent-val" }],
-      beads: [
+      steps: [
         {
-          ...VALID_MANIFEST.beads[0],
-          env: [{ name: "MY_VAR", value: "bead-val" }],
+          ...VALID_MANIFEST.steps[0],
+          env: [{ name: "MY_VAR", value: "step-val" }],
         },
       ],
     });
     try {
       const loaded = await loadManifest(agentDir, agentsRoot);
-      const myVar = loaded.beads[0].env.find((e) => e.name === "MY_VAR");
-      expect(myVar?.value).toBe("bead-val");
+      const myVar = loaded.steps[0].env.find((e) => e.name === "MY_VAR");
+      expect(myVar?.value).toBe("step-val");
     } finally {
       await cleanup();
     }
@@ -349,7 +348,7 @@ describe("loadManifest — env resolution", () => {
     });
     try {
       const loaded = await loadManifest(agentDir, agentsRoot);
-      const token = loaded.beads[0].env.find((e) => e.name === "MY_TOKEN");
+      const token = loaded.steps[0].env.find((e) => e.name === "MY_TOKEN");
       expect(token?.value).toBe("abc123");
     } finally {
       await cleanup();
@@ -400,7 +399,7 @@ describe("loadManifest — output schema compilation", () => {
     const { agentsRoot, agentDir, cleanup } = await createTempAgent(VALID_MANIFEST);
     try {
       const loaded = await loadManifest(agentDir, agentsRoot);
-      const compiled = loaded.beads[0].compiledOutputSchema;
+      const compiled = loaded.steps[0].compiledOutputSchema;
       expect(compiled).toBeDefined();
       expect(typeof compiled.safeParse).toBe("function");
     } finally {
@@ -411,9 +410,9 @@ describe("loadManifest — output schema compilation", () => {
   it("invalid outputSchema throws ManifestError at load time", async () => {
     const { agentsRoot, agentDir, cleanup } = await createTempAgent({
       ...VALID_MANIFEST,
-      beads: [
+      steps: [
         {
-          ...VALID_MANIFEST.beads[0],
+          ...VALID_MANIFEST.steps[0],
           // INVALID_TYPE is not a valid JSON Schema type
           outputSchema: { type: "INVALID_TYPE" },
         },
@@ -429,10 +428,10 @@ describe("loadManifest — output schema compilation", () => {
 });
 
 // ---------------------------------------------------------------------------
-// 6. Bead output validation tests (PLUG-03)
+// 6. Step output validation tests (PLUG-03)
 // ---------------------------------------------------------------------------
 
-describe("validateBeadOutput", () => {
+describe("validateStepOutput", () => {
   const resultSchema = z.fromJSONSchema({
     type: "object",
     required: ["result"],
@@ -441,27 +440,27 @@ describe("validateBeadOutput", () => {
 
   it("output matching schema passes and returns parsed value", () => {
     const rawOutput = 'Here is the output:\n```json\n{"result":"ok"}\n```';
-    const parsed = validateBeadOutput(rawOutput, resultSchema, "test-bead");
+    const parsed = validateStepOutput(rawOutput, resultSchema, "test-step");
     expect(parsed).toEqual({ result: "ok" });
   });
 
-  it("output violating schema throws BeadContractViolationError", () => {
+  it("output violating schema throws StepContractViolationError", () => {
     const rawOutput = '```json\n{"result":42}\n```';
-    expect(() => validateBeadOutput(rawOutput, resultSchema, "test-bead")).toThrow(
-      BeadContractViolationError,
+    expect(() => validateStepOutput(rawOutput, resultSchema, "test-step")).toThrow(
+      StepContractViolationError,
     );
-    expect(() => validateBeadOutput(rawOutput, resultSchema, "test-bead")).toThrow(
-      "BEAD_CONTRACT_VIOLATION",
+    expect(() => validateStepOutput(rawOutput, resultSchema, "test-step")).toThrow(
+      "STEP_CONTRACT_VIOLATION",
     );
   });
 
-  it("no JSON block throws BeadOutputMissingError", () => {
+  it("no JSON block throws StepOutputMissingError", () => {
     const rawOutput = "This is plain text without any code blocks.";
-    expect(() => validateBeadOutput(rawOutput, resultSchema, "test-bead")).toThrow(
-      BeadOutputMissingError,
+    expect(() => validateStepOutput(rawOutput, resultSchema, "test-step")).toThrow(
+      StepOutputMissingError,
     );
-    expect(() => validateBeadOutput(rawOutput, resultSchema, "test-bead")).toThrow(
-      "BEAD_OUTPUT_MISSING",
+    expect(() => validateStepOutput(rawOutput, resultSchema, "test-step")).toThrow(
+      "STEP_OUTPUT_MISSING",
     );
   });
 
@@ -476,7 +475,7 @@ describe("validateBeadOutput", () => {
       '{"result":"second"}',
       "```",
     ].join("\n");
-    const parsed = validateBeadOutput(rawOutput, resultSchema, "test-bead");
+    const parsed = validateStepOutput(rawOutput, resultSchema, "test-step");
     expect(parsed).toEqual({ result: "second" });
   });
 });
@@ -598,9 +597,9 @@ describe("loadManifest — nullable field integration", () => {
   it("manifest with nullable: true on a string property compiles and accepts both string and null", async () => {
     const manifest = {
       ...VALID_MANIFEST,
-      beads: [
+      steps: [
         {
-          ...VALID_MANIFEST.beads[0],
+          ...VALID_MANIFEST.steps[0],
           outputSchema: {
             type: "object",
             properties: {
@@ -615,7 +614,7 @@ describe("loadManifest — nullable field integration", () => {
     const { agentsRoot, agentDir, cleanup } = await createTempAgent(manifest);
     try {
       const loaded = await loadManifest(agentDir, agentsRoot);
-      const compiled = loaded.beads[0].compiledOutputSchema;
+      const compiled = loaded.steps[0].compiledOutputSchema;
       // accepts string value
       expect(compiled.safeParse({ result: "ok", note: "some note" }).success).toBe(true);
       // accepts null value for nullable field
@@ -630,9 +629,9 @@ describe("loadManifest — nullable field integration", () => {
   it("manifest without nullable on a string property rejects null", async () => {
     const manifest = {
       ...VALID_MANIFEST,
-      beads: [
+      steps: [
         {
-          ...VALID_MANIFEST.beads[0],
+          ...VALID_MANIFEST.steps[0],
           outputSchema: {
             type: "object",
             properties: {
@@ -647,7 +646,7 @@ describe("loadManifest — nullable field integration", () => {
     const { agentsRoot, agentDir, cleanup } = await createTempAgent(manifest);
     try {
       const loaded = await loadManifest(agentDir, agentsRoot);
-      const compiled = loaded.beads[0].compiledOutputSchema;
+      const compiled = loaded.steps[0].compiledOutputSchema;
       // rejects null for non-nullable field
       expect(compiled.safeParse({ result: "ok", note: null }).success).toBe(false);
     } finally {

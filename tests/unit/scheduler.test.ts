@@ -17,7 +17,6 @@ function makeConfig(overrides?: Partial<NightShiftConfig>): NightShiftConfig {
     inbox: "./inbox",
     maxConcurrent: 2,
     defaultTimeout: "30m",
-    beads: { enabled: false },
     daemon: {
       pollIntervalMs: 30000,
       heartbeatIntervalMs: 10000,

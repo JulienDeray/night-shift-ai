@@ -35,8 +35,6 @@ describe("nightshift schedule", () => {
   it("displays schedule entries in a table with next run time", async () => {
     const configYaml = `workspace: ./workspace
 max_concurrent: 2
-beads:
-  enabled: false
 daemon:
   poll_interval_ms: 30000
   heartbeat_interval_ms: 10000
@@ -65,8 +63,6 @@ one_off_defaults:
   it("shows disabled for entries with enabled: false", async () => {
     const configYaml = `workspace: ./workspace
 max_concurrent: 2
-beads:
-  enabled: false
 daemon:
   poll_interval_ms: 30000
   heartbeat_interval_ms: 10000

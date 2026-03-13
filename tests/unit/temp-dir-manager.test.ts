@@ -22,34 +22,25 @@ describe("TempDirManager", () => {
   });
 
   describe("create()", () => {
-    it("creates tmpDir, repoDir, and handoffDir under os.tmpdir()", async () => {
+    it("creates a flat tmpDir under os.tmpdir()", async () => {
       const manager = new TempDirManager(logger);
       const runId = `test-${Date.now()}`;
 
-      const { tmpDir, repoDir, handoffDir } = await manager.create(runId);
+      const { tmpDir } = await manager.create(runId);
       dirsToClean.push(tmpDir);
 
       expect(tmpDir).toBe(path.join(os.tmpdir(), `nightshift-${runId}`));
-      expect(repoDir).toBe(path.join(tmpDir, "repo"));
-      expect(handoffDir).toBe(path.join(tmpDir, "handoff"));
     });
 
-    it("creates all three directories on disk", async () => {
+    it("creates the tmpDir on disk", async () => {
       const manager = new TempDirManager(logger);
       const runId = `test-${Date.now()}`;
 
-      const { tmpDir, repoDir, handoffDir } = await manager.create(runId);
+      const { tmpDir } = await manager.create(runId);
       dirsToClean.push(tmpDir);
 
-      const [tmpStat, repoStat, handoffStat] = await Promise.all([
-        fs.stat(tmpDir),
-        fs.stat(repoDir),
-        fs.stat(handoffDir),
-      ]);
-
-      expect(tmpStat.isDirectory()).toBe(true);
-      expect(repoStat.isDirectory()).toBe(true);
-      expect(handoffStat.isDirectory()).toBe(true);
+      const stat = await fs.stat(tmpDir);
+      expect(stat.isDirectory()).toBe(true);
     });
   });
 
@@ -61,7 +52,7 @@ describe("TempDirManager", () => {
       const { tmpDir } = await manager.create(runId);
 
       // Write a file inside to verify recursive removal
-      await fs.writeFile(path.join(tmpDir, "repo", "test.txt"), "hello");
+      await fs.writeFile(path.join(tmpDir, "test.txt"), "hello");
 
       await manager.cleanup(tmpDir);
 

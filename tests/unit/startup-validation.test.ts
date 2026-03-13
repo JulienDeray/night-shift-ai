@@ -39,7 +39,6 @@ function makeConfig(overrides: Partial<NightShiftConfig> = {}): NightShiftConfig
     inbox: "./inbox",
     maxConcurrent: 2,
     defaultTimeout: "15m",
-    beads: { enabled: false },
     daemon: { pollIntervalMs: 30000, heartbeatIntervalMs: 60000, logRetentionDays: 7 },
     agentsDir: "./agents",
     agents: [],
@@ -57,20 +56,19 @@ function makeLoadedManifest(
   options: {
     name?: string;
     variables?: Record<string, string>;
-    beads?: Array<{ name: string; prompt: string }>;
+    steps?: Array<{ name: string; prompt: string }>;
   } = {},
 ) {
-  const { name = "test-agent", variables = {}, beads = [{ name: "analyze", prompt: "prompts/analyze.md" }] } =
+  const { name = "test-agent", variables = {}, steps = [{ name: "analyze", prompt: "prompts/analyze.md" }] } =
     options;
   return {
     name,
     description: "A test agent",
     agentDir,
     variables,
-    beads: beads.map((b) => ({
-      name: b.name,
-      type: "standard",
-      prompt: b.prompt,
+    steps: steps.map((s) => ({
+      name: s.name,
+      prompt: s.prompt,
       model: "claude-sonnet-4-20250514",
       timeout: "15m",
       allowedTools: ["Bash", "Read", "Write"],
@@ -169,7 +167,7 @@ describe("validateAgentsAtStartup", () => {
     vi.mocked(loadManifest).mockResolvedValue(
       makeLoadedManifest(agentDir, {
         name: "missing-prompt-agent",
-        beads: [{ name: "analyze", prompt: "prompts/analyze.md" }],
+        steps: [{ name: "analyze", prompt: "prompts/analyze.md" }],
       }),
     );
 
@@ -198,7 +196,7 @@ describe("validateAgentsAtStartup", () => {
       makeLoadedManifest(agentDir, {
         name: "undefined-var-agent",
         variables: {}, // custom_var NOT present
-        beads: [{ name: "analyze", prompt: "prompts/analyze.md" }],
+        steps: [{ name: "analyze", prompt: "prompts/analyze.md" }],
       }),
     );
 
@@ -226,7 +224,7 @@ describe("validateAgentsAtStartup", () => {
       makeLoadedManifest(agentDir, {
         name: "manifest-var-agent",
         variables: { custom_var: "default-value" }, // provided in manifest
-        beads: [{ name: "analyze", prompt: "prompts/analyze.md" }],
+        steps: [{ name: "analyze", prompt: "prompts/analyze.md" }],
       }),
     );
 
@@ -251,7 +249,7 @@ describe("validateAgentsAtStartup", () => {
       makeLoadedManifest(agentDir, {
         name: "config-var-agent",
         variables: {}, // NOT in manifest
-        beads: [{ name: "analyze", prompt: "prompts/analyze.md" }],
+        steps: [{ name: "analyze", prompt: "prompts/analyze.md" }],
       }),
     );
 
@@ -277,7 +275,7 @@ describe("validateAgentsAtStartup", () => {
       makeLoadedManifest(agentDir, {
         name: "schedule-var-agent",
         variables: {}, // NOT in manifest
-        beads: [{ name: "analyze", prompt: "prompts/analyze.md" }],
+        steps: [{ name: "analyze", prompt: "prompts/analyze.md" }],
       }),
     );
 
@@ -311,7 +309,7 @@ describe("validateAgentsAtStartup", () => {
       makeLoadedManifest(agentDir, {
         name: "builtin-var-agent",
         variables: {},
-        beads: [{ name: "analyze", prompt: "prompts/analyze.md" }],
+        steps: [{ name: "analyze", prompt: "prompts/analyze.md" }],
       }),
     );
 
@@ -323,26 +321,26 @@ describe("validateAgentsAtStartup", () => {
     await expect(validateAgentsAtStartup(config, tmpDir)).resolves.toBeUndefined();
   });
 
-  // 11. beads.* variables are skipped at startup
-  it("beads.* variables are skipped at startup", async () => {
-    const agentDir = path.join(tmpDir, "agents", "bead-ref-agent");
+  // 11. steps.* variables are skipped at startup
+  it("steps.* variables are skipped at startup", async () => {
+    const agentDir = path.join(tmpDir, "agents", "step-ref-agent");
     await fs.mkdir(path.join(agentDir, "prompts"), { recursive: true });
-    // beads.* references are only resolved at runtime — skip validation
+    // steps.* references are only resolved at runtime — skip validation
     await fs.writeFile(
       path.join(agentDir, "prompts", "verify.md"),
-      "Verify this result: {{beads.analyze.output.result}}",
+      "Verify this result: {{steps.analyze.output.result}}",
     );
 
     vi.mocked(loadManifest).mockResolvedValue(
       makeLoadedManifest(agentDir, {
-        name: "bead-ref-agent",
+        name: "step-ref-agent",
         variables: {},
-        beads: [{ name: "verify", prompt: "prompts/verify.md" }],
+        steps: [{ name: "verify", prompt: "prompts/verify.md" }],
       }),
     );
 
     const config = makeConfig({
-      agents: [{ name: "bead-ref-agent" }],
+      agents: [{ name: "step-ref-agent" }],
       schedule: [],
     });
 
@@ -368,16 +366,16 @@ describe("validateAgentsAtStartup", () => {
     expect(err.message).toContain("agent-two");
   });
 
-  // 13. Collects errors from multiple beads in same agent
-  it("collects errors from multiple beads in same agent", async () => {
-    const agentDir = path.join(tmpDir, "agents", "multi-bead-agent");
+  // 13. Collects errors from multiple steps in same agent
+  it("collects errors from multiple steps in same agent", async () => {
+    const agentDir = path.join(tmpDir, "agents", "multi-step-agent");
     await fs.mkdir(agentDir, { recursive: true });
-    // Neither prompt file exists — both beads should fail
+    // Neither prompt file exists — both steps should fail
 
     vi.mocked(loadManifest).mockResolvedValue(
       makeLoadedManifest(agentDir, {
-        name: "multi-bead-agent",
-        beads: [
+        name: "multi-step-agent",
+        steps: [
           { name: "analyze", prompt: "prompts/analyze.md" },
           { name: "verify", prompt: "prompts/verify.md" },
         ],
@@ -385,7 +383,7 @@ describe("validateAgentsAtStartup", () => {
     );
 
     const config = makeConfig({
-      agents: [{ name: "multi-bead-agent" }],
+      agents: [{ name: "multi-step-agent" }],
       schedule: [],
     });
 

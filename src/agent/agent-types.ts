@@ -17,7 +17,7 @@ export function validateAgentName(name: string): { valid: boolean; error?: strin
 
 /**
  * Minimal agent configuration stub for Phase 5.
- * Expanded in later phases (manifest path, bead config, etc.).
+ * Expanded in later phases (manifest path, step config, etc.).
  */
 export interface AgentConfig {
   name: string;   // kebab-case, max 64 chars
@@ -51,8 +51,8 @@ export interface AgentRunResult {
 }
 
 /**
- * Typed handoff payload for bead-to-bead data passing.
- * All beads write and read this shape from the handoff file.
+ * Typed handoff payload for step-to-step data passing.
+ * All steps write and read this shape from the handoff file.
  */
 export interface HandoffPayload {
   [key: string]: unknown;

@@ -19,8 +19,6 @@ describe("nightshift inbox", () => {
   async function writeConfig(): Promise<void> {
     const config = `workspace: ./workspace
 max_concurrent: 2
-beads:
-  enabled: false
 daemon:
   poll_interval_ms: 30000
   heartbeat_interval_ms: 10000
