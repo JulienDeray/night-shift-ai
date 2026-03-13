@@ -53,7 +53,11 @@
   2. AgentEngine runs pipeline steps inline — no plugin dispatch, no registry lookup
   3. Manifest schema uses direct step definitions — no bead ID references in any agent directory
   4. All agent execution tests pass with no bead-related test helpers or fixtures remaining
-**Plans**: TBD
+**Plans**: 3 plans
+Plans:
+- [ ] 14-01-PLAN.md — Rename types, schemas, and errors from bead to step terminology
+- [ ] 14-02-PLAN.md — Inline step execution into AgentEngine, delete plugin system and BeadsClient
+- [ ] 14-03-PLAN.md — Migrate tests, update scaffold, final bead-word sweep
 
 ### Phase 15: Notifications
 **Goal**: Ntfy notifications are human-readable and agent-agnostic — showing task name, agent name, and structured output for every lifecycle event
@@ -106,7 +110,7 @@
 | 11. Developer Experience | v2.0 | 3/3 | Complete | 2026-03-09 |
 | 12. Fix Scheduler Dispatch Wiring | v2.0 | 1/1 | Complete | 2026-03-09 |
 | 13. Phase 11 Verification | v2.0 | 1/1 | Complete | 2026-03-09 |
-| 14. Bead Removal | v3.0 | 0/? | Not started | - |
+| 14. Bead Removal | v3.0 | 0/3 | Not started | - |
 | 15. Notifications | v3.0 | 0/? | Not started | - |
 | 16. Codebase Cleanup | v3.0 | 0/? | Not started | - |
 | 17. E2E Testing Framework | v3.0 | 0/? | Not started | - |
