@@ -10,6 +10,7 @@ import { readJsonFile } from "../utils/fs.js";
 import { getQueueDir } from "../core/paths.js";
 import type { DaemonState, NightShiftConfig, NightShiftTask } from "../core/types.js";
 import { NtfyClient } from "../notifications/ntfy-client.js";
+import { NotificationService } from "../notifications/notification-service.js";
 import fs from "node:fs/promises";
 import { loadManifest } from "../agent/manifest-loader.js";
 import { BUILT_IN_VARS, validateTemplateVars } from "../agent/template.js";
@@ -108,7 +109,7 @@ export class Orchestrator {
   private logger!: Logger;
   private scheduler!: Scheduler;
   private pool!: AgentPool;
-  private ntfy: NtfyClient | null = null;
+  private notificationService!: NotificationService;
   private stopping = false;
   private pollTimer: ReturnType<typeof setTimeout> | null = null;
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
@@ -136,7 +137,8 @@ export class Orchestrator {
       agentsDir: this.config.agentsDir,
     });
 
-    this.ntfy = this.config.ntfy ? new NtfyClient(this.config.ntfy) : null;
+    const ntfy = this.config.ntfy ? new NtfyClient(this.config.ntfy) : null;
+    this.notificationService = new NotificationService(ntfy, this.logger);
 
     await ensureNightShiftDirs();
     await this.scheduler.loadState();
@@ -232,7 +234,7 @@ export class Orchestrator {
     for (const task of scheduledTasks) {
       if (!this.pool.canAccept()) break;
       this.pool.dispatch(task);
-      this.notifyTaskStart(task);
+      this.notificationService.taskStarted(task);
     }
 
     // 2. Collect completed tasks
@@ -251,7 +253,7 @@ export class Orchestrator {
         const claimed = await this.claimTask(task);
         if (claimed) {
           this.pool.dispatch(task);
-          this.notifyTaskStart(task);
+          this.notificationService.taskStarted(task);
         }
       }
     }
@@ -348,46 +350,7 @@ export class Orchestrator {
     }
 
     // Notify
-    this.notifyTaskEnd(task, result);
-  }
-
-  private notifyTaskStart(task: NightShiftTask): void {
-    if (!this.ntfy || !task.notify) return;
-    const body = task.agentName
-      ? `Agent: ${task.agentName}`
-      : "Running\u2026";
-    void this.ntfy.send(
-      {
-        title: `Night-shift started: ${task.name}`,
-        body,
-        priority: 3,
-      },
-      this.logger,
-    );
-  }
-
-  private notifyTaskEnd(task: NightShiftTask, result: AgentRunResult): void {
-    if (!this.ntfy || !task.notify) return;
-    const isFailure = result.status !== "SUCCESS";
-    let body: string;
-    if (isFailure) {
-      body = `Error: ${result.error?.slice(0, 200) ?? "Unknown error"}`;
-    } else {
-      const summary = typeof result.finalOutput === "string"
-        ? result.finalOutput.slice(0, 200)
-        : JSON.stringify(result.finalOutput)?.slice(0, 200) ?? "";
-      body = summary;
-    }
-    void this.ntfy.send(
-      {
-        title: isFailure
-          ? `Night-shift FAILED: ${task.name}`
-          : `Night-shift done: ${task.name}`,
-        body,
-        priority: isFailure ? 4 : 3,
-      },
-      this.logger,
-    );
+    this.notificationService.taskCompleted(task, result);
   }
 
   private async writeHeartbeat(): Promise<void> {
