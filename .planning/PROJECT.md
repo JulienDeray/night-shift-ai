@@ -42,7 +42,10 @@ Small, focused merge requests that appear in the morning — one coherent improv
 
 ### Active
 
-(None yet — start next milestone to define)
+- [ ] Remove bead abstraction layer (BeadPlugin/BeadRegistry/BeadRunner) — inline pipeline logic, keep sequential steps
+- [ ] Human-readable ntfy notifications — task name, agent, category, duration, MR link instead of raw JSON
+- [ ] Systematic codebase cleanup — dead code removal, legacy complexity reduction, simplification
+- [ ] Full E2E testing framework — real daemon lifecycle, agent submission, output verification, mocked externals
 
 ### Out of Scope
 
@@ -61,7 +64,7 @@ Small, focused merge requests that appear in the morning — one coherent improv
 
 ## Context
 
-Shipped v2.0 with 12,752 LOC TypeScript across 13 phases (v1.0 + v2.0) in 16 days total.
+Shipped v2.0 with 12,752 LOC TypeScript across 13 phases (v1.0 + v2.0) in 16 days total. 14 quick tasks completed post-v2.0 (sync execution, cancel, bead output files, manifest validation, self-retry, log rotation, etc.).
 Tech stack: Node.js 22, TypeScript strict, ESM, Zod v4, vitest, Commander.
 Agent execution via `claude -p` with `--allowedTools` restriction and `--dangerously-skip-permissions`.
 GitLab operations via `glab` CLI (pre-authenticated). Confluence updates via MCP Atlassian tools.
@@ -104,4 +107,4 @@ Known areas needing empirical validation after first real runs:
 | Per-bead model/tools/env/timeout from manifest | Agents control their own execution parameters | ✓ Good — no engine defaults override agent intent |
 
 ---
-*Last updated: 2026-03-09 after v2.0 milestone*
+*Last updated: 2026-03-13 after v3.0 milestone start*
