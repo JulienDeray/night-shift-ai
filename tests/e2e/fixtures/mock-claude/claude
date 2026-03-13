@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# Mock claude CLI shim for E2E tests.
+# Reads MOCK_CLAUDE_SLEEP_MS to simulate slow responses (for timeout tests).
+# Reads MOCK_CLAUDE_RESPONSE_FILE to return a canned JSON response.
+# Falls back to a default success response if neither is set.
+
+if [ -n "$MOCK_CLAUDE_SLEEP_MS" ]; then
+  sleep_secs=$(echo "scale=3; $MOCK_CLAUDE_SLEEP_MS / 1000" | bc)
+  sleep "$sleep_secs"
+fi
+
+if [ -n "$MOCK_CLAUDE_RESPONSE_FILE" ] && [ -f "$MOCK_CLAUDE_RESPONSE_FILE" ]; then
+  cat "$MOCK_CLAUDE_RESPONSE_FILE"
+  exit 0
+fi
+
+# Default success response
+printf '{"session_id":"mock","result":"```json\n{\"result\":\"default mock output\"}\n```","is_error":false,"duration_ms":100,"total_cost_usd":0,"num_turns":1}'
+exit 0
