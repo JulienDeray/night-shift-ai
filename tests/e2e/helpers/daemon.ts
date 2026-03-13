@@ -44,21 +44,35 @@ export async function startDaemon(
 }
 
 /**
- * Polls daemon.json until status === "running" and lastHeartbeat is fresh.
+ * Polls daemon.json until status === "running" and lastHeartbeat was written
+ * after the polling started (so we don't accept stale heartbeats from a
+ * previously running daemon, e.g. after a SIGKILL in crash recovery tests).
  */
 export async function waitForDaemonReady(
   cwd: string,
   maxWaitMs = 30_000,
 ): Promise<void> {
-  const deadline = Date.now() + maxWaitMs;
+  const startTime = Date.now();
+  const deadline = startTime + maxWaitMs;
   const daemonJsonPath = path.join(cwd, ".nightshift", "daemon.json");
 
   while (Date.now() < deadline) {
     try {
       const raw = await fs.readFile(daemonJsonPath, "utf-8");
-      const state = JSON.parse(raw) as { status: string; lastHeartbeat: string };
-      const age = Date.now() - new Date(state.lastHeartbeat).getTime();
-      if (state.status === "running" && age < 5000) return;
+      const state = JSON.parse(raw) as { status: string; lastHeartbeat: string; pid: number };
+      const heartbeatTime = new Date(state.lastHeartbeat).getTime();
+      // Accept heartbeat only if:
+      // - status is "running"
+      // - heartbeat was written AFTER we started polling (not from a previous daemon)
+      // - heartbeat is fresh (within 5 seconds of now)
+      const age = Date.now() - heartbeatTime;
+      if (
+        state.status === "running" &&
+        heartbeatTime > startTime &&
+        age < 5000
+      ) {
+        return;
+      }
     } catch {
       // file not yet written — keep polling
     }

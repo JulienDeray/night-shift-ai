@@ -119,7 +119,17 @@ describe("daemon lifecycle", () => {
     // by health module when orchestrator starts and writes a new state)
     const handle2: DaemonHandle = await startDaemon(tmpDir, daemonEnv);
     expect(handle2.pid).toBeGreaterThan(0);
-    expect(handle2.pid).not.toBe(firstPid);
+
+    // Verify the new daemon is actually running (OS may reuse PIDs, so we
+    // check liveness rather than asserting the PID must be different)
+    let newDaemonAlive = false;
+    try {
+      process.kill(handle2.pid!, 0);
+      newDaemonAlive = true;
+    } catch {
+      newDaemonAlive = false;
+    }
+    expect(newDaemonAlive).toBe(true);
 
     await stopDaemon(tmpDir);
   });
