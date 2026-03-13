@@ -114,6 +114,6 @@ Plans:
 | 12. Fix Scheduler Dispatch Wiring | v2.0 | 1/1 | Complete | 2026-03-09 |
 | 13. Phase 11 Verification | v2.0 | 1/1 | Complete | 2026-03-09 |
 | 14. Bead Removal | 3/3 | Complete    | 2026-03-13 | - |
-| 15. Notifications | 2/2 | Complete   | 2026-03-13 | - |
+| 15. Notifications | 2/2 | Complete    | 2026-03-13 | - |
 | 16. Codebase Cleanup | v3.0 | 0/? | Not started | - |
 | 17. E2E Testing Framework | v3.0 | 0/? | Not started | - |
