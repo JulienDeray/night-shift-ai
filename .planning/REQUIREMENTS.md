@@ -64,29 +64,29 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| BEAD-01 | — | Pending |
-| BEAD-02 | — | Pending |
-| BEAD-03 | — | Pending |
-| BEAD-04 | — | Pending |
-| NTFY-01 | — | Pending |
-| NTFY-02 | — | Pending |
-| NTFY-03 | — | Pending |
-| NTFY-04 | — | Pending |
-| CLEAN-01 | — | Pending |
-| CLEAN-02 | — | Pending |
-| CLEAN-03 | — | Pending |
-| CLEAN-04 | — | Pending |
-| TEST-01 | — | Pending |
-| TEST-02 | — | Pending |
-| TEST-03 | — | Pending |
-| TEST-04 | — | Pending |
-| TEST-05 | — | Pending |
+| BEAD-01 | Phase 14 | Pending |
+| BEAD-02 | Phase 14 | Pending |
+| BEAD-03 | Phase 14 | Pending |
+| BEAD-04 | Phase 14 | Pending |
+| NTFY-01 | Phase 15 | Pending |
+| NTFY-02 | Phase 15 | Pending |
+| NTFY-03 | Phase 15 | Pending |
+| NTFY-04 | Phase 15 | Pending |
+| CLEAN-01 | Phase 16 | Pending |
+| CLEAN-02 | Phase 16 | Pending |
+| CLEAN-03 | Phase 16 | Pending |
+| CLEAN-04 | Phase 16 | Pending |
+| TEST-01 | Phase 17 | Pending |
+| TEST-02 | Phase 17 | Pending |
+| TEST-03 | Phase 17 | Pending |
+| TEST-04 | Phase 17 | Pending |
+| TEST-05 | Phase 17 | Pending |
 
 **Coverage:**
 - v3.0 requirements: 17 total
-- Mapped to phases: 0
-- Unmapped: 17
+- Mapped to phases: 17
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-13*
-*Last updated: 2026-03-13 after initial definition*
+*Last updated: 2026-03-13 after roadmap creation (phases 14-17)*

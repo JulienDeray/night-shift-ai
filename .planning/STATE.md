@@ -2,12 +2,12 @@
 gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Consolidation
-status: defining-requirements
+status: ready-to-plan
 stopped_at: null
 last_updated: "2026-03-13"
-last_activity: 2026-03-13 — Milestone v3.0 started
+last_activity: 2026-03-13 — Roadmap created for v3.0 (phases 14-17)
 progress:
-  total_phases: 0
+  total_phases: 4
   completed_phases: 0
   total_plans: 0
   completed_plans: 0
@@ -21,14 +21,15 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-13)
 
 **Core value:** Small, focused merge requests that appear in the morning — one coherent improvement per night, easy to review, never overwhelming.
-**Current focus:** Defining requirements for v3.0 Consolidation
+**Current focus:** Phase 14: Bead Removal (ready to plan)
 
 ## Current Position
 
 Milestone: v3.0 Consolidation
-Phase: Not started (defining requirements)
-Status: Defining requirements
-Last activity: 2026-03-13 — Milestone v3.0 started
+Phase: 14 of 17 (Bead Removal)
+Plan: Not started
+Status: Ready to plan
+Last activity: 2026-03-13 — Roadmap created, phases 14-17 defined
 
 Progress: [░░░░░░░░░░] 0%
 
@@ -63,25 +64,11 @@ Carried from v1.0 (need empirical validation):
 
 ### Quick Tasks Completed
 
-| # | Description | Date | Commit | Directory |
-|---|-------------|------|--------|-----------|
-| 1 | Wire runCodeAgent into daemon | 2026-02-25 | 3e5b733 | [1-wire-runcodeagent-into-daemon](./quick/1-wire-runcodeagent-into-daemon/) |
-| 2 | Implement nightshift run command | 2026-02-25 | acad107 | [2-implement-a-nightshift-command-to-run-a-](./quick/2-implement-a-nightshift-command-to-run-a-/) |
-| 3 | Load GitLab token from .env file | 2026-02-25 | 9fafd83 | [3-load-gitlab-token-from-env-file-if-avail](./quick/3-load-gitlab-token-from-env-file-if-avail/) |
-| 4 | Fix false-positive MR_CREATED outcome when MR bead fails | 2026-02-25 | 6286003 | [4-investigate-why-mr-was-not-created-despi](./quick/4-investigate-why-mr-was-not-created-despi/) |
-| 5 | Add synchronous agent execution support (--sync flag) | 2026-03-10 | 19d9576 | [5-add-synchronous-agent-execution-support](./quick/5-add-synchronous-agent-execution-support/) |
-| 6 | Add cancel command to remove/dequeue pending tasks | 2026-03-10 | ab7f961 | [6-add-a-cancel-command-to-remove-dequeue-p](./quick/6-add-a-cancel-command-to-remove-dequeue-p/) |
-| 7 | Enhance status command to list individual tasks | 2026-03-10 | 7c7cb29 | [7-enhance-status-command-to-list-individua](./quick/7-enhance-status-command-to-list-individua/) |
-| 8 | Write per-bead output files and make bead IDs visible in logs | 2026-03-10 | bcb60c7 | [8-write-per-bead-output-files-and-make-bea](./quick/8-write-per-bead-output-files-and-make-bea/) |
-| 9 | Fix bead-runner to extract result field from Claude CLI JSON envelope | 2026-03-10 | 5ca495d | [9-fix-bead-runner-to-extract-result-field-](./quick/9-fix-bead-runner-to-extract-result-field-/) |
-| 10 | Add nullable support for outputSchema in agent manifests | 2026-03-10 | b55644b | [10-add-nullable-support-for-outputschema-in](./quick/10-add-nullable-support-for-outputschema-in/) |
-| 11 | Add manifest validation before start and post-spawn liveness check | 2026-03-11 | 795b5d1 | [11-add-manifest-validation-before-start-and](./quick/11-add-manifest-validation-before-start-and/) |
-| 12 | Allow retryFrom self-reference (self-retry without git reset) | 2026-03-11 | 8106a46 | [12-allow-for-the-retry-from-the-end-to-be-t](./quick/12-allow-for-the-retry-from-the-end-to-be-t/) |
-| 13 | Fix preflight/submit failure not halting pipeline | 2026-03-11 | 8a19d4b | [13-investigate-preflight-submit-failure-not](./quick/13-investigate-preflight-submit-failure-not/) |
-| 14 | Fix log rotation — daemon keeps logging to same file | 2026-03-12 | b1d255a | [14-fix-log-rotation-daemon-keeps-logging-to](./quick/14-fix-log-rotation-daemon-keeps-logging-to/) |
+14 quick tasks post-v2.0 — see STATE.md history or quick/ directory for full list.
+Most recent: quick-14 (daemon log rotation via dynamic date recomputation, 2026-03-12).
 
 ## Session Continuity
 
-Last session: 2026-03-12
-Stopped at: Quick task 14 complete (daemon log rotation via dynamic date recomputation on each write)
+Last session: 2026-03-13
+Stopped at: Roadmap for v3.0 created — phases 14-17 defined, ready to plan phase 14
 Resume file: None
