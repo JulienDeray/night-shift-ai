@@ -396,10 +396,6 @@ agents:
   - name: code-agent
     variables:
       repo_url: "git@gitlab.com:team/project.git"
-    fallback_categories:
-      - tests
-      - refactoring
-      - docs
 
 schedule:
   - agent: code-agent

@@ -325,12 +325,6 @@ agents:
       confluence_page_id: "12345678"
       mcp_config_path: "./mcp-atlassian.json"
       reviewer: "username"
-    fallback_categories:                  # Agent-specific config (optional)
-      - tests
-      - refactoring
-      - docs
-      - security
-      - performance
 ```
 
 | Field | Type | Required | Description |
@@ -338,7 +332,6 @@ agents:
 | `name` | string | yes | Agent name (must match `agents/<name>/` directory). Kebab-case. |
 | `notify` | boolean | no | Send Ntfy push notifications on start/end. |
 | `variables` | Record<string, string> | no | Variable overrides applied to all runs of this agent. |
-| `fallback_categories` | string[] | no | Category fallback order for code-agent. |
 
 ### `schedule` Array
 
@@ -785,7 +778,7 @@ The `git-clone` type uses the `GitCloneBeadPlugin`, which handles the actual `gi
     required: [result, categoryUsed]
 ```
 
-The analyze bead explicitly sets `model: claude-opus-4-6` (same as agent default, but explicit for clarity). It uses the `enum` constraint on `result` to enforce a binary outcome. If `NO_IMPROVEMENT` is returned, the agent may try fallback categories (configured via `fallback_categories` in `nightshift.yaml`).
+The analyze bead explicitly sets `model: claude-opus-4-6` (same as agent default, but explicit for clarity). It uses the `enum` constraint on `result` to enforce a binary outcome. If `NO_IMPROVEMENT` is returned, the agent handles any retry or fallback logic internally via subsequent steps.
 
 #### 3. Implement (`standard`, Opus)
 
