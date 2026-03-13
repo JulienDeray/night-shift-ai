@@ -16,10 +16,10 @@ Requirements for v3.0 Consolidation milestone. Each maps to roadmap phases.
 
 ### Notifications
 
-- [ ] **NTFY-01**: Task start notification shows task name and agent name in human-readable text
-- [ ] **NTFY-02**: Task success notification shows task name, agent name, and agent output result
-- [ ] **NTFY-03**: Task failure notification shows task name, agent name, error description, and which step failed
-- [ ] **NTFY-04**: Task skip notification shows task name, agent name, and skip reason
+- [x] **NTFY-01**: Task start notification shows task name and agent name in human-readable text
+- [x] **NTFY-02**: Task success notification shows task name, agent name, and agent output result
+- [x] **NTFY-03**: Task failure notification shows task name, agent name, error description, and which step failed
+- [x] **NTFY-04**: Task skip notification shows task name, agent name, and skip reason
 
 ### Codebase Cleanup
 
@@ -71,7 +71,7 @@ Which phases cover which requirements. Updated during roadmap creation.
 | NTFY-01 | Phase 15 | In Progress (formatter done, wiring in 15-02) |
 | NTFY-02 | Phase 15 | In Progress (formatter done, wiring in 15-02) |
 | NTFY-03 | Phase 15 | In Progress (formatter done, wiring in 15-02) |
-| NTFY-04 | Phase 15 | Pending |
+| NTFY-04 | Phase 15 | Complete |
 | CLEAN-01 | Phase 16 | Pending |
 | CLEAN-02 | Phase 16 | Pending |
 | CLEAN-03 | Phase 16 | Pending |

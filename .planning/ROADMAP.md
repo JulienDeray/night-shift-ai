@@ -38,7 +38,7 @@
 **Milestone Goal:** Eliminate the bead abstraction layer, improve notification quality, reduce codebase complexity, and establish a full E2E test harness — leaving the platform in its cleanest, most testable state.
 
 - [x] **Phase 14: Bead Removal** - Delete BeadPlugin/BeadRegistry/BeadRunner and inline pipeline execution into AgentEngine (completed 2026-03-13)
-- [ ] **Phase 15: Notifications** - Replace raw JSON ntfy payloads with human-readable, agent-agnostic messages (1/2 plans complete)
+- [x] **Phase 15: Notifications** - Replace raw JSON ntfy payloads with human-readable, agent-agnostic messages (1/2 plans complete) (completed 2026-03-13)
 - [ ] **Phase 16: Codebase Cleanup** - Audit and remove dead code, over-abstracted patterns, and legacy remnants
 - [ ] **Phase 17: E2E Testing Framework** - Build a full E2E harness covering the daemon lifecycle, CLI, errors, and mocked externals
 
@@ -114,6 +114,6 @@ Plans:
 | 12. Fix Scheduler Dispatch Wiring | v2.0 | 1/1 | Complete | 2026-03-09 |
 | 13. Phase 11 Verification | v2.0 | 1/1 | Complete | 2026-03-09 |
 | 14. Bead Removal | 3/3 | Complete    | 2026-03-13 | - |
-| 15. Notifications | v3.0 | 1/2 | In progress | - |
+| 15. Notifications | 2/2 | Complete   | 2026-03-13 | - |
 | 16. Codebase Cleanup | v3.0 | 0/? | Not started | - |
 | 17. E2E Testing Framework | v3.0 | 0/? | Not started | - |

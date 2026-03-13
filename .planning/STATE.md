@@ -2,15 +2,15 @@
 gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Consolidation
-status: in_progress
-stopped_at: Completed 15-notifications 15-01-PLAN.md
-last_updated: "2026-03-13T15:33:26Z"
+status: completed
+stopped_at: Completed 15-notifications 15-02-PLAN.md
+last_updated: "2026-03-13T15:43:12.480Z"
 last_activity: 2026-03-13 — Phase 15 Plan 01 complete; notification-formatter and NotificationService created; 407 tests pass
 progress:
   total_phases: 4
-  completed_phases: 1
-  total_plans: 4
-  completed_plans: 4
+  completed_phases: 2
+  total_plans: 5
+  completed_plans: 5
   percent: 25
 ---
 
@@ -55,6 +55,8 @@ Full decision log in PROJECT.md Key Decisions table.
 - [Phase 14-bead-removal]: Orchestrator uses file-queue only — BeadsClient and all beads branches removed
 - [Phase 14-03]: loadBeadPrompt renamed to loadStepPrompt; agent prompt .md files updated from "Bead" to "Step" role descriptions
 - [Phase 15-01]: Notification formatter as pure function module (not class); agentName fallback chain task→result→"unknown-agent"; duration format s/m+s/h+m; stack trace stripped via /^\s*at\s+/ pattern
+- [Phase 15-notifications]: NO_IMPROVEMENT fallback re-dispatch removed from orchestrator; agents handle retry logic internally
+- [Phase 15-notifications]: NTFY-04 (skip notification) not implemented per user decision
 
 ### Pending Todos
 
@@ -74,6 +76,6 @@ Most recent: quick-14 (daemon log rotation via dynamic date recomputation, 2026-
 
 ## Session Continuity
 
-Last session: 2026-03-13T15:33:26Z
-Stopped at: Completed 15-notifications 15-01-PLAN.md
-Resume file: .planning/phases/15-notifications/15-01-SUMMARY.md
+Last session: 2026-03-13T15:43:12.478Z
+Stopped at: Completed 15-notifications 15-02-PLAN.md
+Resume file: None
