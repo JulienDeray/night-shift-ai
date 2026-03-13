@@ -3,16 +3,19 @@
  *
  * These types define the typed contracts for pipeline execution outcomes,
  * error categorization, and the generic AgentRunResult used by AgentEngine.
+ * Also contains AgentPipelineContext for step execution.
  */
 
-/** Classifies whether a bead failure is recoverable at the engine level. */
-export type BeadErrorCategory = "FATAL" | "TRANSIENT";
+import type { ResolvedStep, LoadedManifest } from "./manifest-types.js";
+
+/** Classifies whether a step failure is recoverable at the engine level. */
+export type StepErrorCategory = "FATAL" | "TRANSIENT";
 
 /** Overall pipeline execution status. */
 export type PipelineStatus = "SUCCESS" | "FATAL" | "TRANSIENT";
 
-/** Per-bead execution outcome tracked in AgentRunResult. */
-export interface BeadOutcome {
+/** Per-step execution outcome tracked in AgentRunResult. */
+export interface StepOutcome {
   name: string;
   status: "SUCCESS" | "FAILED" | "SKIPPED";
   durationMs: number;
@@ -22,8 +25,8 @@ export interface BeadOutcome {
 /**
  * Generic result type returned by AgentEngine.run().
  *
- * T is the parsed final-bead output type. The engine fills finalOutput only
- * on SUCCESS. On failure, errorCategory, failedBeadIndex, and suggestedDelayMs
+ * T is the parsed final-step output type. The engine fills finalOutput only
+ * on SUCCESS. On failure, errorCategory, failedStepIndex, and suggestedDelayMs
  * provide enough context for the caller to decide on retry strategy.
  */
 export interface AgentRunResult<T = unknown> {
@@ -31,14 +34,35 @@ export interface AgentRunResult<T = unknown> {
   agentName: string;
   status: PipelineStatus;
   finalOutput: T | null;
-  perBead: BeadOutcome[];
+  perStep: StepOutcome[];
   totalDurationMs: number;
-  /** Index into perBead of the first failed bead — restart-from hint for future loopback. */
-  failedBeadIndex?: number;
-  errorCategory?: BeadErrorCategory;
+  /** Index into perStep of the first failed step — restart-from hint for future loopback. */
+  failedStepIndex?: number;
+  errorCategory?: StepErrorCategory;
   /** TRANSIENT hint: suggested delay in ms before caller retries. */
   suggestedDelayMs?: number;
   error?: string;
-  /** All bead outputs keyed by bead name — allows caller to inspect intermediate results. */
-  beadOutputs?: Record<string, unknown>;
+  /** All step outputs keyed by step name — allows caller to inspect intermediate results. */
+  stepOutputs?: Record<string, unknown>;
+}
+
+/**
+ * Execution context for a step within an agent pipeline.
+ *
+ * Named AgentPipelineContext to distinguish from:
+ * - PipelineContext in agent-types.ts (harness-level dispatch context)
+ * - PipelineContext in code-agent-runner.ts (code-agent-specific context)
+ */
+export interface AgentPipelineContext {
+  taskId: string;
+  agentName: string;
+  agentDir: string;
+  /** Flat temp directory for this run (no subdirectories). */
+  workDir: string;
+  manifest: LoadedManifest;
+  currentStep: ResolvedStep;
+  /** All previous steps' results, keyed by step name. */
+  previousSteps: Record<string, { output: unknown; rawOutput: string }>;
+  /** Resolved template variables (built-ins + manifest + config overrides). */
+  variables: Record<string, unknown>;
 }

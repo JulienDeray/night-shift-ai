@@ -19,13 +19,6 @@ export class DaemonError extends NightShiftError {
   }
 }
 
-export class BeadsError extends NightShiftError {
-  constructor(message: string) {
-    super(message);
-    this.name = "BeadsError";
-  }
-}
-
 export class AgentExecutionError extends NightShiftError {
   constructor(
     message: string,
@@ -61,23 +54,16 @@ export class ManifestSecurityError extends NightShiftError {
   }
 }
 
-export class BeadContractViolationError extends NightShiftError {
+export class StepContractViolationError extends NightShiftError {
   constructor(message: string) {
     super(message);
-    this.name = "BeadContractViolationError";
+    this.name = "StepContractViolationError";
   }
 }
 
-export class BeadOutputMissingError extends NightShiftError {
+export class StepOutputMissingError extends NightShiftError {
   constructor(message: string) {
     super(message);
-    this.name = "BeadOutputMissingError";
-  }
-}
-
-export class RegistryError extends NightShiftError {
-  constructor(message: string) {
-    super(message);
-    this.name = "RegistryError";
+    this.name = "StepOutputMissingError";
   }
 }

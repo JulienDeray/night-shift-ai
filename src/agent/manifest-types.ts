@@ -1,8 +1,8 @@
 import type { z } from "zod";
 import type { Manifest } from "./manifest-schema.js";
 
-/** Raw bead as parsed from manifest YAML, before inheritance resolution. */
-export type ManifestBead = Manifest["beads"][number];
+/** Raw step as parsed from manifest YAML, before inheritance resolution. */
+export type ManifestStep = Manifest["steps"][number];
 
 /** Resolved env var — always has explicit name and value after resolution. */
 export interface ResolvedEnvVar {
@@ -11,22 +11,21 @@ export interface ResolvedEnvVar {
 }
 
 /**
- * A bead with all inheritance resolved: agent-level defaults applied,
+ * A step with all inheritance resolved: agent-level defaults applied,
  * env merged, outputSchema compiled to Zod.
  */
-export interface ResolvedBead {
+export interface ResolvedStep {
   name: string;
-  type: string;
   prompt: string;           // relative path to prompt file within agent dir
-  model: string;            // resolved: bead ?? agent ?? default
-  timeout: string;          // resolved: bead ?? agent ?? default
-  allowedTools: string[];   // resolved: bead ?? agent ?? default
-  env: ResolvedEnvVar[];    // resolved: agent merged with bead (bead wins collision)
+  model: string;            // resolved: step ?? agent ?? default
+  timeout: string;          // resolved: step ?? agent ?? default
+  allowedTools: string[];   // resolved: step ?? agent ?? default
+  env: ResolvedEnvVar[];    // resolved: agent merged with step (step wins collision)
   outputSchema: Record<string, unknown>;        // raw JSON Schema from manifest
   compiledOutputSchema: z.ZodTypeAny;           // compiled at load time via z.fromJSONSchema()
   /** Raw mcpConfig string from manifest (may contain template variables). Not resolved at load time. */
   mcpConfig?: string;
-  /** Bead-level retry config. */
+  /** Step-level retry config. */
   retry?: { maxAttempts: number; retryFrom: string };
 }
 
@@ -39,7 +38,7 @@ export interface LoadedManifest {
   description: string;
   agentDir: string;         // absolute path to the agent directory
   variables: Record<string, string>;   // manifest-level variables (before overrides)
-  beads: ResolvedBead[];    // fully resolved bead configs
+  steps: ResolvedStep[];    // fully resolved step configs
 }
 
 /** Re-export Manifest type from schema for convenience. */

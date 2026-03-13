@@ -3,12 +3,12 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { parse as parseYaml } from "yaml";
 import { ManifestSchema } from "./manifest-schema.js";
-import type { ManifestBead, ResolvedBead, ResolvedEnvVar, LoadedManifest } from "./manifest-types.js";
+import type { ManifestStep, ResolvedStep, ResolvedEnvVar, LoadedManifest } from "./manifest-types.js";
 import {
   ManifestError,
   ManifestSecurityError,
-  BeadContractViolationError,
-  BeadOutputMissingError,
+  StepContractViolationError,
+  StepOutputMissingError,
 } from "../core/errors.js";
 
 const DEFAULT_MODEL = "claude-sonnet-4-20250514";
@@ -89,13 +89,13 @@ function resolveEnvVars(
 }
 
 /**
- * Merges agent-level and bead-level env vars.
- * Bead env vars win on key collision.
+ * Merges agent-level and step-level env vars.
+ * Step env vars win on key collision.
  */
-function mergeEnv(agentEnv: ResolvedEnvVar[], beadEnv: ResolvedEnvVar[]): ResolvedEnvVar[] {
+function mergeEnv(agentEnv: ResolvedEnvVar[], stepEnv: ResolvedEnvVar[]): ResolvedEnvVar[] {
   const map = new Map<string, ResolvedEnvVar>();
   for (const e of agentEnv) map.set(e.name, e);
-  for (const e of beadEnv) map.set(e.name, e);
+  for (const e of stepEnv) map.set(e.name, e);
   return [...map.values()];
 }
 
@@ -148,42 +148,41 @@ export function preprocessNullable(schema: Record<string, unknown>): Record<stri
  */
 function compileOutputSchema(
   jsonSchema: Record<string, unknown>,
-  beadName: string,
+  stepName: string,
 ): z.ZodTypeAny {
   try {
     return z.fromJSONSchema(preprocessNullable(jsonSchema)) as z.ZodTypeAny;
   } catch (err) {
     throw new ManifestError(
-      `Bead "${beadName}": invalid outputSchema — ${err instanceof Error ? err.message : String(err)}`,
+      `Step "${stepName}": invalid outputSchema — ${err instanceof Error ? err.message : String(err)}`,
     );
   }
 }
 
 /**
- * Applies inheritance rules to produce a fully resolved bead config:
- * - model/timeout: bead overrides agent-level (which overrides default)
- * - allowedTools: bead replaces agent-level entirely (no merge)
- * - env: bead merges with agent-level (bead wins on collision)
+ * Applies inheritance rules to produce a fully resolved step config:
+ * - model/timeout: step overrides agent-level (which overrides default)
+ * - allowedTools: step replaces agent-level entirely (no merge)
+ * - env: step merges with agent-level (step wins on collision)
  * - outputSchema: compiled to Zod at resolve time
  */
-function resolveBeadConfig(
+function resolveStepConfig(
   manifest: z.infer<typeof ManifestSchema>,
-  bead: ManifestBead,
+  step: ManifestStep,
   agentEnv: ResolvedEnvVar[],
-): ResolvedBead {
-  const beadEnv = bead.env ? resolveEnvVars(bead.env, `bead "${bead.name}"`) : [];
+): ResolvedStep {
+  const stepEnv = step.env ? resolveEnvVars(step.env, `step "${step.name}"`) : [];
   return {
-    name: bead.name,
-    type: bead.type,
-    prompt: bead.prompt,
-    model: bead.model ?? manifest.model ?? DEFAULT_MODEL,
-    timeout: bead.timeout ?? manifest.timeout ?? DEFAULT_TIMEOUT,
-    allowedTools: bead.allowedTools ?? manifest.allowedTools ?? DEFAULT_ALLOWED_TOOLS,
-    env: mergeEnv(agentEnv, beadEnv),
-    outputSchema: bead.outputSchema,
-    compiledOutputSchema: compileOutputSchema(bead.outputSchema, bead.name),
-    mcpConfig: bead.mcpConfig,  // store raw string — NOT resolved to absolute path here
-    retry: bead.retry ? { maxAttempts: bead.retry.maxAttempts, retryFrom: bead.retry.retryFrom } : undefined,
+    name: step.name,
+    prompt: step.prompt,
+    model: step.model ?? manifest.model ?? DEFAULT_MODEL,
+    timeout: step.timeout ?? manifest.timeout ?? DEFAULT_TIMEOUT,
+    allowedTools: step.allowedTools ?? manifest.allowedTools ?? DEFAULT_ALLOWED_TOOLS,
+    env: mergeEnv(agentEnv, stepEnv),
+    outputSchema: step.outputSchema,
+    compiledOutputSchema: compileOutputSchema(step.outputSchema, step.name),
+    mcpConfig: step.mcpConfig,  // store raw string — NOT resolved to absolute path here
+    retry: step.retry ? { maxAttempts: step.retry.maxAttempts, retryFrom: step.retry.retryFrom } : undefined,
   };
 }
 
@@ -196,7 +195,7 @@ function resolveBeadConfig(
  * 3. Parse YAML
  * 4. Validate with Zod (all errors reported at once)
  * 5. Resolve agent-level env vars
- * 6. Resolve each bead with inheritance + compile output schemas
+ * 6. Resolve each step with inheritance + compile output schemas
  * 7. Return LoadedManifest
  */
 export async function loadManifest(
@@ -238,9 +237,9 @@ export async function loadManifest(
     ? resolveEnvVars(manifest.env, `agent "${manifest.name}"`)
     : [];
 
-  // Resolve each bead with inheritance
-  const resolvedBeads = manifest.beads.map((bead) =>
-    resolveBeadConfig(manifest, bead, agentEnv),
+  // Resolve each step with inheritance
+  const resolvedSteps = manifest.steps.map((step) =>
+    resolveStepConfig(manifest, step, agentEnv),
   );
 
   return {
@@ -248,7 +247,7 @@ export async function loadManifest(
     description: manifest.description,
     agentDir: await fs.realpath(agentDir),
     variables: manifest.variables ?? {},
-    beads: resolvedBeads,
+    steps: resolvedSteps,
   };
 }
 
@@ -264,22 +263,22 @@ export function extractLastJsonBlock(text: string): string | null {
 }
 
 /**
- * Validates a bead's raw output against its compiled output schema.
+ * Validates a step's raw output against its compiled output schema.
  *
  * - Extracts the last JSON code block from the output
- * - Throws BeadOutputMissingError if no JSON block found
- * - Throws BeadContractViolationError if JSON is invalid or doesn't match schema
+ * - Throws StepOutputMissingError if no JSON block found
+ * - Throws StepContractViolationError if JSON is invalid or doesn't match schema
  * - Returns the parsed and validated output data
  */
-export function validateBeadOutput(
+export function validateStepOutput(
   rawOutput: string,
   compiledSchema: z.ZodTypeAny,
-  beadName: string,
+  stepName: string,
 ): unknown {
   const jsonBlock = extractLastJsonBlock(rawOutput);
   if (jsonBlock === null) {
-    throw new BeadOutputMissingError(
-      `BEAD_OUTPUT_MISSING: bead "${beadName}" produced no JSON code block.\n\n` +
+    throw new StepOutputMissingError(
+      `STEP_OUTPUT_MISSING: step "${stepName}" produced no JSON code block.\n\n` +
       `Output preview: ${rawOutput.slice(0, 500)}`,
     );
   }
@@ -288,8 +287,8 @@ export function validateBeadOutput(
   try {
     parsed = JSON.parse(jsonBlock);
   } catch {
-    throw new BeadContractViolationError(
-      `BEAD_CONTRACT_VIOLATION: bead "${beadName}" produced invalid JSON in code block.\n\n` +
+    throw new StepContractViolationError(
+      `STEP_CONTRACT_VIOLATION: step "${stepName}" produced invalid JSON in code block.\n\n` +
       `Output preview: ${jsonBlock.slice(0, 500)}`,
     );
   }
@@ -299,8 +298,8 @@ export function validateBeadOutput(
     const issues = validation.error.issues
       .map((i: z.ZodIssue) => `  ${i.path.join(".") || "(root)"}: ${i.message}`)
       .join("\n");
-    throw new BeadContractViolationError(
-      `BEAD_CONTRACT_VIOLATION: bead "${beadName}" output did not match declared schema:\n${issues}\n\n` +
+    throw new StepContractViolationError(
+      `STEP_CONTRACT_VIOLATION: step "${stepName}" output did not match declared schema:\n${issues}\n\n` +
       `Output preview: ${rawOutput.slice(0, 500)}`,
     );
   }
