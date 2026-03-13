@@ -65,6 +65,7 @@ describe("error scenarios", () => {
         "retry-agent",
         "timeout-agent",
         "happy-path-agent",
+        "invalid-manifest-agent",
       ],
     });
 
@@ -189,6 +190,55 @@ describe("error scenarios", () => {
     expect(requests.length).toBeGreaterThan(0);
     const bodies = requests.map((r) => JSON.stringify(r.body));
     const hasAgentRef = bodies.some((b) => b.includes("retry-agent"));
+    expect(hasAgentRef).toBe(true);
+  });
+
+  it("invalid manifest — agent with corrupted manifest produces failed report with manifest error", async () => {
+    // Corrupt the manifest AFTER daemon startup (startup validation already passed)
+    const manifestPath = path.join(
+      tmpDir,
+      "agents",
+      "invalid-manifest-agent",
+      "manifest.yaml",
+    );
+    await fs.writeFile(
+      manifestPath,
+      "name: invalid-manifest-agent\ndescription: This manifest is missing the required steps key\n",
+      "utf-8",
+    );
+
+    // Submit the agent with the now-corrupted manifest
+    const submitResult = await run(
+      ["submit", "--agent", "invalid-manifest-agent"],
+      { cwd: tmpDir, env: daemonEnv },
+    );
+    expect(submitResult.exitCode).toBe(0);
+
+    // Wait for inbox report
+    const reportPath = await waitForInboxReport(
+      tmpDir,
+      /invalid-manifest-agent/,
+    );
+
+    // Read and verify report content
+    const reportContent = await fs.readFile(reportPath, "utf-8");
+
+    // Status should be failed (FATAL maps to failed in reporter)
+    expect(reportContent).toMatch(/status: failed/);
+
+    // step_count should be 0 — no steps were executed (perStep is empty for FATAL)
+    expect(reportContent).toMatch(/step_count: 0/);
+
+    // Report should contain a manifest-related error (Zod will mention missing required field)
+    expect(reportContent).toMatch(/manifest|required|steps/i);
+
+    // Verify ntfy mock received a notification mentioning the agent name
+    const requests = ntfyServer.getRequests();
+    expect(requests.length).toBeGreaterThan(0);
+    const bodies = requests.map((r) => JSON.stringify(r.body));
+    const hasAgentRef = bodies.some((b) =>
+      b.includes("invalid-manifest-agent"),
+    );
     expect(hasAgentRef).toBe(true);
   });
 });

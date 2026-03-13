@@ -1,0 +1,15 @@
+name: invalid-manifest-agent
+description: Fixture agent for invalid manifest E2E testing — valid at startup, corrupted by test before submit
+steps:
+  - name: run
+    prompt: prompts/run.md
+    timeout: "30s"
+    outputSchema:
+      type: object
+      properties:
+        result:
+          type: string
+      required: [result]
+    env:
+      - name: MOCK_CLAUDE_RESPONSE_FILE
+        value: "{{response_file}}"
