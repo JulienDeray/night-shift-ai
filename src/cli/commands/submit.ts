@@ -55,6 +55,7 @@ export const submitCommand = new Command("submit")
         timeout: options.timeout ?? config.oneOffDefaults.timeout,
         createdAt: new Date().toISOString(),
         agentName: options.agent,
+        ...(agentDecl?.notify !== undefined && { notify: agentDecl.notify }),
         ...(Object.keys(mergedVars).length > 0 && { variables: mergedVars }),
       };
 
