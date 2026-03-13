@@ -3,14 +3,14 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Consolidation
 status: completed
-stopped_at: Phase 17 context gathered
-last_updated: "2026-03-13T18:48:44.720Z"
+stopped_at: Completed 17-01-PLAN.md
+last_updated: "2026-03-13T19:16:55.811Z"
 last_activity: 2026-03-13 — Phase 16 Plan 03 complete; agent-types.ts deleted, validateAgentName inlined, NightShiftTask.category and maxBudgetUsd removed, stale comments removed, 389 tests pass
 progress:
   total_phases: 4
   completed_phases: 3
-  total_plans: 8
-  completed_plans: 8
+  total_plans: 11
+  completed_plans: 9
   percent: 100
 ---
 
@@ -60,6 +60,8 @@ Full decision log in PROJECT.md Key Decisions table.
 - [Phase 16-codebase-cleanup]: INJECTION_MITIGATION_PREAMBLE moved from prompt-loader.ts into engine.ts as a non-exported local const; prompt-loader.ts deleted entirely; 5 v1.0 prompt templates deleted with zero runtime references confirmed
 - [Phase 16-codebase-cleanup]: Collapsed 8-class NightShiftError hierarchy into single class with NightShiftErrorCode union; TimeoutError.taskId/timeoutMs dropped; categorizeError updated to use err.code
 - [Phase 16-codebase-cleanup]: validateAgentName made private (non-exported) in scaffold.ts — only consumer; maxBudgetUsd removed from NightShiftTask, OneOffDefaults, and Zod ConfigSchema — no runtime code reads this value
+- [Phase 17-e2e-testing-framework]: Spawn daemon via npx tsx src/daemon/index.ts directly (not nightshift start) to avoid compiled-JS path resolution issue in start.ts
+- [Phase 17-e2e-testing-framework]: waitForDaemonReady requires heartbeat timestamp after poll start time — prevents stale heartbeat acceptance in crash recovery
 
 ### Pending Todos
 
@@ -79,6 +81,6 @@ Most recent: quick-14 (daemon log rotation via dynamic date recomputation, 2026-
 
 ## Session Continuity
 
-Last session: 2026-03-13T18:48:44.718Z
-Stopped at: Phase 17 context gathered
-Resume file: .planning/phases/17-e2e-testing-framework/17-CONTEXT.md
+Last session: 2026-03-13T19:16:55.809Z
+Stopped at: Completed 17-01-PLAN.md
+Resume file: None
