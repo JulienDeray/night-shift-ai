@@ -10,10 +10,7 @@ import { ManifestSchema } from "../../agent/manifest-schema.js";
 import { validateTemplateVars, BUILT_IN_VARS } from "../../agent/template.js";
 import { loadConfig } from "../../core/config.js";
 import { getLogsDir } from "../../core/paths.js";
-import {
-  ManifestError,
-  ManifestSecurityError,
-} from "../../core/errors.js";
+import { NightShiftError } from "../../core/errors.js";
 import type { RunLogEntry } from "../../agent/run-logger.js";
 import {
   table,
@@ -108,11 +105,12 @@ agentCommand
         await loadManifest(agentDir, agentsRoot);
         results.push({ type: "ok", msg: "Env vars: all resolved" });
       } catch (err) {
-        if (err instanceof ManifestSecurityError) {
+        if (err instanceof NightShiftError && err.code === "MANIFEST_SECURITY") {
           results.push({ type: "error", msg: `Security: ${err.message}` });
           hasErrors = true;
         } else if (
-          err instanceof ManifestError &&
+          err instanceof NightShiftError &&
+          err.code === "MANIFEST" &&
           err.message.includes("env var") &&
           err.message.includes("is not set")
         ) {
@@ -123,7 +121,7 @@ agentCommand
             type: "warn",
             msg: `Env: ${envName} not set in current environment`,
           });
-        } else if (err instanceof ManifestError) {
+        } else if (err instanceof NightShiftError && err.code === "MANIFEST") {
           results.push({ type: "error", msg: `Manifest: ${err.message}` });
           hasErrors = true;
         }
@@ -167,7 +165,7 @@ agentCommand
           const content = await fs.readFile(promptPath, "utf-8");
           validateTemplateVars(content, manifestVars);
         } catch (err) {
-          if (err instanceof ManifestError) {
+          if (err instanceof NightShiftError && err.code === "MANIFEST") {
             results.push({
               type: "error",
               msg: `Variables (${step.name}): ${err.message}`,

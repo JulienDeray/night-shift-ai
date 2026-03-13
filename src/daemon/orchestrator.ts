@@ -14,7 +14,7 @@ import { NotificationService } from "../notifications/notification-service.js";
 import fs from "node:fs/promises";
 import { loadManifest } from "../agent/manifest-loader.js";
 import { BUILT_IN_VARS, validateTemplateVars } from "../agent/template.js";
-import { ConfigError } from "../core/errors.js";
+import { NightShiftError } from "../core/errors.js";
 import type { AgentRunResult } from "../agent/engine-types.js";
 import { appendRunLog } from "../agent/run-logger.js";
 
@@ -100,7 +100,7 @@ export async function validateAgentsAtStartup(
     const msg =
       `Startup validation failed — ${errors.length} error(s) across agent(s):\n\n` +
       errors.map((e, i) => `  [${i + 1}] ${e}`).join("\n\n");
-    throw new ConfigError(msg);
+    throw new NightShiftError(msg, "CONFIG");
   }
 }
 

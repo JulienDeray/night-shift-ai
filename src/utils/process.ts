@@ -1,5 +1,5 @@
 import { spawn, type ChildProcess } from "node:child_process";
-import { TimeoutError } from "../core/errors.js";
+import { NightShiftError } from "../core/errors.js";
 
 export interface SpawnResult {
   stdout: string;
@@ -74,10 +74,9 @@ export function spawnWithTimeout(
 
       if (timedOut && options.taskId) {
         reject(
-          new TimeoutError(
+          new NightShiftError(
             `Task ${options.taskId} timed out after ${options.timeoutMs}ms`,
-            options.taskId,
-            options.timeoutMs!,
+            "TIMEOUT",
           ),
         );
       } else {

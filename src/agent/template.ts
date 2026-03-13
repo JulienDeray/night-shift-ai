@@ -1,5 +1,5 @@
 import { format } from "date-fns";
-import { ManifestError } from "../core/errors.js";
+import { NightShiftError } from "../core/errors.js";
 
 export const BUILT_IN_VARS = [
   "task_id",
@@ -19,9 +19,10 @@ export function validateVariableNames(userVarNames: string[]): void {
     (BUILT_IN_VARS as readonly string[]).includes(name),
   );
   if (collisions.length > 0) {
-    throw new ManifestError(
+    throw new NightShiftError(
       `Variable name collision with built-ins: ${collisions.join(", ")}. ` +
         `Built-in names are reserved: ${BUILT_IN_VARS.join(", ")}`,
+      "MANIFEST",
     );
   }
 }
@@ -116,8 +117,9 @@ export function validateTemplateVars(
   });
 
   if (unresolved.length > 0) {
-    throw new ManifestError(
+    throw new NightShiftError(
       `Prompt references undefined variables: ${unresolved.join(", ")}`,
+      "MANIFEST",
     );
   }
 }

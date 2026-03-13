@@ -3,7 +3,7 @@ import { parse as parseYaml } from "yaml";
 import { z } from "zod";
 import { Cron } from "croner";
 import { getConfigPath } from "./paths.js";
-import { ConfigError } from "./errors.js";
+import { NightShiftError } from "./errors.js";
 import type { NightShiftConfig } from "./types.js";
 
 const NtfyConfigSchema = z
@@ -150,8 +150,9 @@ export async function loadConfig(
   try {
     content = await fs.readFile(configPath, "utf-8");
   } catch {
-    throw new ConfigError(
+    throw new NightShiftError(
       `Config file not found: ${configPath}\nRun 'nightshift init' to create one.`,
+      "CONFIG",
     );
   }
 
@@ -159,8 +160,9 @@ export async function loadConfig(
   try {
     parsed = parseYaml(content);
   } catch (err) {
-    throw new ConfigError(
+    throw new NightShiftError(
       `Invalid YAML in ${configPath}: ${err instanceof Error ? err.message : String(err)}`,
+      "CONFIG",
     );
   }
 
@@ -169,7 +171,7 @@ export async function loadConfig(
     const issues = result.error.issues
       .map((i) => `  - ${i.path.join(".")}: ${i.message}`)
       .join("\n");
-    throw new ConfigError(`Invalid config:\n${issues}`);
+    throw new NightShiftError(`Invalid config:\n${issues}`, "CONFIG");
   }
 
   return mapConfig(result.data);

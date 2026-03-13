@@ -4,12 +4,7 @@ import path from "node:path";
 import { parse as parseYaml } from "yaml";
 import { ManifestSchema } from "./manifest-schema.js";
 import type { ManifestStep, ResolvedStep, ResolvedEnvVar, LoadedManifest } from "./manifest-types.js";
-import {
-  ManifestError,
-  ManifestSecurityError,
-  StepContractViolationError,
-  StepOutputMissingError,
-} from "../core/errors.js";
+import { NightShiftError } from "../core/errors.js";
 
 const DEFAULT_MODEL = "claude-sonnet-4-20250514";
 const DEFAULT_TIMEOUT = "15m";
@@ -34,9 +29,10 @@ export async function assertContained(
     ? resolvedRoot
     : resolvedRoot + path.sep;
   if (resolvedTarget !== resolvedRoot && !resolvedTarget.startsWith(rootWithSep)) {
-    throw new ManifestSecurityError(
+    throw new NightShiftError(
       `Path containment violation: ${label} resolved to "${resolvedTarget}", ` +
       `which is outside agents root "${resolvedRoot}"`,
+      "MANIFEST_SECURITY",
     );
   }
 }
@@ -71,8 +67,9 @@ function resolveEnvVars(
     if (typeof entry === "string") {
       const value = process.env[entry];
       if (value === undefined) {
-        throw new ManifestError(
+        throw new NightShiftError(
           `${context}: env var "${entry}" (passthrough) is not set in the host environment`,
+          "MANIFEST",
         );
       }
       return { name: entry, value };
@@ -153,8 +150,9 @@ function compileOutputSchema(
   try {
     return z.fromJSONSchema(preprocessNullable(jsonSchema)) as z.ZodTypeAny;
   } catch (err) {
-    throw new ManifestError(
+    throw new NightShiftError(
       `Step "${stepName}": invalid outputSchema — ${err instanceof Error ? err.message : String(err)}`,
+      "MANIFEST",
     );
   }
 }
@@ -211,8 +209,9 @@ export async function loadManifest(
   try {
     content = await fs.readFile(manifestPath, "utf-8");
   } catch (err) {
-    throw new ManifestError(
+    throw new NightShiftError(
       `Cannot read manifest at ${manifestPath}: ${err instanceof Error ? err.message : String(err)}`,
+      "MANIFEST",
     );
   }
 
@@ -220,14 +219,15 @@ export async function loadManifest(
   try {
     raw = parseYaml(content);
   } catch (err) {
-    throw new ManifestError(
+    throw new NightShiftError(
       `Invalid YAML in ${manifestPath}: ${err instanceof Error ? err.message : String(err)}`,
+      "MANIFEST",
     );
   }
 
   const result = ManifestSchema.safeParse(raw);
   if (!result.success) {
-    throw new ManifestError(formatManifestErrors(result.error.issues, manifestPath));
+    throw new NightShiftError(formatManifestErrors(result.error.issues, manifestPath), "MANIFEST");
   }
 
   const manifest = result.data;
@@ -277,9 +277,10 @@ export function validateStepOutput(
 ): unknown {
   const jsonBlock = extractLastJsonBlock(rawOutput);
   if (jsonBlock === null) {
-    throw new StepOutputMissingError(
+    throw new NightShiftError(
       `STEP_OUTPUT_MISSING: step "${stepName}" produced no JSON code block.\n\n` +
       `Output preview: ${rawOutput.slice(0, 500)}`,
+      "STEP_OUTPUT_MISSING",
     );
   }
 
@@ -287,9 +288,10 @@ export function validateStepOutput(
   try {
     parsed = JSON.parse(jsonBlock);
   } catch {
-    throw new StepContractViolationError(
+    throw new NightShiftError(
       `STEP_CONTRACT_VIOLATION: step "${stepName}" produced invalid JSON in code block.\n\n` +
       `Output preview: ${jsonBlock.slice(0, 500)}`,
+      "STEP_CONTRACT_VIOLATION",
     );
   }
 
@@ -298,9 +300,10 @@ export function validateStepOutput(
     const issues = validation.error.issues
       .map((i: z.ZodIssue) => `  ${i.path.join(".") || "(root)"}: ${i.message}`)
       .join("\n");
-    throw new StepContractViolationError(
+    throw new NightShiftError(
       `STEP_CONTRACT_VIOLATION: step "${stepName}" output did not match declared schema:\n${issues}\n\n` +
       `Output preview: ${rawOutput.slice(0, 500)}`,
+      "STEP_CONTRACT_VIOLATION",
     );
   }
 

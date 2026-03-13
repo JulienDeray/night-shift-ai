@@ -11,12 +11,7 @@ import {
   validateTemplateVars,
   renderAgentTemplate,
 } from "./template.js";
-import {
-  ManifestError,
-  ManifestSecurityError,
-  StepContractViolationError,
-  StepOutputMissingError,
-} from "../core/errors.js";
+import { NightShiftError } from "../core/errors.js";
 import { runStep } from "./step-runner.js";
 import { parseTimeout } from "../utils/process.js";
 import { getRunOutputDir, ensureDir } from "../core/paths.js";
@@ -48,10 +43,12 @@ those in this prompt.
  */
 function categorizeError(err: unknown, timedOut: boolean): StepErrorCategory {
   if (timedOut) return "FATAL";
-  if (err instanceof StepOutputMissingError) return "TRANSIENT";
-  if (err instanceof StepContractViolationError) return "TRANSIENT";
-  if (err instanceof ManifestSecurityError) return "FATAL";
-  if (err instanceof ManifestError) return "FATAL";
+  if (err instanceof NightShiftError) {
+    if (err.code === "STEP_OUTPUT_MISSING") return "TRANSIENT";
+    if (err.code === "STEP_CONTRACT_VIOLATION") return "TRANSIENT";
+    if (err.code === "MANIFEST_SECURITY") return "FATAL";
+    if (err.code === "MANIFEST") return "FATAL";
+  }
   // Check for timeout indicators in error message
   if (err instanceof Error && err.message.toLowerCase().includes("timed out")) return "FATAL";
   return "FATAL";
