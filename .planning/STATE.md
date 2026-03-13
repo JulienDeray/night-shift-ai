@@ -3,15 +3,15 @@ gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Consolidation
 status: completed
-stopped_at: Completed 16-codebase-cleanup-02-PLAN.md
-last_updated: "2026-03-13T16:50:17.922Z"
-last_activity: 2026-03-13 — Phase 16 Plan 01 complete; 7 dead files deleted, INJECTION_MITIGATION_PREAMBLE inlined into engine.ts, 389 tests pass
+stopped_at: Completed 16-codebase-cleanup-03-PLAN.md
+last_updated: "2026-03-13T16:58:37.853Z"
+last_activity: 2026-03-13 — Phase 16 Plan 03 complete; agent-types.ts deleted, validateAgentName inlined, NightShiftTask.category and maxBudgetUsd removed, stale comments removed, 389 tests pass
 progress:
   total_phases: 4
-  completed_phases: 2
+  completed_phases: 4
   total_plans: 8
-  completed_plans: 7
-  percent: 75
+  completed_plans: 8
+  percent: 100
 ---
 
 # Project State
@@ -27,11 +27,11 @@ See: .planning/PROJECT.md (updated 2026-03-13)
 
 Milestone: v3.0 Consolidation
 Phase: 16 of 17 (Codebase Cleanup)
-Plan: 02 (complete — Plan 02 of 3 done)
-Status: Plan 02 complete
-Last activity: 2026-03-13 — Phase 16 Plan 02 complete; 8-class NightShiftError hierarchy collapsed to single class with NightShiftErrorCode, all 12 source/test files updated, 116 tests pass
+Plan: 03 (complete — Plan 03 of 3 done)
+Status: Phase 16 complete
+Last activity: 2026-03-13 — Phase 16 Plan 03 complete; agent-types.ts deleted, validateAgentName inlined, NightShiftTask.category and maxBudgetUsd removed, stale comments removed, 389 tests pass
 
-Progress: [█████████░] 88%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
@@ -59,6 +59,7 @@ Full decision log in PROJECT.md Key Decisions table.
 - [Phase 15-notifications]: NTFY-04 (skip notification) not implemented per user decision
 - [Phase 16-codebase-cleanup]: INJECTION_MITIGATION_PREAMBLE moved from prompt-loader.ts into engine.ts as a non-exported local const; prompt-loader.ts deleted entirely; 5 v1.0 prompt templates deleted with zero runtime references confirmed
 - [Phase 16-codebase-cleanup]: Collapsed 8-class NightShiftError hierarchy into single class with NightShiftErrorCode union; TimeoutError.taskId/timeoutMs dropped; categorizeError updated to use err.code
+- [Phase 16-codebase-cleanup]: validateAgentName made private (non-exported) in scaffold.ts — only consumer; maxBudgetUsd removed from NightShiftTask, OneOffDefaults, and Zod ConfigSchema — no runtime code reads this value
 
 ### Pending Todos
 
@@ -78,6 +79,6 @@ Most recent: quick-14 (daemon log rotation via dynamic date recomputation, 2026-
 
 ## Session Continuity
 
-Last session: 2026-03-13T16:50:17.920Z
-Stopped at: Completed 16-codebase-cleanup-02-PLAN.md
+Last session: 2026-03-13T16:58:37.852Z
+Stopped at: Completed 16-codebase-cleanup-03-PLAN.md
 Resume file: None
