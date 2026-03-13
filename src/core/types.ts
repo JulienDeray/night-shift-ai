@@ -9,7 +9,6 @@ export interface NightShiftTask {
   status: TaskStatus;
   allowedTools?: string[];
   timeout: string;
-  maxBudgetUsd?: number;
   model?: string;
   mcpConfig?: string;
   output?: string;
@@ -18,8 +17,7 @@ export interface NightShiftTask {
   completedAt?: string;
   recurringName?: string;
   notify?: boolean;
-  category?: string;
-  agentName?: string;  // kebab-case agent name; required after Phase 10 migration
+  agentName?: string;  // kebab-case agent name
   variables?: Record<string, string>;  // per-task variable overrides passed to engine's configOverrides
 }
 
@@ -45,7 +43,6 @@ export interface ScheduleEntry {
 
 export interface OneOffDefaults {
   timeout: string;
-  maxBudgetUsd?: number;
   model?: string;
 }
 

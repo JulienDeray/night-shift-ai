@@ -30,7 +30,7 @@ function makeConfig(): NightShiftConfig {
     agentsDir: "./agents",
     agents: [],
     schedule: [],
-    oneOffDefaults: { timeout: "30m", maxBudgetUsd: 5 },
+    oneOffDefaults: { timeout: "30m" },
   };
 }
 

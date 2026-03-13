@@ -35,7 +35,6 @@ describe("config", () => {
     expect(config.schedule).toEqual([]);
     expect(config.agentsDir).toBe("./agents");
     expect(config.oneOffDefaults.timeout).toBe("30m");
-    expect(config.oneOffDefaults.maxBudgetUsd).toBe(5.0);
   });
 
   it("loads config with agents and schedule", async () => {

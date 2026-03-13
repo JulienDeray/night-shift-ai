@@ -48,10 +48,6 @@ export interface AgentRunResult<T = unknown> {
 
 /**
  * Execution context for a step within an agent pipeline.
- *
- * Named AgentPipelineContext to distinguish from:
- * - PipelineContext in agent-types.ts (harness-level dispatch context)
- * - PipelineContext in code-agent-runner.ts (code-agent-specific context)
  */
 export interface AgentPipelineContext {
   taskId: string;

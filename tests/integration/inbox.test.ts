@@ -28,7 +28,6 @@ agents: []
 schedule: []
 one_off_defaults:
   timeout: "30m"
-  max_budget_usd: 5.00
 `;
     await fs.writeFile(path.join(tmpDir, "nightshift.yaml"), config);
   }

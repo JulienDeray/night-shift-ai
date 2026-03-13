@@ -55,7 +55,6 @@ const ConfigSchema = z
     one_off_defaults: z
       .object({
         timeout: z.string().default("30m"),
-        max_budget_usd: z.number().positive().optional(),
         model: z.string().optional(),
       })
       .default({ timeout: "30m" }),
@@ -129,7 +128,6 @@ function mapConfig(raw: RawConfig): NightShiftConfig {
     })),
     oneOffDefaults: {
       timeout: raw.one_off_defaults.timeout,
-      maxBudgetUsd: raw.one_off_defaults.max_budget_usd,
       model: raw.one_off_defaults.model,
     },
     ntfy: raw.ntfy
@@ -228,6 +226,5 @@ schedule: []
 
 one_off_defaults:
   timeout: "30m"
-  max_budget_usd: 5.00
 `;
 }

@@ -59,9 +59,6 @@ export function buildStepEnv(
  * AGENT-09 enforcement: --allowedTools Bash Read Write restricts the agent
  * to only the minimum needed tools (no WebFetch, browser, MCP tools).
  *
- * Note: --allowedTools values are separate array elements, consistent with
- * the existing AgentRunner.buildArgs pattern in agent-runner.ts.
- *
  * SECURITY: Secrets are never placed in the args array — they are forwarded
  * only via the env option in buildStepEnv.
  *
