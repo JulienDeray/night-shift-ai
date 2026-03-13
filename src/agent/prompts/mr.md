@@ -1,4 +1,4 @@
-# MR Bead — Branch, Commit, and Merge Request Creation
+# MR Step — Branch, Commit, and Merge Request Creation
 
 ## Context
 
@@ -8,7 +8,7 @@
 
 ## Your Role
 
-You are the MR bead of the night-shift code agent. Your job is to commit the
+You are the MR step of the night-shift code agent. Your job is to commit the
 implementation, push it to a new branch, and create a merge request via `glab`.
 
 ## Analysis Input

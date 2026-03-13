@@ -3,7 +3,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
 import {
-  loadBeadPrompt,
+  loadStepPrompt,
   INJECTION_MITIGATION_PREAMBLE,
 } from "../../src/agent/prompt-loader.js";
 
@@ -23,7 +23,7 @@ describe("prompt-loader", () => {
   it("always prepends INJECTION_MITIGATION_PREAMBLE before template content", async () => {
     await fs.writeFile(templateFile, "Hello, world!");
 
-    const result = await loadBeadPrompt(templateFile, {}, tmpDir);
+    const result = await loadStepPrompt(templateFile, {}, tmpDir);
 
     expect(result.startsWith(INJECTION_MITIGATION_PREAMBLE)).toBe(true);
   });
@@ -32,7 +32,7 @@ describe("prompt-loader", () => {
     const templateContent = "My template content here.";
     await fs.writeFile(templateFile, templateContent);
 
-    const result = await loadBeadPrompt(templateFile, {}, tmpDir);
+    const result = await loadStepPrompt(templateFile, {}, tmpDir);
 
     expect(result).toContain("---");
     expect(result).toContain(templateContent);
@@ -45,7 +45,7 @@ describe("prompt-loader", () => {
   it("substitutes {{variables}} via renderTemplate", async () => {
     await fs.writeFile(templateFile, "Hello {{name}}, today is {{date}}.");
 
-    const result = await loadBeadPrompt(
+    const result = await loadStepPrompt(
       templateFile,
       { name: "agent", date: "2026-02-25" },
       tmpDir,
@@ -58,7 +58,7 @@ describe("prompt-loader", () => {
   it("leaves unknown {{placeholders}} intact when not provided", async () => {
     await fs.writeFile(templateFile, "Category: {{category}}, repo: {{repo_url}}");
 
-    const result = await loadBeadPrompt(templateFile, {}, tmpDir);
+    const result = await loadStepPrompt(templateFile, {}, tmpDir);
 
     expect(result).toContain("{{category}}");
     expect(result).toContain("{{repo_url}}");
@@ -71,7 +71,7 @@ describe("prompt-loader", () => {
     await fs.writeFile(relativeTemplate, "Relative template content.");
 
     // Use a relative path from subDir
-    const result = await loadBeadPrompt("relative-template.md", {}, subDir);
+    const result = await loadStepPrompt("relative-template.md", {}, subDir);
 
     expect(result).toContain("Relative template content.");
   });
@@ -83,7 +83,7 @@ describe("prompt-loader", () => {
     const anotherDir = path.join(tmpDir, "other");
     await fs.mkdir(anotherDir);
 
-    const result = await loadBeadPrompt(templateFile, {}, anotherDir);
+    const result = await loadStepPrompt(templateFile, {}, anotherDir);
 
     expect(result).toContain("Absolute path template.");
   });
@@ -107,7 +107,7 @@ describe("prompt-loader", () => {
   it("substitutes date variable from renderTemplate defaults", async () => {
     await fs.writeFile(templateFile, "Date: {{date}}");
 
-    const result = await loadBeadPrompt(templateFile, {}, tmpDir);
+    const result = await loadStepPrompt(templateFile, {}, tmpDir);
 
     // renderTemplate provides a default {{date}} from date-fns format
     expect(result).toContain("Date:");
@@ -118,7 +118,7 @@ describe("prompt-loader", () => {
   it("explicit vars override renderTemplate defaults", async () => {
     await fs.writeFile(templateFile, "Date: {{date}}");
 
-    const result = await loadBeadPrompt(
+    const result = await loadStepPrompt(
       templateFile,
       { date: "2099-12-31" },
       tmpDir,
@@ -130,7 +130,7 @@ describe("prompt-loader", () => {
   it("does not throw on empty template", async () => {
     await fs.writeFile(templateFile, "");
 
-    const result = await loadBeadPrompt(templateFile, {}, tmpDir);
+    const result = await loadStepPrompt(templateFile, {}, tmpDir);
 
     expect(result).toContain(INJECTION_MITIGATION_PREAMBLE);
   });
@@ -139,7 +139,7 @@ describe("prompt-loader", () => {
     const nonExistent = path.join(tmpDir, "does-not-exist.md");
 
     await expect(
-      loadBeadPrompt(nonExistent, {}, tmpDir),
+      loadStepPrompt(nonExistent, {}, tmpDir),
     ).rejects.toThrow();
   });
 });

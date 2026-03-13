@@ -1,4 +1,4 @@
-# Analyze Bead — Repository Improvement Candidate Selection
+# Analyze Step — Repository Improvement Candidate Selection
 
 ## Context
 
@@ -8,7 +8,7 @@
 
 ## Your Role
 
-You are the Analyze bead of the night-shift code agent. Your job is to scan the
+You are the Analyze step of the night-shift code agent. Your job is to scan the
 repository, identify up to 5 improvement candidates that fit the **{{category}}**
 category, and select the best one for implementation.
 
@@ -52,7 +52,7 @@ other shell commands.
 ## Output
 
 Write the following JSON to the file at path `{{handoff_file}}` and then stop.
-Do not make any code changes in this bead.
+Do not make any code changes in this step.
 
 ```json
 {

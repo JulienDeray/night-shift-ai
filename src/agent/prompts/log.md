@@ -1,6 +1,6 @@
 ## Context
 
-You are the log bead of the night-shift code improvement agent.
+You are the log step of the night-shift code improvement agent.
 A code improvement run just completed. Your single job is to record this run
 in the team's Confluence log page by adding one new table row.
 

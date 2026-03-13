@@ -55,7 +55,6 @@ export async function scaffoldAgent(
     model: "claude-sonnet-4-6",
     timeout: "15m",
     allowedTools: ["Bash", "Read", "Write", "Edit", "Glob", "Grep"],
-    variables: { repo_url: "" },
     steps: [
       {
         name: "analyze",
@@ -126,7 +125,6 @@ The "result" field should describe the outcome and "summary" should contain a br
     (config.schedule as Array<Record<string, unknown>>).push({
       agent: name,
       cron: "0 2 * * *",
-      variables: { repo_url: "https://gitlab.com/your-org/your-repo" },
     });
 
     await fs.writeFile(configPath, stringifyYaml(config), "utf-8");
@@ -140,8 +138,8 @@ The "result" field should describe the outcome and "summary" should contain a br
   // 10. Build next-steps message
   const message = [
     "Next steps:",
-    `  1. Edit prompts in agents/${name}/prompts/`,
-    `  2. Set repo_url variable in nightshift.yaml`,
+    `  1. Edit steps and prompts in agents/${name}/prompts/`,
+    `  2. Add variables to nightshift.yaml if needed`,
     `  3. Run 'nightshift agent validate ${name}' to check`,
     `  4. Run 'nightshift run --agent ${name}' to test`,
   ].join("\n");
