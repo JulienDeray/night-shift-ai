@@ -2,16 +2,16 @@
 gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Consolidation
-status: completed
-stopped_at: Phase 15 context gathered
-last_updated: "2026-03-13T15:16:50.903Z"
-last_activity: 2026-03-13 — All 3 plans of Phase 14 complete; zero bead references remain; 381 tests pass
+status: in_progress
+stopped_at: Completed 15-notifications 15-01-PLAN.md
+last_updated: "2026-03-13T15:33:26Z"
+last_activity: 2026-03-13 — Phase 15 Plan 01 complete; notification-formatter and NotificationService created; 407 tests pass
 progress:
   total_phases: 4
   completed_phases: 1
-  total_plans: 3
-  completed_plans: 3
-  percent: 100
+  total_plans: 4
+  completed_plans: 4
+  percent: 25
 ---
 
 # Project State
@@ -21,17 +21,17 @@ progress:
 See: .planning/PROJECT.md (updated 2026-03-13)
 
 **Core value:** Small, focused merge requests that appear in the morning — one coherent improvement per night, easy to review, never overwhelming.
-**Current focus:** Phase 14: Bead Removal (ready to plan)
+**Current focus:** Phase 15: Notifications
 
 ## Current Position
 
 Milestone: v3.0 Consolidation
-Phase: 14 of 17 (Bead Removal)
-Plan: 03 (complete — all 3 plans done)
-Status: Phase complete
-Last activity: 2026-03-13 — All 3 plans of Phase 14 complete; zero bead references remain; 381 tests pass
+Phase: 15 of 17 (Notifications)
+Plan: 01 (complete — Plan 01 of 3 done)
+Status: Plan 01 complete
+Last activity: 2026-03-13 — Phase 15 Plan 01 complete; notification-formatter and NotificationService created; 407 tests pass
 
-Progress: [██████████] 100%
+Progress: [██░░░░░░░░] 25%
 
 ## Performance Metrics
 
@@ -54,6 +54,7 @@ Full decision log in PROJECT.md Key Decisions table.
 - [Phase 14-bead-removal]: AgentEngine constructor takes only logger — no registry parameter; inline step execution in engine.ts
 - [Phase 14-bead-removal]: Orchestrator uses file-queue only — BeadsClient and all beads branches removed
 - [Phase 14-03]: loadBeadPrompt renamed to loadStepPrompt; agent prompt .md files updated from "Bead" to "Step" role descriptions
+- [Phase 15-01]: Notification formatter as pure function module (not class); agentName fallback chain task→result→"unknown-agent"; duration format s/m+s/h+m; stack trace stripped via /^\s*at\s+/ pattern
 
 ### Pending Todos
 
@@ -73,6 +74,6 @@ Most recent: quick-14 (daemon log rotation via dynamic date recomputation, 2026-
 
 ## Session Continuity
 
-Last session: 2026-03-13T15:16:50.901Z
-Stopped at: Phase 15 context gathered
-Resume file: .planning/phases/15-notifications/15-CONTEXT.md
+Last session: 2026-03-13T15:33:26Z
+Stopped at: Completed 15-notifications 15-01-PLAN.md
+Resume file: .planning/phases/15-notifications/15-01-SUMMARY.md

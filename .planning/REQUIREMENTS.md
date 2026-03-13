@@ -68,9 +68,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | BEAD-02 | Phase 14 | Complete |
 | BEAD-03 | Phase 14 | Complete |
 | BEAD-04 | Phase 14 | Complete |
-| NTFY-01 | Phase 15 | Pending |
-| NTFY-02 | Phase 15 | Pending |
-| NTFY-03 | Phase 15 | Pending |
+| NTFY-01 | Phase 15 | In Progress (formatter done, wiring in 15-02) |
+| NTFY-02 | Phase 15 | In Progress (formatter done, wiring in 15-02) |
+| NTFY-03 | Phase 15 | In Progress (formatter done, wiring in 15-02) |
 | NTFY-04 | Phase 15 | Pending |
 | CLEAN-01 | Phase 16 | Pending |
 | CLEAN-02 | Phase 16 | Pending |
