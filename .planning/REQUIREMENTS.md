@@ -24,9 +24,9 @@ Requirements for v3.0 Consolidation milestone. Each maps to roadmap phases.
 ### Codebase Cleanup
 
 - [x] **CLEAN-01**: Dead code identified and removed (unused exports, unreachable paths, orphaned types)
-- [ ] **CLEAN-02**: Over-abstracted patterns simplified (unnecessary indirection layers)
+- [x] **CLEAN-02**: Over-abstracted patterns simplified (unnecessary indirection layers)
 - [x] **CLEAN-03**: Legacy v1.0/v2.0 compatibility remnants removed
-- [ ] **CLEAN-04**: No regressions — all existing tests pass after cleanup
+- [x] **CLEAN-04**: No regressions — all existing tests pass after cleanup
 
 ### Testing
 
@@ -73,9 +73,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | NTFY-03 | Phase 15 | In Progress (formatter done, wiring in 15-02) |
 | NTFY-04 | Phase 15 | Complete |
 | CLEAN-01 | Phase 16 | Complete |
-| CLEAN-02 | Phase 16 | Pending |
+| CLEAN-02 | Phase 16 | Complete |
 | CLEAN-03 | Phase 16 | Complete |
-| CLEAN-04 | Phase 16 | Pending |
+| CLEAN-04 | Phase 16 | Complete |
 | TEST-01 | Phase 17 | Pending |
 | TEST-02 | Phase 17 | Pending |
 | TEST-03 | Phase 17 | Pending |
