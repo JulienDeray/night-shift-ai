@@ -1,8 +1,24 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 import { stringify as stringifyYaml, parse as parseYaml } from "yaml";
-import { validateAgentName } from "./agent-types.js";
 import { getConfigPath } from "../core/paths.js";
+
+/**
+ * Validates an agent name: kebab-case, 1-64 chars, not reserved.
+ */
+function validateAgentName(name: string): { valid: boolean; error?: string } {
+  // Reserved names per CONTEXT.md
+  const RESERVED = ['default', 'all', 'none'];
+  if (RESERVED.includes(name)) {
+    return { valid: false, error: `"${name}" is a reserved agent name` };
+  }
+  // kebab-case: starts with lowercase letter, contains lowercase letters/digits/hyphens, max 64 chars
+  const KEBAB_RE = /^[a-z][a-z0-9-]{0,62}[a-z0-9]$|^[a-z]$/;
+  if (!KEBAB_RE.test(name)) {
+    return { valid: false, error: `Agent name must be kebab-case, 1-64 chars: "${name}"` };
+  }
+  return { valid: true };
+}
 
 export interface ScaffoldResult {
   agentDir: string;
