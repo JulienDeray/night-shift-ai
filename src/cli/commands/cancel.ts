@@ -1,38 +1,15 @@
 import { Command } from "@commander-js/extra-typings";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { loadConfig } from "../../core/config.js";
-import { BeadsClient } from "../../beads/client.js";
 import { getQueueDir } from "../../core/paths.js";
 import { success, error } from "../formatters.js";
 import type { NightShiftTask } from "../../core/types.js";
 
 export const cancelCommand = new Command("cancel")
   .description("Cancel a pending task by ID, removing it from the queue")
-  .argument("<task-id>", "The task ID to cancel (e.g. ns-XXXXXXXX or bead ID)")
+  .argument("<task-id>", "The task ID to cancel (e.g. ns-XXXXXXXX)")
   .action(async (taskId) => {
     try {
-      const config = await loadConfig();
-
-      if (config.beads.enabled) {
-        const beads = new BeadsClient();
-        try {
-          const bead = await beads.get(taskId);
-          if (bead.status === "closed") {
-            console.error(error(`Task ${taskId} is already closed`));
-            process.exitCode = 1;
-            return;
-          }
-          await beads.close(taskId);
-          console.log(success(`Cancelled task: ${bead.title} (${taskId})`));
-        } catch (err) {
-          const msg = err instanceof Error ? err.message : String(err);
-          console.error(error(`Task not found: ${taskId} — ${msg}`));
-          process.exitCode = 1;
-        }
-        return;
-      }
-
       // File-based queue mode
       const queueDir = getQueueDir();
       const taskFilePath = path.join(queueDir, `${taskId}.json`);

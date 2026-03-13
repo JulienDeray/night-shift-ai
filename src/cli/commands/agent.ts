@@ -13,7 +13,6 @@ import { getLogsDir } from "../../core/paths.js";
 import {
   ManifestError,
   ManifestSecurityError,
-  ConfigError,
 } from "../../core/errors.js";
 import type { RunLogEntry } from "../../agent/run-logger.js";
 import {
@@ -143,14 +142,14 @@ agentCommand
       }
 
       let allPromptsPresent = true;
-      for (const bead of manifest.beads) {
-        const promptPath = path.join(agentDir, bead.prompt);
+      for (const step of manifest.steps) {
+        const promptPath = path.join(agentDir, step.prompt);
         try {
           await fs.access(promptPath);
         } catch {
           results.push({
             type: "error",
-            msg: `Prompts: missing ${bead.prompt}`,
+            msg: `Prompts: missing ${step.prompt}`,
           });
           hasErrors = true;
           allPromptsPresent = false;
@@ -162,8 +161,8 @@ agentCommand
       }
 
       // d. Variable completeness
-      for (const bead of manifest.beads) {
-        const promptPath = path.join(agentDir, bead.prompt);
+      for (const step of manifest.steps) {
+        const promptPath = path.join(agentDir, step.prompt);
         try {
           const content = await fs.readFile(promptPath, "utf-8");
           validateTemplateVars(content, manifestVars);
@@ -171,7 +170,7 @@ agentCommand
           if (err instanceof ManifestError) {
             results.push({
               type: "error",
-              msg: `Variables (${bead.name}): ${err.message}`,
+              msg: `Variables (${step.name}): ${err.message}`,
             });
             hasErrors = true;
           }
@@ -179,10 +178,10 @@ agentCommand
         }
       }
 
-      // e. Env var availability per bead
-      for (const bead of manifest.beads) {
-        if (bead.env) {
-          for (const envEntry of bead.env) {
+      // e. Env var availability per step
+      for (const step of manifest.steps) {
+        if (step.env) {
+          for (const envEntry of step.env) {
             const envName =
               typeof envEntry === "string" ? envEntry : envEntry.name;
             if (typeof envEntry === "string" && !process.env[envName]) {
@@ -256,7 +255,7 @@ agentCommand
     // Filter to directories with manifest.yaml
     const agents: Array<{
       name: string;
-      beads: number;
+      steps: number;
       schedule: string;
       lastRun: string;
     }> = [];
@@ -285,7 +284,7 @@ agentCommand
         const content = await fs.readFile(manifestPath, "utf-8");
         const parsed = parseYaml(content) as Record<string, unknown>;
         const agentName = String(parsed.name ?? dirName);
-        const beadCount = Array.isArray(parsed.beads) ? parsed.beads.length : 0;
+        const stepCount = Array.isArray(parsed.steps) ? parsed.steps.length : 0;
         const cron = scheduleMap.get(agentName);
 
         const lastEntry = lastRunMap.get(agentName);
@@ -299,7 +298,7 @@ agentCommand
 
         agents.push({
           name: agentName,
-          beads: beadCount,
+          steps: stepCount,
           schedule: cron ?? "(not scheduled)",
           lastRun: lastRunStr,
         });
@@ -324,11 +323,11 @@ agentCommand
 
     const rows = agents.map((a) => [
       a.name,
-      String(a.beads),
+      String(a.steps),
       a.schedule,
       a.lastRun,
     ]);
-    console.log(table(["Name", "Beads", "Schedule", "Last Run"], rows));
+    console.log(table(["Name", "Steps", "Schedule", "Last Run"], rows));
   });
 
 // ── agent show ──────────────────────────────────────────────────────────────
@@ -376,24 +375,24 @@ agentCommand
     console.log(`  Variables:   ${varNames.length} (${varNames.join(", ") || "none"})`);
     console.log();
 
-    // b. Bead Pipeline
-    console.log(heading("Bead Pipeline"));
-    const beads = Array.isArray(parsed.beads)
-      ? (parsed.beads as Array<Record<string, unknown>>)
+    // b. Step Pipeline
+    console.log(heading("Step Pipeline"));
+    const steps = Array.isArray(parsed.steps)
+      ? (parsed.steps as Array<Record<string, unknown>>)
       : [];
-    for (let i = 0; i < beads.length; i++) {
-      const bead = beads[i];
+    for (let i = 0; i < steps.length; i++) {
+      const step = steps[i];
       const modelStr =
-        bead.model && bead.model !== parsed.model
-          ? ` (model: ${bead.model})`
+        step.model && step.model !== parsed.model
+          ? ` (model: ${step.model})`
           : "";
-      const retryStr = bead.retry
-        ? ` (retry: ${(bead.retry as Record<string, unknown>).maxAttempts}x from ${(bead.retry as Record<string, unknown>).retryFrom})`
+      const retryStr = step.retry
+        ? ` (retry: ${(step.retry as Record<string, unknown>).maxAttempts}x from ${(step.retry as Record<string, unknown>).retryFrom})`
         : "";
       console.log(
-        `  ${i + 1}. ${bead.name} [${bead.type}]${modelStr}${retryStr}`,
+        `  ${i + 1}. ${step.name}${modelStr}${retryStr}`,
       );
-      console.log(dim(`     prompt: ${bead.prompt}`));
+      console.log(dim(`     prompt: ${step.prompt}`));
     }
     console.log();
 

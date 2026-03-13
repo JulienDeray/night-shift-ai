@@ -3,8 +3,6 @@ import path from "node:path";
 import { loadConfig } from "../core/config.js";
 import { getWorkspaceDir, ensureNightShiftDirs, getConfigPath } from "../core/paths.js";
 import { Logger } from "../core/logger.js";
-import { BeadsClient } from "../beads/client.js";
-import { fromBead } from "../beads/mapper.js";
 import { Scheduler } from "./scheduler.js";
 import { AgentPool, type TaskResult } from "./agent-pool.js";
 import { writeDaemonState, writePidFile, removePidFile } from "./health.js";
@@ -53,15 +51,15 @@ export async function validateAgentsAtStartup(
       // Load and validate manifest (handles path containment, Zod validation, env var resolution)
       const manifest = await loadManifest(agentDir, agentsRoot);
 
-      // For each bead, validate prompt file exists and template vars resolve
-      for (const bead of manifest.beads) {
-        const promptPath = path.join(manifest.agentDir, bead.prompt);
+      // For each step, validate prompt file exists and template vars resolve
+      for (const step of manifest.steps) {
+        const promptPath = path.join(manifest.agentDir, step.prompt);
         let promptContent: string;
         try {
           promptContent = await fs.readFile(promptPath, "utf-8");
         } catch {
           errors.push(
-            `Agent '${agent.name}', bead '${bead.name}': prompt file not found: ${promptPath}`,
+            `Agent '${agent.name}', step '${step.name}': prompt file not found: ${promptPath}`,
           );
           continue; // Skip template validation for missing prompt
         }
@@ -86,7 +84,7 @@ export async function validateAgentsAtStartup(
           validateTemplateVars(promptContent, allKnownVars);
         } catch (err) {
           errors.push(
-            `Agent '${agent.name}', bead '${bead.name}': ${err instanceof Error ? err.message : String(err)}`,
+            `Agent '${agent.name}', step '${step.name}': ${err instanceof Error ? err.message : String(err)}`,
           );
         }
       }
@@ -111,7 +109,6 @@ export class Orchestrator {
   private logger!: Logger;
   private scheduler!: Scheduler;
   private pool!: AgentPool;
-  private beads: BeadsClient | null = null;
   private ntfy: NtfyClient | null = null;
   private stopping = false;
   private pollTimer: ReturnType<typeof setTimeout> | null = null;
@@ -130,7 +127,6 @@ export class Orchestrator {
     this.config = await loadConfig();
     this.logger = await Logger.createDaemonLogger();
     this.scheduler = new Scheduler(this.config, this.logger);
-    this.beads = this.config.beads.enabled ? new BeadsClient() : null;
 
     const workspaceDir = getWorkspaceDir(this.config.workspace);
     this.pool = new AgentPool({
@@ -155,7 +151,6 @@ export class Orchestrator {
       pid: process.pid,
       maxConcurrent: this.config.maxConcurrent,
       pollInterval: this.config.daemon.pollIntervalMs,
-      beadsEnabled: this.config.beads.enabled,
       agents: this.config.agents.length,
       scheduleEntries: this.config.schedule.length,
     });
@@ -247,9 +242,9 @@ export class Orchestrator {
       await this.handleCompleted(taskResult);
     }
 
-    // 3. Poll for ready tasks and dispatch
+    // 3. Poll file queue for ready tasks and dispatch
     if (this.pool.canAccept()) {
-      const readyTasks = await this.getReadyTasks();
+      const readyTasks = await this.getQueuedTasks();
       for (const task of readyTasks) {
         if (!this.pool.canAccept()) break;
 
@@ -265,23 +260,6 @@ export class Orchestrator {
     // Update state
     this.state.activeTasks = this.pool.activeCount;
     await this.writeHeartbeat();
-  }
-
-  private async getReadyTasks(): Promise<NightShiftTask[]> {
-    if (this.beads) {
-      try {
-        const ready = await this.beads.listReady();
-        return ready.map(fromBead);
-      } catch (err) {
-        this.logger.error("Failed to list ready beads", {
-          error: err instanceof Error ? err.message : String(err),
-        });
-        return [];
-      }
-    }
-
-    // File-based queue fallback
-    return this.getQueuedTasks();
   }
 
   private async getQueuedTasks(): Promise<NightShiftTask[]> {
@@ -307,18 +285,6 @@ export class Orchestrator {
   }
 
   private async claimTask(task: NightShiftTask): Promise<boolean> {
-    if (this.beads) {
-      try {
-        await this.beads.update(task.id, { claim: true });
-        return true;
-      } catch (err) {
-        this.logger.warn(`Failed to claim bead ${task.id}`, {
-          error: err instanceof Error ? err.message : String(err),
-        });
-        return false;
-      }
-    }
-
     // File-based: update status in queue file
     const queuePath = path.join(getQueueDir(), `${task.id}.json`);
     try {
@@ -337,7 +303,7 @@ export class Orchestrator {
       status: result.status === "SUCCESS" ? "completed" : "failed",
       runId: result.runId,
       durationMs: result.totalDurationMs,
-      perBead: result.perBead.map((b) => ({ name: b.name, status: b.status })),
+      perStep: result.perStep.map((s) => ({ name: s.name, status: s.status })),
     });
 
     // Write inbox report
@@ -350,27 +316,11 @@ export class Orchestrator {
       });
     }
 
-    // Close bead
-    if (this.beads && task.origin !== "recurring") {
-      try {
-        if (result.status !== "SUCCESS") {
-          await this.beads.update(task.id, {
-            labels: ["nightshift:failed"],
-          });
-        }
-        await this.beads.close(task.id);
-      } catch (err) {
-        this.logger.error(`Failed to close bead ${task.id}`, {
-          error: err instanceof Error ? err.message : String(err),
-        });
-      }
-    } else {
-      // File-based: remove from queue
-      try {
-        await fs.unlink(path.join(getQueueDir(), `${task.id}.json`));
-      } catch {
-        // ignore
-      }
+    // File-based: remove from queue
+    try {
+      await fs.unlink(path.join(getQueueDir(), `${task.id}.json`));
+    } catch {
+      // ignore
     }
 
     // Update stats
@@ -400,7 +350,7 @@ export class Orchestrator {
 
     // Fallback category re-dispatch
     if (result.status === "SUCCESS" && task.agentName) {
-      const analyzeOutput = result.beadOutputs?.["analyze"] as { result?: string; categoryUsed?: string } | undefined;
+      const analyzeOutput = result.stepOutputs?.["analyze"] as { result?: string; categoryUsed?: string } | undefined;
       if (analyzeOutput?.result === "NO_IMPROVEMENT") {
         const agentDecl = this.config.agents.find((a) => a.name === task.agentName);
         const fallbackCategories = agentDecl?.fallback_categories;

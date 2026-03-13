@@ -1,8 +1,6 @@
 import { Command } from "@commander-js/extra-typings";
 import crypto from "node:crypto";
 import { loadConfig } from "../../core/config.js";
-import { BeadsClient } from "../../beads/client.js";
-import { toBeadLabels, toBeadDescription } from "../../beads/mapper.js";
 import { writeJsonFile } from "../../utils/fs.js";
 import { getQueueDir } from "../../core/paths.js";
 import { success, error, info } from "../formatters.js";
@@ -60,20 +58,9 @@ export const submitCommand = new Command("submit")
         ...(Object.keys(mergedVars).length > 0 && { variables: mergedVars }),
       };
 
-      if (config.beads.enabled) {
-        const beads = new BeadsClient();
-        const beadId = await beads.create({
-          title: taskName,
-          description: toBeadDescription(task),
-          labels: toBeadLabels(task),
-        });
-        task.id = beadId;
-        console.log(success(`Task submitted as bead ${beadId}`));
-      } else {
-        const queuePath = path.join(getQueueDir(), `${taskId}.json`);
-        await writeJsonFile(queuePath, task);
-        console.log(success(`Task queued: ${taskId}`));
-      }
+      const queuePath = path.join(getQueueDir(), `${taskId}.json`);
+      await writeJsonFile(queuePath, task);
+      console.log(success(`Task queued: ${taskId}`));
 
       console.log(info(`Agent:   ${options.agent}`));
       if (prompt) {

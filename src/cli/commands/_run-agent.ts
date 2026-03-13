@@ -3,9 +3,6 @@ import path from "node:path";
 import { loadConfig } from "../../core/config.js";
 import { Logger } from "../../core/logger.js";
 import { AgentEngine } from "../../agent/engine.js";
-import { BeadRegistry } from "../../agent/bead-registry.js";
-import { StandardBeadPlugin } from "../../agent/plugins/standard-bead-plugin.js";
-import { GitCloneBeadPlugin } from "../../agent/plugins/git-clone-bead-plugin.js";
 import { NtfyClient } from "../../notifications/ntfy-client.js";
 import { success, error, info, formatDuration } from "../formatters.js";
 import type { AgentRunResult } from "../../agent/engine-types.js";
@@ -21,7 +18,7 @@ export interface RunAgentForegroundOptions {
 }
 
 /**
- * Runs an agent in the foreground, streaming per-bead progress and a final
+ * Runs an agent in the foreground, streaming per-step progress and a final
  * summary to the terminal. Used by both `run` and `submit --sync`.
  *
  * Sets `process.exitCode = 1` if the agent does not complete with SUCCESS.
@@ -61,12 +58,8 @@ export async function runAgentForeground(
   const agentDecl = config.agents.find((a) => a.name === agentName);
   const mergedVars = { ...(agentDecl?.variables ?? {}), ...vars };
 
-  // Create registry and engine
-  const registry = new BeadRegistry();
-  registry.register("standard", (_bead, _manifest) => new StandardBeadPlugin());
-  registry.register("git-clone", (_bead, _manifest) => new GitCloneBeadPlugin());
-
-  const engine = new AgentEngine(registry, logger);
+  // Create engine directly (no registry)
+  const engine = new AgentEngine(logger);
 
   const result = await engine.run(
     agentDir,
@@ -79,14 +72,14 @@ export async function runAgentForeground(
 
   console.log();
 
-  // Per-bead summary
-  for (const bead of result.perBead) {
-    const beadDuration = Math.round(bead.durationMs / 1000);
-    const beadStatusFn =
-      bead.status === "SUCCESS" ? success : bead.status === "FAILED" ? error : info;
-    console.log(beadStatusFn(`  [${bead.name}] ${bead.status} (${formatDuration(beadDuration)})`));
-    if (bead.error) {
-      console.log(error(`    Error: ${bead.error.slice(0, 200)}`));
+  // Per-step summary
+  for (const step of result.perStep) {
+    const stepDuration = Math.round(step.durationMs / 1000);
+    const stepStatusFn =
+      step.status === "SUCCESS" ? success : step.status === "FAILED" ? error : info;
+    console.log(stepStatusFn(`  [${step.name}] ${step.status} (${formatDuration(stepDuration)})`));
+    if (step.error) {
+      console.log(error(`    Error: ${step.error.slice(0, 200)}`));
     }
   }
 

@@ -56,23 +56,9 @@ export async function scaffoldAgent(
     timeout: "15m",
     allowedTools: ["Bash", "Read", "Write", "Edit", "Glob", "Grep"],
     variables: { repo_url: "" },
-    beads: [
-      {
-        name: "clone",
-        type: "git-clone",
-        prompt: "prompts/clone-stub.md",
-        outputSchema: {
-          type: "object",
-          properties: {
-            repoDir: { type: "string" },
-            handoffDir: { type: "string" },
-          },
-          required: ["repoDir", "handoffDir"],
-        },
-      },
+    steps: [
       {
         name: "analyze",
-        type: "standard",
         prompt: "prompts/analyze.md",
         outputSchema: {
           type: "object",
@@ -99,17 +85,10 @@ export async function scaffoldAgent(
     "utf-8",
   );
 
-  // 7. Write clone-stub.md
-  await fs.writeFile(
-    path.join(promptsDir, "clone-stub.md"),
-    "Clone the repository at {{repo_url}}.\n",
-    "utf-8",
-  );
-
-  // 8. Write analyze.md
+  // 7. Write analyze.md
   await fs.writeFile(
     path.join(promptsDir, "analyze.md"),
-    `Analyze the cloned repository and produce a structured summary.
+    `Analyze the repository and produce a structured summary.
 
 Output your analysis as a JSON object in a code block with the following schema:
 

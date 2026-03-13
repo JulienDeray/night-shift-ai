@@ -1,7 +1,6 @@
 import { Command } from "@commander-js/extra-typings";
 import { loadConfig } from "../../core/config.js";
 import { readDaemonState, isDaemonRunning } from "../../daemon/health.js";
-import { BeadsClient } from "../../beads/client.js";
 import { readJsonFile } from "../../utils/fs.js";
 import { getQueueDir } from "../../core/paths.js";
 import { statusColor, formatCost, heading, dim, error, table } from "../formatters.js";
@@ -36,73 +35,48 @@ export const statusCommand = new Command("status")
       console.log("");
       console.log(heading("Queue"));
 
-      if (config.beads.enabled) {
-        try {
-          const beads = new BeadsClient();
-          const ready = await beads.listReady();
-          const running = daemonUp ? state.activeTasks : 0;
-          console.log(`  Ready:   ${ready.length}`);
-          console.log(`  Running: ${running}`);
-
-          if (ready.length > 0) {
-            const rows = ready.map((bead) => {
-              const name = bead.title.length > 30 ? bead.title.slice(0, 30) + "..." : bead.title;
-              const owner = bead.owner || "-";
-              const status = statusColor("ready");
-              const created = formatDistanceToNow(new Date(bead.created_at)) + " ago";
-              return [bead.id, name, owner, status, created];
-            });
-
-            console.log("");
-            console.log(table(["ID", "Name", "Owner", "Status", "Created"], rows));
+      // File-based queue
+      try {
+        const queueDir = getQueueDir();
+        const files = await fs.readdir(queueDir);
+        const activeTasks: NightShiftTask[] = [];
+        for (const file of files) {
+          if (!file.endsWith(".json")) continue;
+          const task = await readJsonFile<NightShiftTask>(
+            path.join(queueDir, file),
+          );
+          if (task && (task.status === "pending" || task.status === "ready" || task.status === "running")) {
+            activeTasks.push(task);
           }
-        } catch {
-          console.log(dim("  (beads not available)"));
         }
-      } else {
-        // File-based queue
-        try {
-          const queueDir = getQueueDir();
-          const files = await fs.readdir(queueDir);
-          const activeTasks: NightShiftTask[] = [];
-          for (const file of files) {
-            if (!file.endsWith(".json")) continue;
-            const task = await readJsonFile<NightShiftTask>(
-              path.join(queueDir, file),
-            );
-            if (task && (task.status === "pending" || task.status === "ready" || task.status === "running")) {
-              activeTasks.push(task);
-            }
-          }
-          const pending = activeTasks.filter((t) => t.status === "pending" || t.status === "ready").length;
-          const running = activeTasks.filter((t) => t.status === "running").length;
-          console.log(`  Pending: ${pending}`);
-          console.log(`  Running: ${running}`);
+        const pending = activeTasks.filter((t) => t.status === "pending" || t.status === "ready").length;
+        const running = activeTasks.filter((t) => t.status === "running").length;
+        console.log(`  Pending: ${pending}`);
+        console.log(`  Running: ${running}`);
 
-          if (activeTasks.length > 0) {
-            // Sort: running first, then pending/ready, each group by createdAt ascending
-            activeTasks.sort((a, b) => {
-              const aIsRunning = a.status === "running" ? 0 : 1;
-              const bIsRunning = b.status === "running" ? 0 : 1;
-              if (aIsRunning !== bIsRunning) return aIsRunning - bIsRunning;
-              return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
-            });
+        if (activeTasks.length > 0) {
+          // Sort: running first, then pending/ready, each group by createdAt ascending
+          activeTasks.sort((a, b) => {
+            const aIsRunning = a.status === "running" ? 0 : 1;
+            const bIsRunning = b.status === "running" ? 0 : 1;
+            if (aIsRunning !== bIsRunning) return aIsRunning - bIsRunning;
+            return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+          });
 
-            const rows = activeTasks.map((task) => {
-              const name = task.name.length > 30 ? task.name.slice(0, 30) + "..." : task.name;
-              const agent = task.agentName ?? "-";
-              const status = statusColor(task.status);
-              const created = formatDistanceToNow(new Date(task.createdAt)) + " ago";
-              return [task.id, name, agent, status, created];
-            });
+          const rows = activeTasks.map((task) => {
+            const name = task.name.length > 30 ? task.name.slice(0, 30) + "..." : task.name;
+            const agent = task.agentName ?? "-";
+            const status = statusColor(task.status);
+            const created = formatDistanceToNow(new Date(task.createdAt)) + " ago";
+            return [task.id, name, agent, status, created];
+          });
 
-            console.log("");
-            console.log(table(["ID", "Name", "Agent", "Status", "Created"], rows));
-          }
-        } catch {
-          console.log(`  Pending: 0`);
-          console.log(`  Running: 0`);
+          console.log("");
+          console.log(table(["ID", "Name", "Agent", "Status", "Created"], rows));
         }
+      } catch {
+        console.log(`  Pending: 0`);
+        console.log(`  Running: 0`);
       }
     } catch (err) {
       console.error(error(err instanceof Error ? err.message : String(err)));

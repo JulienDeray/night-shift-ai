@@ -16,10 +16,10 @@ export function generateReport(
   const status = result.status === "SUCCESS" ? "completed" : "failed";
   const durationFormatted = formatDurationHuman(durationSeconds);
 
-  // Build per-bead summary lines
-  const beadLines = result.perBead.map((bead) => {
-    const errorPart = bead.error ? ` — ${bead.error.slice(0, 200)}` : "";
-    return `- **${bead.name}**: ${bead.status} (${bead.durationMs}ms)${errorPart}`;
+  // Build per-step summary lines
+  const stepLines = result.perStep.map((step) => {
+    const errorPart = step.error ? ` — ${step.error.slice(0, 200)}` : "";
+    return `- **${step.name}**: ${step.status} (${step.durationMs}ms)${errorPart}`;
   }).join("\n");
 
   // Build result section
@@ -41,16 +41,16 @@ started_at: ${startedAt.toISOString()}
 completed_at: ${completedAt.toISOString()}
 duration_seconds: ${durationSeconds}
 agent_name: ${result.agentName}
-bead_count: ${result.perBead.length}
+step_count: ${result.perStep.length}
 ---
 
 # ${task.name}
 
 **Status**: ${capitalize(status)} | **Duration**: ${durationFormatted} | **Agent**: ${result.agentName}
 
-## Beads
+## Steps
 
-${beadLines || "_No beads executed_"}
+${stepLines || "_No steps executed_"}
 
 ## Result
 
@@ -110,7 +110,7 @@ export function toInboxEntry(
     completedAt: completedAt.toISOString(),
     durationSeconds: Math.round((completedAt.getTime() - startedAt.getTime()) / 1000),
     agentName: result.agentName,
-    beadCount: result.perBead.length,
+    stepCount: result.perStep.length,
     resultSummary,
     originalPrompt: task.prompt,
     filePath,

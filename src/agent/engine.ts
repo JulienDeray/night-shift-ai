@@ -184,7 +184,7 @@ export class AgentEngine {
       let timedOut = false;
 
       try {
-        // Inline step execution (previously in StandardBeadPlugin)
+        // Inline step execution
 
         // 1. Read prompt file from agent directory
         const rawPrompt = await fs.readFile(

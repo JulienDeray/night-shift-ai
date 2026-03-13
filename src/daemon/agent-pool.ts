@@ -1,8 +1,5 @@
 import path from "node:path";
 import { AgentEngine } from "../agent/engine.js";
-import { BeadRegistry } from "../agent/bead-registry.js";
-import { StandardBeadPlugin } from "../agent/plugins/standard-bead-plugin.js";
-import { GitCloneBeadPlugin } from "../agent/plugins/git-clone-bead-plugin.js";
 import type { AgentRunResult } from "../agent/engine-types.js";
 import type { NightShiftTask } from "../core/types.js";
 import type { Logger } from "../core/logger.js";
@@ -71,7 +68,7 @@ export class AgentPool {
         agentName: "",
         status: "FATAL",
         finalOutput: null,
-        perBead: [],
+        perStep: [],
         totalDurationMs: 0,
         error: "Task rejected: agentName is required",
       };
@@ -85,12 +82,8 @@ export class AgentPool {
     const agentsRoot = path.resolve(this.configDir, this.agentsDir);
     const agentDir = path.join(agentsRoot, task.agentName);
 
-    // Create a fresh registry and engine per dispatch
-    const registry = new BeadRegistry();
-    registry.register("standard", (_bead, _manifest) => new StandardBeadPlugin());
-    registry.register("git-clone", (_bead, _manifest) => new GitCloneBeadPlugin());
-
-    const engine = new AgentEngine(registry, this.logger);
+    // Create engine directly (no registry)
+    const engine = new AgentEngine(this.logger);
 
     const promise = engine.run(agentDir, agentsRoot, task.id, task.variables ?? {}).then(
       (result) => {
@@ -107,7 +100,7 @@ export class AgentPool {
           agentName: task.agentName ?? "",
           status: "FATAL",
           finalOutput: null,
-          perBead: [],
+          perStep: [],
           totalDurationMs: completedAt.getTime() - startedAt.getTime(),
           error: err instanceof Error ? err.message : String(err),
         };
@@ -134,7 +127,7 @@ export class AgentPool {
   killAll(): void {
     for (const [id] of this.running) {
       this.logger.warn(
-        `Task ${id}: AgentEngine runs cannot be interrupted — in-progress beads will complete (future improvement)`,
+        `Task ${id}: AgentEngine runs cannot be interrupted — in-progress steps will complete (future improvement)`,
       );
     }
   }
