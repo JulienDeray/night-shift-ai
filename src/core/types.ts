@@ -33,7 +33,6 @@ export interface AgentDeclaration {
   name: string;
   notify?: boolean;
   variables?: Record<string, string>;
-  fallback_categories?: string[];  // per-agent fallback order in nightshift.yaml
 }
 
 export interface ScheduleEntry {

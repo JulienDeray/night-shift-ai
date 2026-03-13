@@ -19,7 +19,6 @@ const AgentDeclarationSchema = z
     name: z.string().regex(/^[a-z][a-z0-9-]*$/, "must be kebab-case"),
     notify: z.boolean().optional(),
     variables: z.record(z.string(), z.string()).optional(),
-    fallback_categories: z.array(z.string()).optional(),
   })
   .strict();
 
@@ -120,7 +119,6 @@ function mapConfig(raw: RawConfig): NightShiftConfig {
       name: a.name,
       notify: a.notify,
       variables: a.variables,
-      fallback_categories: a.fallback_categories,
     })),
     schedule: raw.schedule.map((s) => ({
       agent: s.agent,

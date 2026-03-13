@@ -1,4 +1,3 @@
-import crypto from "node:crypto";
 import path from "node:path";
 import { loadConfig } from "../core/config.js";
 import { getWorkspaceDir, ensureNightShiftDirs, getConfigPath } from "../core/paths.js";
@@ -346,35 +345,6 @@ export class Orchestrator {
       this.logger.warn("Failed to write run log", {
         error: logErr instanceof Error ? logErr.message : String(logErr),
       });
-    }
-
-    // Fallback category re-dispatch
-    if (result.status === "SUCCESS" && task.agentName) {
-      const analyzeOutput = result.stepOutputs?.["analyze"] as { result?: string; categoryUsed?: string } | undefined;
-      if (analyzeOutput?.result === "NO_IMPROVEMENT") {
-        const agentDecl = this.config.agents.find((a) => a.name === task.agentName);
-        const fallbackCategories = agentDecl?.fallback_categories;
-        if (fallbackCategories && fallbackCategories.length > 0) {
-          const usedCategory = analyzeOutput.categoryUsed;
-          const nextCategory = fallbackCategories.find((c) => c !== usedCategory);
-          if (nextCategory && this.pool.canAccept()) {
-            const fallbackTask: NightShiftTask = {
-              id: `ns-${crypto.randomBytes(4).toString("hex")}`,
-              name: `${task.agentName}-fallback-${nextCategory}`,
-              origin: task.origin,
-              prompt: "",
-              status: "pending",
-              timeout: task.timeout,
-              createdAt: new Date().toISOString(),
-              agentName: task.agentName,
-              notify: task.notify,
-              variables: { ...(task.variables ?? {}), category: nextCategory },
-            };
-            this.pool.dispatch(fallbackTask);
-            this.logger.info(`Dispatched fallback category '${nextCategory}' for agent '${task.agentName}'`);
-          }
-        }
-      }
     }
 
     // Notify
