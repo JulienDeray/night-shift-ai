@@ -2,11 +2,9 @@ import crypto from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 import type { Logger } from "../core/logger.js";
-import type { BeadErrorCategory, AgentRunResult, BeadOutcome } from "./engine-types.js";
-import type { AgentPipelineContext } from "./bead-plugin.js";
-import { BeadRegistry } from "./bead-registry.js";
+import type { StepErrorCategory, AgentRunResult, StepOutcome, AgentPipelineContext } from "./engine-types.js";
 import { TempDirManager } from "./temp-dir-manager.js";
-import { loadManifest, validateBeadOutput } from "./manifest-loader.js";
+import { loadManifest, validateStepOutput } from "./manifest-loader.js";
 import {
   buildBuiltIns,
   buildTemplateVars,
@@ -16,11 +14,12 @@ import {
 import {
   ManifestError,
   ManifestSecurityError,
-  BeadContractViolationError,
-  BeadOutputMissingError,
-  RegistryError,
+  StepContractViolationError,
+  StepOutputMissingError,
 } from "../core/errors.js";
-import { spawnWithTimeout } from "../utils/process.js";
+import { runStep } from "./step-runner.js";
+import { parseTimeout } from "../utils/process.js";
+import { INJECTION_MITIGATION_PREAMBLE } from "./prompt-loader.js";
 import { getRunOutputDir, ensureDir } from "../core/paths.js";
 
 // ---------------------------------------------------------------------------
@@ -28,24 +27,22 @@ import { getRunOutputDir, ensureDir } from "../core/paths.js";
 // ---------------------------------------------------------------------------
 
 /**
- * Classifies a bead execution error as FATAL or TRANSIENT.
+ * Classifies a step execution error as FATAL or TRANSIENT.
  *
  * Rules (per locked CONTEXT.md):
- * - timedOut=true        → FATAL (timeout is a hard stop)
- * - BeadOutputMissingError → TRANSIENT (Claude might produce JSON on retry)
- * - BeadContractViolationError → TRANSIENT (schema mismatch might resolve on retry)
- * - ManifestSecurityError → FATAL (path traversal is structural)
- * - ManifestError         → FATAL (bad manifest is structural)
- * - RegistryError         → FATAL (unknown bead type is structural)
- * - Default               → FATAL (safe default for unknown errors)
+ * - timedOut=true              → FATAL (timeout is a hard stop)
+ * - StepOutputMissingError     → TRANSIENT (Claude might produce JSON on retry)
+ * - StepContractViolationError → TRANSIENT (schema mismatch might resolve on retry)
+ * - ManifestSecurityError      → FATAL (path traversal is structural)
+ * - ManifestError              → FATAL (bad manifest is structural)
+ * - Default                    → FATAL (safe default for unknown errors)
  */
-function categorizeError(err: unknown, timedOut: boolean): BeadErrorCategory {
+function categorizeError(err: unknown, timedOut: boolean): StepErrorCategory {
   if (timedOut) return "FATAL";
-  if (err instanceof BeadOutputMissingError) return "TRANSIENT";
-  if (err instanceof BeadContractViolationError) return "TRANSIENT";
+  if (err instanceof StepOutputMissingError) return "TRANSIENT";
+  if (err instanceof StepContractViolationError) return "TRANSIENT";
   if (err instanceof ManifestSecurityError) return "FATAL";
   if (err instanceof ManifestError) return "FATAL";
-  if (err instanceof RegistryError) return "FATAL";
   // Check for timeout indicators in error message
   if (err instanceof Error && err.message.toLowerCase().includes("timed out")) return "FATAL";
   return "FATAL";
@@ -57,27 +54,27 @@ function categorizeError(err: unknown, timedOut: boolean): BeadErrorCategory {
 
 /**
  * Generic pipeline orchestrator. Drives any agent directory through its
- * bead pipeline without containing any agent-specific logic.
+ * step pipeline without containing any agent-specific logic.
  *
  * Responsibilities:
  * 1. Load manifest from agent directory
  * 2. Create isolated temp directory for the run
- * 3. Iterate beads: resolve plugin, execute, validate output, accumulate context
- * 4. Handle errors: categorize, rollback temp dir, mark remaining beads SKIPPED
+ * 3. Iterate steps: read prompt, render template, call runStep, validate output, accumulate context
+ * 4. Handle errors: categorize, rollback temp dir, mark remaining steps SKIPPED
  * 5. Clean up temp dir on both success and failure
  * 6. Return typed AgentRunResult<T>
  */
 export class AgentEngine {
   constructor(
-    private readonly registry: BeadRegistry,
     private readonly logger: Logger,
   ) {}
 
   /**
    * Resets the working directory to HEAD via git reset --hard.
-   * Called before each retry of the retryFrom bead.
+   * Called before each retry of the retryFrom step.
    */
   private async resetWorkDir(workDir: string): Promise<void> {
+    const { spawnWithTimeout } = await import("../utils/process.js");
     const { result } = spawnWithTimeout("git", ["reset", "--hard", "HEAD"], {
       cwd: workDir,
     });
@@ -85,18 +82,18 @@ export class AgentEngine {
   }
 
   /**
-   * Writes full bead output to .nightshift/logs/runs/<runId>/<beadName>.json.
+   * Writes full step output to .nightshift/logs/runs/<runId>/<stepName>.json.
    * Best-effort: logs a warning on failure, never throws.
    */
-  private async writeBeadOutput(runId: string, beadName: string, rawOutput: string): Promise<void> {
+  private async writeStepOutput(runId: string, stepName: string, rawOutput: string): Promise<void> {
     try {
       const dir = getRunOutputDir(runId);
       await ensureDir(dir);
-      await fs.writeFile(path.join(dir, `${beadName}.json`), rawOutput, "utf-8");
+      await fs.writeFile(path.join(dir, `${stepName}.json`), rawOutput, "utf-8");
     } catch (err) {
-      this.logger.warn("Failed to write per-bead output file", {
+      this.logger.warn("Failed to write per-step output file", {
         runId,
-        bead: beadName,
+        step: stepName,
         error: String(err).slice(0, 200),
       });
     }
@@ -107,7 +104,7 @@ export class AgentEngine {
    *
    * @param agentDir - Path to the agent directory (contains manifest.yaml)
    * @param agentsRoot - Root directory containing all agent directories (for path containment)
-   * @param taskId - Unique task identifier threaded through all beads
+   * @param taskId - Unique task identifier threaded through all steps
    * @param configOverrides - Optional runtime config overrides for template variables
    */
   async run<T = unknown>(
@@ -121,7 +118,7 @@ export class AgentEngine {
 
     // Create temp dir before loading manifest so we always have a dir to clean up
     const tmpDirManager = new TempDirManager(this.logger);
-    const { tmpDir, repoDir, handoffDir } = await tmpDirManager.create(runId);
+    const { tmpDir } = await tmpDirManager.create(runId);
 
     // Load manifest — if this throws, cleanup and return FATAL
     let manifest;
@@ -129,7 +126,7 @@ export class AgentEngine {
       manifest = await loadManifest(agentDir, agentsRoot);
     } catch (err) {
       await tmpDirManager.cleanup(tmpDir);
-      const category: BeadErrorCategory = "FATAL";
+      const category: StepErrorCategory = "FATAL";
       const totalDurationMs = Date.now() - startTime;
       this.logger.error("Engine run failed: manifest load error", {
         runId,
@@ -141,7 +138,7 @@ export class AgentEngine {
         agentName: path.basename(agentDir),
         status: category,
         finalOutput: null,
-        perBead: [],
+        perStep: [],
         totalDurationMs,
         errorCategory: category,
         error: String(err),
@@ -149,7 +146,7 @@ export class AgentEngine {
     }
 
     // Build initial variables
-    const builtIns = buildBuiltIns(taskId, manifest.name, repoDir);
+    const builtIns = buildBuiltIns(taskId, manifest.name, tmpDir);
     const initialVars = buildTemplateVars(builtIns, manifest.variables, configOverrides ?? {}, {});
 
     // Build initial context
@@ -157,31 +154,29 @@ export class AgentEngine {
       taskId,
       agentName: manifest.name,
       agentDir: manifest.agentDir,
-      workDir: repoDir,
-      handoffDir,
+      workDir: tmpDir,
       manifest,
-      currentBead: manifest.beads[0],
-      previousBeads: {},
+      currentStep: manifest.steps[0],
+      previousSteps: {},
       variables: initialVars,
     };
 
-    const perBead: BeadOutcome[] = [];
-    const beadOutputs: Record<string, unknown> = {};
+    const perStep: StepOutcome[] = [];
+    const stepOutputs: Record<string, unknown> = {};
 
     // Retry state — persists across entire run
     let retryCount = 0;
 
-    // Bead execution loop (while-based to support retry jumps)
+    // Step execution loop (while-based to support retry jumps)
     let i = 0;
-    while (i < manifest.beads.length) {
-      const bead = manifest.beads[i];
-      ctx = { ...ctx, currentBead: bead };
-      const beadStart = Date.now();
+    while (i < manifest.steps.length) {
+      const step = manifest.steps[i];
+      ctx = { ...ctx, currentStep: step };
+      const stepStart = Date.now();
 
-      this.logger.info("Bead started", {
+      this.logger.info("Step started", {
         runId,
-        bead: bead.name,
-        type: bead.type,
+        step: step.name,
         index: i,
       });
 
@@ -189,45 +184,90 @@ export class AgentEngine {
       let timedOut = false;
 
       try {
-        // Resolve and execute the bead plugin
-        const factory = this.registry.resolve(bead.type);
-        const plugin = factory(bead, manifest);
-        const output = await plugin.execute(ctx);
-        rawOutput = output.rawOutput;
+        // Inline step execution (previously in StandardBeadPlugin)
 
-        // Validate bead output against declared schema
-        // If this throws (BeadContractViolationError or BeadOutputMissingError),
-        // it falls through to the catch block below and is treated as a bead failure.
-        const parsed = validateBeadOutput(rawOutput, bead.compiledOutputSchema, bead.name);
+        // 1. Read prompt file from agent directory
+        const rawPrompt = await fs.readFile(
+          path.join(ctx.agentDir, ctx.currentStep.prompt),
+          "utf-8",
+        );
 
-        const durationMs = Date.now() - beadStart;
+        // 2. Render template with resolved variables and prepend security preamble
+        const renderedPrompt = INJECTION_MITIGATION_PREAMBLE + "\n---\n\n" + renderAgentTemplate(rawPrompt, ctx.variables);
 
-        // Store bead output for caller inspection
-        beadOutputs[bead.name] = parsed;
+        // 3. Parse timeout from step config
+        const timeoutMs = parseTimeout(ctx.currentStep.timeout);
 
-        // Accumulate context for downstream beads
+        // 4. Resolve mcpConfigPath from step config (if present)
+        // mcpConfig may contain template variables, so render through template engine first
+        let mcpConfigPath: string | undefined;
+        if (ctx.currentStep.mcpConfig) {
+          const renderedMcpConfig = renderAgentTemplate(ctx.currentStep.mcpConfig, ctx.variables);
+          mcpConfigPath = path.isAbsolute(renderedMcpConfig)
+            ? renderedMcpConfig
+            : path.join(ctx.agentDir, renderedMcpConfig);
+        }
+
+        // 5. Call runStep
+        const result = await runStep({
+          stepName: step.name,
+          prompt: renderedPrompt,
+          model: step.model,
+          cwd: ctx.workDir,
+          timeoutMs,
+          allowedTools: step.allowedTools,
+          mcpConfigPath,
+          envVars: step.env,
+        });
+
+        // 6. Handle errors — timeout or non-zero exit both throw
+        if (result.timedOut) {
+          throw new Error(
+            `Step "${step.name}" timed out after ${timeoutMs}ms`,
+          );
+        }
+
+        if (result.exitCode !== 0) {
+          throw new Error(
+            `Step "${step.name}" failed with exit code ${result.exitCode}: ${result.stderr}`,
+          );
+        }
+
+        rawOutput = result.stdout;
+
+        // Validate step output against declared schema
+        // If this throws (StepContractViolationError or StepOutputMissingError),
+        // it falls through to the catch block below and is treated as a step failure.
+        const parsed = validateStepOutput(rawOutput, step.compiledOutputSchema, step.name);
+
+        const durationMs = Date.now() - stepStart;
+
+        // Store step output for caller inspection
+        stepOutputs[step.name] = parsed;
+
+        // Accumulate context for downstream steps
         ctx = {
           ...ctx,
-          previousBeads: {
-            ...ctx.previousBeads,
-            [bead.name]: { output: parsed, rawOutput },
+          previousSteps: {
+            ...ctx.previousSteps,
+            [step.name]: { output: parsed, rawOutput },
           },
         };
 
-        // Rebuild variables with updated bead outputs
+        // Rebuild variables with updated step outputs
         ctx = {
           ...ctx,
           variables: buildTemplateVars(
             builtIns,
             manifest.variables,
             configOverrides ?? {},
-            ctx.previousBeads,
+            ctx.previousSteps,
           ),
         };
 
-        perBead.push({ name: bead.name, status: "SUCCESS", durationMs });
+        perStep.push({ name: step.name, status: "SUCCESS", durationMs });
 
-        // Detect semantic failure: bead output is valid JSON but indicates failure
+        // Detect semantic failure: step output is valid JSON but indicates failure
         if (
           typeof parsed === "object" &&
           parsed !== null &&
@@ -235,25 +275,25 @@ export class AgentEngine {
           (parsed as Record<string, unknown>).status === "FAILED"
         ) {
           // Overwrite the SUCCESS we just pushed with FAILED
-          perBead[perBead.length - 1] = { name: bead.name, status: "FAILED", durationMs, error: "Bead output status: FAILED" };
+          perStep[perStep.length - 1] = { name: step.name, status: "FAILED", durationMs, error: "Step output status: FAILED" };
 
-          // Mark remaining beads as SKIPPED
-          for (let j = i + 1; j < manifest.beads.length; j++) {
-            perBead.push({
-              name: manifest.beads[j].name,
+          // Mark remaining steps as SKIPPED
+          for (let j = i + 1; j < manifest.steps.length; j++) {
+            perStep.push({
+              name: manifest.steps[j].name,
               status: "SKIPPED",
               durationMs: 0,
             });
           }
 
-          this.logger.error("Bead reported semantic failure", {
+          this.logger.error("Step reported semantic failure", {
             runId,
-            bead: bead.name,
+            step: step.name,
             outputPreview: rawOutput.slice(0, 500),
           });
 
-          // Write bead output before returning
-          await this.writeBeadOutput(runId, bead.name, rawOutput);
+          // Write step output before returning
+          await this.writeStepOutput(runId, step.name, rawOutput);
           await tmpDirManager.cleanup(tmpDir);
 
           const totalDurationMs = Date.now() - startTime;
@@ -262,36 +302,36 @@ export class AgentEngine {
             agentName: manifest.name,
             status: "FATAL" as const,
             finalOutput: null,
-            perBead,
+            perStep,
             totalDurationMs,
-            failedBeadIndex: i,
+            failedStepIndex: i,
             errorCategory: "FATAL" as const,
-            error: `Bead "${bead.name}" output status: FAILED`,
-            beadOutputs,
+            error: `Step "${step.name}" output status: FAILED`,
+            stepOutputs,
           };
         }
 
-        // Check retry trigger: if bead has retry config and output has passed === false
+        // Check retry trigger: if step has retry config and output has passed === false
         if (
-          bead.retry &&
+          step.retry &&
           typeof parsed === "object" &&
           parsed !== null &&
           "passed" in parsed &&
           (parsed as Record<string, unknown>).passed === false
         ) {
           retryCount++;
-          if (retryCount <= bead.retry.maxAttempts) {
-            const retryFromIndex = manifest.beads.findIndex((b) => b.name === bead.retry!.retryFrom);
+          if (retryCount <= step.retry.maxAttempts) {
+            const retryFromIndex = manifest.steps.findIndex((s) => s.name === step.retry!.retryFrom);
 
-            this.logger.info("Bead triggered retry", {
+            this.logger.info("Step triggered retry", {
               runId,
-              bead: bead.name,
-              retryFrom: bead.retry.retryFrom,
+              step: step.name,
+              retryFrom: step.retry.retryFrom,
               attempt: retryCount,
-              maxAttempts: bead.retry.maxAttempts,
+              maxAttempts: step.retry.maxAttempts,
             });
 
-            // Inject retry_error into variables for the retryFrom bead
+            // Inject retry_error into variables for the retryFrom step
             const errorDetails = (parsed as Record<string, unknown>).error_details ?? "";
             ctx = {
               ...ctx,
@@ -306,30 +346,30 @@ export class AgentEngine {
               await this.resetWorkDir(ctx.workDir);
             }
 
-            // Jump back to retryFrom bead (or re-run current bead for self-retry)
+            // Jump back to retryFrom step (or re-run current step for self-retry)
             i = retryFromIndex;
             continue;
           }
           // Max retries exhausted — log and fall through to normal progression
           this.logger.warn("Retry exhausted", {
             runId,
-            bead: bead.name,
+            step: step.name,
             retryCount,
-            maxAttempts: bead.retry.maxAttempts,
+            maxAttempts: step.retry.maxAttempts,
           });
         }
 
-        this.logger.info("Bead completed", {
+        this.logger.info("Step completed", {
           runId,
-          bead: bead.name,
+          step: step.name,
           durationMs,
           outputPreview: rawOutput.slice(0, 200),
         });
 
-        // Write full bead output to file — best-effort, never throws
-        await this.writeBeadOutput(runId, bead.name, rawOutput);
+        // Write full step output to file — best-effort, never throws
+        await this.writeStepOutput(runId, step.name, rawOutput);
       } catch (err) {
-        const durationMs = Date.now() - beadStart;
+        const durationMs = Date.now() - stepStart;
 
         // Check if this was a timeout error
         if (
@@ -341,32 +381,32 @@ export class AgentEngine {
 
         const category = categorizeError(err, timedOut);
 
-        perBead.push({
-          name: bead.name,
+        perStep.push({
+          name: step.name,
           status: "FAILED",
           durationMs,
           error: String(err),
         });
 
-        // Mark all remaining beads as SKIPPED
-        for (let j = i + 1; j < manifest.beads.length; j++) {
-          perBead.push({
-            name: manifest.beads[j].name,
+        // Mark all remaining steps as SKIPPED
+        for (let j = i + 1; j < manifest.steps.length; j++) {
+          perStep.push({
+            name: manifest.steps[j].name,
             status: "SKIPPED",
             durationMs: 0,
           });
         }
 
-        this.logger.error("Bead failed", {
+        this.logger.error("Step failed", {
           runId,
-          bead: bead.name,
+          step: step.name,
           error: String(err).slice(0, 500),
           category,
         });
 
-        // Write partial bead output if available — best-effort, never throws
+        // Write partial step output if available — best-effort, never throws
         if (rawOutput) {
-          await this.writeBeadOutput(runId, bead.name, rawOutput);
+          await this.writeStepOutput(runId, step.name, rawOutput);
         }
 
         // Rollback: cleanup temp dir (warn on failure, never rethrow)
@@ -379,7 +419,7 @@ export class AgentEngine {
           agentName: manifest.name,
           status: category,
           totalDurationMs,
-          perBead: perBead.map((b) => ({ name: b.name, status: b.status })),
+          perStep: perStep.map((s) => ({ name: s.name, status: s.status })),
         });
 
         return {
@@ -387,32 +427,32 @@ export class AgentEngine {
           agentName: manifest.name,
           status: category,
           finalOutput: null,
-          perBead,
+          perStep,
           totalDurationMs,
-          failedBeadIndex: i,
+          failedStepIndex: i,
           errorCategory: category,
           suggestedDelayMs: category === "TRANSIENT" ? 60_000 : undefined,
           error: String(err),
-          beadOutputs,
+          stepOutputs,
         };
       }
 
       i++;
     }
 
-    // All beads succeeded — cleanup and return SUCCESS
+    // All steps succeeded — cleanup and return SUCCESS
     await tmpDirManager.cleanup(tmpDir);
 
     const totalDurationMs = Date.now() - startTime;
-    const lastBead = manifest.beads.at(-1)!;
-    const finalOutput = (ctx.previousBeads[lastBead.name]?.output ?? null) as T;
+    const lastStep = manifest.steps.at(-1)!;
+    const finalOutput = (ctx.previousSteps[lastStep.name]?.output ?? null) as T;
 
     this.logger.info("Run summary", {
       runId,
       agentName: manifest.name,
       status: "SUCCESS",
       totalDurationMs,
-      perBead: perBead.map((b) => ({ name: b.name, status: b.status })),
+      perStep: perStep.map((s) => ({ name: s.name, status: s.status })),
     });
 
     return {
@@ -420,20 +460,19 @@ export class AgentEngine {
       agentName: manifest.name,
       status: "SUCCESS",
       finalOutput,
-      perBead,
+      perStep,
       totalDurationMs,
-      beadOutputs,
+      stepOutputs,
     };
   }
 
   /**
-   * Validates a pipeline without executing beads or creating temp directories.
+   * Validates a pipeline without executing steps or creating temp directories.
    *
    * Checks:
    * 1. Manifest loads successfully (schema, env vars, path containment)
-   * 2. All bead types are registered in the registry
-   * 3. All prompt files exist on disk
-   * 4. All template variables referenced in prompts are resolvable
+   * 2. All prompt files exist on disk
+   * 3. All template variables referenced in prompts are resolvable
    *
    * Throws on the first validation failure.
    */
@@ -445,12 +484,7 @@ export class AgentEngine {
     // 1. Load manifest — validates schema, env vars, path containment
     const manifest = await loadManifest(agentDir, agentsRoot);
 
-    // 2. Check all bead types are registered (throws RegistryError if not)
-    for (const bead of manifest.beads) {
-      this.registry.resolve(bead.type);
-    }
-
-    // 3. Check prompt files exist and validate template variables
+    // 2. Check prompt files exist and validate template variables
     const placeholderBuiltIns: Record<string, string> = {
       task_id: "<task_id>",
       run_date: "<run_date>",
@@ -465,13 +499,13 @@ export class AgentEngine {
       {},
     );
 
-    for (const bead of manifest.beads) {
-      const promptPath = path.join(manifest.agentDir, bead.prompt);
+    for (const step of manifest.steps) {
+      const promptPath = path.join(manifest.agentDir, step.prompt);
 
-      // 3a. Verify prompt file exists
+      // 2a. Verify prompt file exists
       await fs.access(promptPath);
 
-      // 3b. Validate template variables in the prompt
+      // 2b. Validate template variables in the prompt
       const promptContent = await fs.readFile(promptPath, "utf-8");
       validateTemplateVars(promptContent, vars);
     }
