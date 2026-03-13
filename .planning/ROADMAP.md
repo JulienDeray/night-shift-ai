@@ -68,7 +68,10 @@ Plans:
   2. A task success notification shows the task name, agent name, and the agent's output result
   3. A task failure notification shows the task name, agent name, error description, and which step failed
   4. A task skip notification shows the task name, agent name, and the reason execution was skipped
-**Plans**: TBD
+**Plans**: 2 plans
+Plans:
+- [ ] 15-01-PLAN.md — Create notification formatter (TDD) and NotificationService wrapper
+- [ ] 15-02-PLAN.md — Wire NotificationService into orchestrator, remove fallback logic, update docs
 
 ### Phase 16: Codebase Cleanup
 **Goal**: The codebase reflects only what night-shift currently is — no dead code, no over-abstracted patterns, no v1/v2 compatibility remnants
@@ -111,6 +114,6 @@ Plans:
 | 12. Fix Scheduler Dispatch Wiring | v2.0 | 1/1 | Complete | 2026-03-09 |
 | 13. Phase 11 Verification | v2.0 | 1/1 | Complete | 2026-03-09 |
 | 14. Bead Removal | 3/3 | Complete    | 2026-03-13 | - |
-| 15. Notifications | v3.0 | 0/? | Not started | - |
+| 15. Notifications | v3.0 | 0/2 | Not started | - |
 | 16. Codebase Cleanup | v3.0 | 0/? | Not started | - |
 | 17. E2E Testing Framework | v3.0 | 0/? | Not started | - |
