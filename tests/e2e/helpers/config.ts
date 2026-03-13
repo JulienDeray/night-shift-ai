@@ -44,7 +44,7 @@ export async function writeE2EConfig(
     ? `
 ntfy:
   topic: test-topic
-  baseUrl: http://127.0.0.1:${options.ntfyPort}
+  base_url: http://127.0.0.1:${options.ntfyPort}
 `
     : "";
 
