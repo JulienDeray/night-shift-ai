@@ -98,7 +98,11 @@ Plans:
   3. CLI commands (status, submit, cancel, schedule, inbox) have tests that assert on expected output
   4. Error scenarios (agent failure, timeout, invalid manifest) each have a dedicated test that confirms correct behavior
   5. Claude CLI, GitLab, and ntfy are intercepted by mocks — no real external calls fire during the test run
-**Plans**: TBD
+**Plans**: 3 plans
+Plans:
+- [ ] 17-01-PLAN.md — E2E infrastructure (vitest config, helpers, mock claude shim, fixtures) + daemon lifecycle tests
+- [ ] 17-02-PLAN.md — Happy-path pipeline test and CLI command tests
+- [ ] 17-03-PLAN.md — Error scenario tests (failure, timeout, retry exhaustion)
 
 ## Progress
 
@@ -120,4 +124,4 @@ Plans:
 | 14. Bead Removal | 3/3 | Complete    | 2026-03-13 | - |
 | 15. Notifications | 2/2 | Complete    | 2026-03-13 | - |
 | 16. Codebase Cleanup | 3/3 | Complete    | 2026-03-13 | - |
-| 17. E2E Testing Framework | v3.0 | 0/? | Not started | - |
+| 17. E2E Testing Framework | v3.0 | 0/3 | Not started | - |
