@@ -68,6 +68,5 @@ Most recent: quick-16 (Bump version to 3.0.0 and read it dynamically from packag
 
 ## Session Continuity
 
-Last session: 2026-03-16
-Stopped at: Completed quick task 16: Bump version to 3.0.0 with dynamic CLI version
+Last activity: 2026-03-16 - Completed quick task 16: Update the NPM version to 3 and make it so that when running Night Shift --version, it actually shows the version.
 Resume file: None
