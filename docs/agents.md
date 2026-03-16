@@ -4,18 +4,18 @@ This document is the complete reference for creating, configuring, and running a
 
 ## Overview
 
-An **agent** is a directory containing a `manifest.yaml` file and a `prompts/` directory with markdown prompt files. The manifest declares the agent's pipeline: an ordered list of **beads** (stages), each of which invokes `claude -p` with specific instructions, tools, model, timeout, and an output schema.
+An **agent** is a directory containing a `manifest.yaml` file and a `prompts/` directory with markdown prompt files. The manifest declares the agent's pipeline: an ordered list of **steps** (stages), each of which invokes `claude -p` with specific instructions, tools, model, timeout, and an output schema.
 
-When an agent runs, the **AgentEngine** loads its manifest, resolves template variables, and executes beads sequentially. Each bead receives a rendered prompt, produces JSON output validated against a declared schema, and passes its output to subsequent beads via template variable references.
+When an agent runs, the **AgentEngine** loads its manifest, resolves template variables, and executes steps sequentially. Each step receives a rendered prompt, produces JSON output validated against a declared schema, and passes its output to subsequent steps via template variable references.
 
 ### Directory Structure
 
 ```
 agents/<name>/
   manifest.yaml              # Pipeline definition (required)
-  prompts/                   # Prompt files referenced by beads (required)
-    preamble.md              # Optional: prepended to all bead prompts
-    analyze.md               # One .md file per bead
+  prompts/                   # Prompt files referenced by steps (required)
+    preamble.md              # Optional: prepended to all step prompts
+    analyze.md               # One .md file per step
     implement.md
     ...
 ```
@@ -26,14 +26,14 @@ The `agents/` directory location is configurable via `agents_dir` in `nightshift
 
 1. The engine loads `manifest.yaml` and validates it against the manifest schema (Zod).
 2. Agent-level defaults (model, timeout, allowedTools, env) are resolved.
-3. Each bead is executed in order:
+3. Each step is executed in order:
    a. The prompt template is loaded from the path specified in `prompt`.
-   b. Template variables are rendered (built-ins, config overrides, manifest defaults, prior bead outputs).
+   b. Template variables are rendered (built-ins, config overrides, manifest defaults, prior step outputs).
    c. `claude -p` is spawned with the rendered prompt, tools, model, timeout, and environment.
-   d. The last JSON code block in the response is extracted and validated against the bead's `outputSchema`.
-   e. The validated output is stored and made available to subsequent beads via `{{beads.<name>.output.<field>}}`.
-4. On pipeline success, the final bead's output is returned as `AgentRunResult.finalOutput`.
-5. On failure, the engine reports which bead failed, the error category (FATAL or TRANSIENT), and per-bead outcomes.
+   d. The last JSON code block in the response is extracted and validated against the step's `outputSchema`.
+   e. The validated output is stored and made available to subsequent steps via `{{steps.<name>.output.<field>}}`.
+4. On pipeline success, the final step's output is returned as `AgentRunResult.finalOutput`.
+5. On failure, the engine reports which step failed, the error category (FATAL or TRANSIENT), and per-step outcomes.
 
 ## Quick Start
 
@@ -47,7 +47,7 @@ This creates `agents/my-agent/` with a starter `manifest.yaml`, a `prompts/` dir
 
 ### Edit prompts
 
-Modify the files in `agents/my-agent/prompts/` to define what each bead does. Each prompt is a markdown file that will be passed to `claude -p`. Use `{{variable_name}}` for template variables.
+Modify the files in `agents/my-agent/prompts/` to define what each step does. Each prompt is a markdown file that will be passed to `claude -p`. Use `{{variable_name}}` for template variables.
 
 ### Configure in nightshift.yaml
 
@@ -80,7 +80,7 @@ This checks: manifest schema, prompt file existence, variable completeness, outp
 nightshift run --agent my-agent
 ```
 
-Runs the agent in the foreground. You see per-bead status and the final result.
+Runs the agent in the foreground. You see per-step status and the final result.
 
 ### Schedule
 
@@ -100,12 +100,12 @@ The manifest is a YAML file at `agents/<name>/manifest.yaml`. All fields are val
 |-------|------|----------|---------|-------------|
 | `name` | string | yes | -- | Agent identifier. Must be kebab-case (e.g., `code-agent`, `my-agent`). |
 | `description` | string | yes | -- | Human-readable description of what the agent does. |
-| `model` | string | no | `"claude-sonnet-4-20250514"` | Default model for all beads. Bead-level `model` overrides this. |
-| `timeout` | string | no | `"15m"` | Default timeout for all beads. Accepts duration format (e.g., `"30m"`, `"2h"`). |
-| `allowedTools` | string[] | no | `["Bash", "Read", "Write"]` | Default tools for all beads. Bead-level `allowedTools` **replaces** this entirely (no merge). |
+| `model` | string | no | `"claude-sonnet-4-20250514"` | Default model for all steps. Step-level `model` overrides this. |
+| `timeout` | string | no | `"15m"` | Default timeout for all steps. Accepts duration format (e.g., `"30m"`, `"2h"`). |
+| `allowedTools` | string[] | no | `["Bash", "Read", "Write"]` | Default tools for all steps. Step-level `allowedTools` **replaces** this entirely (no merge). |
 | `env` | array | no | `[]` | Agent-level environment variables. See [Environment Variables](#environment-variables). |
 | `variables` | Record<string, string> | no | `{}` | Template variables with default values. Overridden by `nightshift.yaml` config. |
-| `beads` | array | yes | -- | Ordered list of pipeline stages. At least one bead required. |
+| `steps` | array | yes | -- | Ordered list of pipeline stages. At least one step required. |
 
 The schema is strict -- unknown fields are rejected at load time.
 
@@ -138,71 +138,63 @@ variables:
 
 Here `code-agent` sets `claude-opus-4-6` as the default model and a 30-minute timeout. It declares 8 variables, all with empty-string defaults that must be overridden in `nightshift.yaml` or at runtime.
 
-## Bead Reference
+## Step Reference
 
-Beads are the pipeline stages within an agent. They execute sequentially. Each bead must declare an `outputSchema` -- the engine validates every bead's output before proceeding to the next.
+Steps are the pipeline stages within an agent. They execute sequentially. Each step must declare an `outputSchema` -- the engine validates every step's output before proceeding to the next.
 
-### Bead Types
-
-**`standard`** -- The default bead type. Runs `claude -p` with the rendered prompt and validates the JSON output.
-
-**`git-clone`** -- Clones a Git repository. Uses the `GitCloneBeadPlugin` internally. The prompt file is still required but is used minimally -- the plugin handles the clone operation. Output provides `repoDir` (path to cloned repo) and `handoffDir` (temporary directory for handoff files).
-
-### Bead Fields
+### Step Fields
 
 | Field | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
-| `name` | string | yes | -- | Unique identifier within the manifest. Used in template references (`{{beads.<name>.output.*}}`). |
-| `type` | string | yes | -- | `"standard"` or `"git-clone"`. |
+| `name` | string | yes | -- | Unique identifier within the manifest. Used in template references (`{{steps.<name>.output.*}}`). |
 | `prompt` | string | yes | -- | Relative path to the prompt markdown file (e.g., `prompts/analyze.md`). Must not start with `/`. |
-| `model` | string | no | inherits agent | Overrides the agent-level model for this bead. |
-| `timeout` | string | no | inherits agent | Overrides the agent-level timeout for this bead. |
+| `model` | string | no | inherits agent | Overrides the agent-level model for this step. |
+| `timeout` | string | no | inherits agent | Overrides the agent-level timeout for this step. |
 | `allowedTools` | string[] | no | inherits agent | **Replaces** the agent-level tools entirely (no merge). |
-| `env` | array | no | `[]` | Bead-level env vars. **Merged** with agent-level env (bead wins on name collision). |
+| `env` | array | no | `[]` | Step-level env vars. **Merged** with agent-level env (step wins on name collision). |
 | `outputSchema` | object | yes | -- | JSON Schema object. Compiled to Zod at load time via `z.fromJSONSchema()`. |
 | `mcpConfig` | string | no | -- | Path to an MCP config JSON file. Supports template variables (e.g., `"{{mcp_config_path}}"`). Must be a relative path or template variable. |
 | `retry` | object | no | -- | Retry configuration: `{ maxAttempts: number, retryFrom: string }`. |
 
-The bead schema is also strict -- unknown fields are rejected.
+The step schema is also strict -- unknown fields are rejected.
 
 ### Inheritance Rules
 
-- **model, timeout**: bead overrides agent-level, which overrides system defaults (`claude-sonnet-4-20250514` / `15m`).
-- **allowedTools**: bead **replaces** agent-level entirely. If a bead declares `allowedTools`, the agent-level list is ignored for that bead.
-- **env**: bead **merges** with agent-level. On name collision, the bead-level value wins.
-- **outputSchema**: no inheritance. Every bead must declare its own schema.
+- **model, timeout**: step overrides agent-level, which overrides system defaults (`claude-sonnet-4-20250514` / `15m`).
+- **allowedTools**: step **replaces** agent-level entirely. If a step declares `allowedTools`, the agent-level list is ignored for that step.
+- **env**: step **merges** with agent-level. On name collision, the step-level value wins.
+- **outputSchema**: no inheritance. Every step must declare its own schema.
 
 ### Retry Configuration
 
-The `retry` field enables automatic retry from a previous bead:
+The `retry` field enables automatic retry from a previous step:
 
 ```yaml
 retry:
   maxAttempts: 3        # Maximum number of retry attempts (1-10)
-  retryFrom: implement  # Name of a preceding bead to restart from
+  retryFrom: implement  # Name of a preceding step to restart from
 ```
 
-The `retryFrom` bead must appear **before** the current bead in the pipeline — this is enforced at schema validation time.
+The `retryFrom` step must appear **before** the current step in the pipeline — this is enforced at schema validation time.
 
 **How retry triggers:**
 
-Retry is NOT triggered by bead exceptions or crashes. It triggers when the bead **succeeds** (produces valid JSON matching its schema) but the output contains `passed: false`. This means:
+Retry is NOT triggered by step exceptions or crashes. It triggers when the step **succeeds** (produces valid JSON matching its schema) but the output contains `passed: false`. This means:
 
-1. The bead must include a `passed` boolean field in its `outputSchema`
+1. The step must include a `passed` boolean field in its `outputSchema`
 2. When `passed` is `false`, the engine checks for retry config
 3. If retries remain, the engine:
-   a. Reads `error_details` from the bead output and injects it as the `retry_error` template variable
+   a. Reads `error_details` from the step output and injects it as the `retry_error` template variable
    b. Runs `git reset --hard HEAD` on the working directory to restore a clean state
-   c. Re-executes from the `retryFrom` bead
-4. If retries are exhausted (`retryCount > maxAttempts`), execution continues to the next bead
+   c. Re-executes from the `retryFrom` step
+4. If retries are exhausted (`retryCount > maxAttempts`), execution continues to the next step
 
-Bead failures (exceptions, timeouts, missing output) are categorized as FATAL or TRANSIENT errors and abort the pipeline immediately — they do not trigger retry.
+Step failures (exceptions, timeouts, missing output) are categorized as FATAL or TRANSIENT errors and abort the pipeline immediately — they do not trigger retry.
 
-**How code-agent uses retry:** The `verify` bead retries from `implement`. If verification fails (tests break), the engine re-runs `implement` and `verify` up to 3 times. The `retry_error` variable is populated with the error details from the failed verify run, so the implement bead can see what went wrong and adapt its approach.
+**How code-agent uses retry:** The `verify` step retries from `implement`. If verification fails (tests break), the engine re-runs `implement` and `verify` up to 3 times. The `retry_error` variable is populated with the error details from the failed verify run, so the implement step can see what went wrong and adapt its approach.
 
 ```yaml
 - name: verify
-  type: standard
   prompt: prompts/verify.md
   model: claude-sonnet-4-6
   retry:
@@ -219,20 +211,20 @@ Bead failures (exceptions, timeouts, missing output) are categorized as FATAL or
       - passed
 ```
 
-### Bead Name Uniqueness
+### Step Name Uniqueness
 
-Bead names must be unique within a manifest. The schema validation rejects duplicate names at load time.
+Step names must be unique within a manifest. The schema validation rejects duplicate names at load time.
 
-### Example: code-agent beads
+### Example: code-agent steps
 
-Code-agent declares 6 beads:
+Code-agent declares 6 steps:
 
-1. **clone** (`git-clone`) -- clones the target repository, provides `repoDir` and `handoffDir`
-2. **analyze** (`standard`, model: `claude-opus-4-6`) -- scans repo for improvement candidates, outputs ranked list or `NO_IMPROVEMENT`
-3. **implement** (`standard`, model: `claude-opus-4-6`) -- applies the selected improvement
-4. **verify** (`standard`, model: `claude-sonnet-4-6`, retry from implement) -- runs build + tests
-5. **mr** (`standard`, model: `claude-sonnet-4-6`, env: `GITLAB_TOKEN`) -- creates merge request
-6. **log** (`standard`, model: `claude-sonnet-4-6`, mcpConfig, custom tools) -- logs to Confluence
+1. **clone** -- clones the target repository via prompt-driven git operations, provides `repoDir` and `handoffDir`
+2. **analyze** (model: `claude-opus-4-6`) -- scans repo for improvement candidates, outputs ranked list or `NO_IMPROVEMENT`
+3. **implement** (model: `claude-opus-4-6`) -- applies the selected improvement
+4. **verify** (model: `claude-sonnet-4-6`, retry from implement) -- runs build + tests
+5. **mr** (model: `claude-sonnet-4-6`, env: `GITLAB_TOKEN`) -- creates merge request
+6. **log** (model: `claude-sonnet-4-6`, mcpConfig, custom tools) -- logs to Confluence
 
 ## Template Variable System
 
@@ -242,8 +234,8 @@ Prompt files support template variables using `{{variable_name}}` syntax. Variab
 
 ```
 {{variable_name}}                    # Simple variable
-{{beads.clone.output.repoDir}}       # Bead output reference (dot notation)
-{{beads.analyze.output.results[0]}}  # Array indexing
+{{steps.clone.output.repoDir}}       # Step output reference (dot notation)
+{{steps.analyze.output.results[0]}}  # Array indexing
 ```
 
 The template engine uses regex matching for `{{...}}` patterns. The regex accepts alphanumeric characters, dots, underscores, and bracket syntax: `{{[a-zA-Z0-9_.[\]]+}}`.
@@ -263,7 +255,7 @@ Arrays and objects are JSON-serialized when injected into a prompt. Undefined pl
 
 **User-defined variables**: Declared in the manifest `variables:` section with default values. Overridden by `nightshift.yaml` agent or schedule entries.
 
-**Bead output references**: Access previous bead outputs using `{{beads.<bead_name>.output.<field>}}` and `{{beads.<bead_name>.rawOutput}}`.
+**Step output references**: Access previous step outputs using `{{steps.<step_name>.output.<field>}}` and `{{steps.<step_name>.rawOutput}}`.
 
 ### Resolution Precedence
 
@@ -273,32 +265,32 @@ From highest to lowest:
 2. **Config overrides** (from `nightshift.yaml` agent `variables:` or schedule entry `variables:`)
 3. **Manifest defaults** (from manifest `variables:` section)
 
-### Bead Output References
+### Step Output References
 
-After a bead completes, its validated JSON output is available to all subsequent beads:
+After a step completes, its validated JSON output is available to all subsequent steps:
 
 ```
-{{beads.clone.output.repoDir}}       # Access the repoDir field from clone's output
-{{beads.analyze.output.selected}}    # Access the selected object from analyze's output
-{{beads.clone.rawOutput}}            # Access the raw string output (before JSON parsing)
+{{steps.clone.output.repoDir}}       # Access the repoDir field from clone's output
+{{steps.analyze.output.selected}}    # Access the selected object from analyze's output
+{{steps.clone.rawOutput}}            # Access the raw string output (before JSON parsing)
 ```
 
 **Dot notation resolution:** The engine normalizes array indexing (`foo[0].bar` becomes `foo.0.bar`) and walks the nested object tree. If any segment resolves to `null` or `undefined`, the entire expression returns `undefined` and the placeholder is left as-is.
 
-**How code-agent uses bead output references:** The `implement.md` prompt references the analyze bead's output to know which improvement to apply:
+**How code-agent uses step output references:** The `implement.md` prompt references the analyze step's output to know which improvement to apply:
 
 ```
-The analysis bead selected the following improvement:
-{{beads.analyze.output.selected}}
+The analysis step selected the following improvement:
+{{steps.analyze.output.selected}}
 
-Apply this improvement to the repository at {{beads.clone.output.repoDir}}.
+Apply this improvement to the repository at {{steps.clone.output.repoDir}}.
 ```
 
 Since `selected` is an object, it is JSON-serialized when injected.
 
 ### Validation
 
-At load time, `validateTemplateVars` checks that all `{{placeholder}}` patterns in prompts resolve to defined variables. **Exception:** `beads.*` references are skipped during load-time validation because bead outputs only exist at runtime.
+At load time, `validateTemplateVars` checks that all `{{placeholder}}` patterns in prompts resolve to defined variables. **Exception:** `steps.*` references are skipped during load-time validation because step outputs only exist at runtime.
 
 If a prompt references `{{category}}` but the manifest does not declare `category` in its `variables:` section, validation fails with:
 
@@ -383,21 +375,21 @@ The schema enforces:
 
 ## Output Schema and Contracts
 
-Every bead must declare an `outputSchema` as a JSON Schema object. This is a strict contract: if a bead's output does not match, the pipeline aborts.
+Every step must declare an `outputSchema` as a JSON Schema object. This is a strict contract: if a step's output does not match, the pipeline aborts.
 
 ### How It Works
 
-1. At manifest load time, each bead's `outputSchema` is compiled from JSON Schema to a Zod schema using `z.fromJSONSchema()`.
+1. At manifest load time, each step's `outputSchema` is compiled from JSON Schema to a Zod schema using `z.fromJSONSchema()`.
 2. After `claude -p` completes, the engine extracts the **last JSON code block** from the response text.
 3. The extracted JSON is parsed and validated against the compiled Zod schema.
-4. On validation failure, the engine throws `BEAD_CONTRACT_VIOLATION` and aborts the pipeline.
-5. On missing JSON code block, the engine throws `BEAD_OUTPUT_MISSING`.
+4. On validation failure, the engine throws `STEP_CONTRACT_VIOLATION` and aborts the pipeline.
+5. On missing JSON code block, the engine throws `STEP_OUTPUT_MISSING`.
 
 ### JSON Code Block Extraction
 
 The engine uses the regex `` ```(?:json)?\n([\s\S]*?)\n``` `` to find all fenced code blocks. Both ```` ```json ```` and plain ```` ``` ```` blocks are matched. When multiple code blocks are present, only the **last** one is used.
 
-This means the bead prompt should instruct the AI to produce its final output as a JSON code block:
+This means the step prompt should instruct the AI to produce its final output as a JSON code block:
 
 ```
 Produce your output as a JSON code block:
@@ -412,7 +404,7 @@ Produce your output as a JSON code block:
 
 ### Example Output Schema
 
-From code-agent's `analyze` bead:
+From code-agent's `analyze` step:
 
 ```yaml
 outputSchema:
@@ -460,11 +452,11 @@ outputSchema:
     - categoryUsed
 ```
 
-This schema allows the analyze bead to return either `IMPROVEMENT_FOUND` (with candidates and a selected improvement) or `NO_IMPROVEMENT` (with a reason). The `result` and `categoryUsed` fields are required; everything else is optional.
+This schema allows the analyze step to return either `IMPROVEMENT_FOUND` (with candidates and a selected improvement) or `NO_IMPROVEMENT` (with a reason). The `result` and `categoryUsed` fields are required; everything else is optional.
 
 ### Minimal Output Schema
 
-For a simple bead that just reports success:
+For a simple step that just reports success:
 
 ```yaml
 outputSchema:
@@ -493,7 +485,7 @@ outputSchema:
     - name
 ```
 
-With `nullable: true`, the field accepts both its declared type and `null`. Without it, `null` values cause a `BEAD_CONTRACT_VIOLATION`.
+With `nullable: true`, the field accepts both its declared type and `null`. Without it, `null` values cause a `STEP_CONTRACT_VIOLATION`.
 
 Under the hood, `nullable: true` is an OpenAPI 3.0-style shorthand. The manifest loader transforms it to standard JSON Schema `type: ["string", "null"]` before compilation. You can also use the array type syntax directly if you prefer:
 
@@ -506,11 +498,11 @@ Under the hood, `nullable: true` is an OpenAPI 3.0-style shorthand. The manifest
 
 ## Environment Variables
 
-Beads execute in a minimal, isolated environment. Only explicitly declared env vars are passed through.
+Steps execute in a minimal, isolated environment. Only explicitly declared env vars are passed through.
 
 ### Safe Base Environment
 
-Every bead receives these host variables automatically (no declaration needed):
+Every step receives these host variables automatically (no declaration needed):
 
 - `HOME`
 - `PATH`
@@ -523,7 +515,7 @@ All other host environment variables are blocked unless explicitly declared.
 
 ### Declaration Syntax
 
-Env vars are declared in the `env` array at agent or bead level. Two forms are supported:
+Env vars are declared in the `env` array at agent or step level. Two forms are supported:
 
 **Passthrough string** -- reads the value from the host environment at runtime:
 
@@ -544,41 +536,38 @@ env:
 
 ### Merge Rules
 
-Agent-level env and bead-level env are **merged**. On name collision, the bead-level value wins.
+Agent-level env and step-level env are **merged**. On name collision, the step-level value wins.
 
 ```yaml
 # Agent level
 env:
   - NODE_ENV                  # passthrough from host
 
-beads:
-  - name: my-bead
+steps:
+  - name: my-step
     env:
-      - name: NODE_ENV        # overrides agent-level for this bead only
+      - name: NODE_ENV        # overrides agent-level for this step only
         value: test
 ```
 
 ### How code-agent uses env vars
 
-Code-agent declares `GITLAB_TOKEN` as a passthrough on only two beads: `clone` (needs it for `git clone` over HTTPS) and `mr` (needs it for `glab mr create`). All other beads (analyze, implement, verify, log) do not receive `GITLAB_TOKEN` -- this is deliberate for security: they only interact with local files and do not need GitLab access.
+Code-agent declares `GITLAB_TOKEN` as a passthrough on only two steps: `clone` (needs it for `git clone` over HTTPS) and `mr` (needs it for `glab mr create`). All other steps (analyze, implement, verify, log) do not receive `GITLAB_TOKEN` -- this is deliberate for security: they only interact with local files and do not need GitLab access.
 
 ```yaml
-beads:
+steps:
   - name: clone
-    type: git-clone
-    prompt: prompts/clone-stub.md
+    prompt: prompts/clone.md
     env:
       - GITLAB_TOKEN             # Passthrough: reads from host
     outputSchema: ...
 
   - name: analyze
-    type: standard
     prompt: prompts/analyze.md
     # No env -- no GITLAB_TOKEN access
     outputSchema: ...
 
   - name: mr
-    type: standard
     prompt: prompts/mr.md
     env:
       - GITLAB_TOKEN             # Passthrough: reads from host
@@ -596,10 +585,9 @@ nightshift agent init my-agent
 ```
 
 Creates:
-- `agents/my-agent/manifest.yaml` -- starter manifest with two beads (clone + analyze)
+- `agents/my-agent/manifest.yaml` -- starter manifest with an analyze step
 - `agents/my-agent/prompts/preamble.md` -- placeholder preamble
-- `agents/my-agent/prompts/clone-stub.md` -- git-clone bead prompt
-- `agents/my-agent/prompts/analyze.md` -- standard bead prompt with functional JSON output
+- `agents/my-agent/prompts/analyze.md` -- step prompt with functional JSON output
 
 Registers the agent in `nightshift.yaml` with a placeholder cron schedule.
 
@@ -618,8 +606,8 @@ nightshift agent validate ./agents/my-agent  # by path
 
 Checks performed:
 1. **Manifest schema** -- YAML parses correctly and matches the ManifestSchema
-2. **Prompt files** -- all prompt files referenced by beads exist
-3. **Variable completeness** -- all `{{placeholders}}` in prompts are declared in manifest variables (`beads.*` references skipped)
+2. **Prompt files** -- all prompt files referenced by steps exist
+3. **Variable completeness** -- all `{{placeholders}}` in prompts are declared in manifest variables (`steps.*` references skipped)
 4. **Output schema compilation** -- all `outputSchema` entries compile via `z.fromJSONSchema()`
 5. **Env var availability** -- passthrough env vars exist in the host environment (**warning only**, not an error)
 
@@ -633,7 +621,7 @@ Shows all agents:
 nightshift agent list
 ```
 
-Displays a table with columns: Name, Beads (count), Schedule (cron), Last Run (outcome + timestamp). Shows both configured agents (in `nightshift.yaml`) and unregistered agents (in `agents/` directory but not in config), with unregistered agents flagged as "(not scheduled)".
+Displays a table with columns: Name, Steps (count), Schedule (cron), Last Run (outcome + timestamp). Shows both configured agents (in `nightshift.yaml`) and unregistered agents (in `agents/` directory but not in config), with unregistered agents flagged as "(not scheduled)".
 
 Use `--json` for machine-readable output.
 
@@ -645,7 +633,7 @@ Displays detailed agent information:
 nightshift agent show code-agent
 ```
 
-Shows: manifest summary (name, description, model, timeout, variables), bead pipeline (ordered list with type, model, retry config), schedule info (cron + next run), and recent runs from the JSONL log.
+Shows: manifest summary (name, description, model, timeout, variables), step pipeline (ordered list with model, retry config), schedule info (cron + next run), and recent runs from the JSONL log.
 
 ### `nightshift run --agent <name> [--var key=value...] [-n name] [-N]`
 
@@ -685,7 +673,7 @@ model: claude-opus-4-6
 timeout: 30m
 ```
 
-**Why Opus?** Code-agent uses Opus as the default model because the analysis and implementation beads benefit from stronger reasoning. Individual beads can downgrade to Sonnet where cheaper, faster execution is sufficient (verify, mr, log).
+**Why Opus?** Code-agent uses Opus as the default model because the analysis and implementation steps benefit from stronger reasoning. Individual steps can downgrade to Sonnet where cheaper, faster execution is sufficient (verify, mr, log).
 
 ```yaml
 allowedTools:
@@ -697,7 +685,7 @@ allowedTools:
   - Grep
 ```
 
-These are the default tools available to all beads unless overridden. Code-agent needs file system access and shell execution for repository analysis and modification.
+These are the default tools available to all steps unless overridden. Code-agent needs file system access and shell execution for repository analysis and modification.
 
 ### Variables
 
@@ -718,20 +706,19 @@ All variables have empty-string defaults. In practice:
 - `repo_url` -- set in `nightshift.yaml` to the target repository SSH/HTTPS URL
 - `category` -- set per schedule entry (e.g., "tests" on Mondays, "refactoring" on Tuesdays)
 - `category_guidance` -- optional detailed guidance for the category
-- `confluence_page_id` -- Confluence page for the log bead to update
-- `mcp_config_path` -- path to MCP config for the Confluence bead
+- `confluence_page_id` -- Confluence page for the log step to update
+- `mcp_config_path` -- path to MCP config for the Confluence step
 - `reviewer` -- GitLab username to assign as MR reviewer
 - `allowed_commands` -- commands the agent is allowed to execute (safety constraint in prompts)
 - `retry_error` -- populated by the engine on verify retry with the error details from the failed run
 
-### Bead Pipeline
+### Step Pipeline
 
-#### 1. Clone (`git-clone` type)
+#### 1. Clone
 
 ```yaml
 - name: clone
-  type: git-clone
-  prompt: prompts/clone-stub.md
+  prompt: prompts/clone.md
   env:
     - GITLAB_TOKEN
   outputSchema:
@@ -742,13 +729,12 @@ All variables have empty-string defaults. In practice:
     required: [repoDir, handoffDir]
 ```
 
-The `git-clone` type uses the `GitCloneBeadPlugin`, which handles the actual `git clone` operation. `GITLAB_TOKEN` is passed through from the host for authenticated clone. The output (`repoDir`, `handoffDir`) is referenced by all subsequent beads via `{{beads.clone.output.repoDir}}` and `{{beads.clone.output.handoffDir}}`.
+The clone step handles the actual `git clone` operation via its prompt instructions. `GITLAB_TOKEN` is passed through from the host for authenticated clone. The output (`repoDir`, `handoffDir`) is referenced by all subsequent steps via `{{steps.clone.output.repoDir}}` and `{{steps.clone.output.handoffDir}}`.
 
-#### 2. Analyze (`standard`, Opus)
+#### 2. Analyze (Opus)
 
 ```yaml
 - name: analyze
-  type: standard
   prompt: prompts/analyze.md
   model: claude-opus-4-6
   outputSchema:
@@ -778,13 +764,12 @@ The `git-clone` type uses the `GitCloneBeadPlugin`, which handles the actual `gi
     required: [result, categoryUsed]
 ```
 
-The analyze bead explicitly sets `model: claude-opus-4-6` (same as agent default, but explicit for clarity). It uses the `enum` constraint on `result` to enforce a binary outcome. If `NO_IMPROVEMENT` is returned, the agent handles any retry or fallback logic internally via subsequent steps.
+The analyze step explicitly sets `model: claude-opus-4-6` (same as agent default, but explicit for clarity). It uses the `enum` constraint on `result` to enforce a binary outcome. If `NO_IMPROVEMENT` is returned, the agent handles any retry or fallback logic internally via subsequent steps.
 
-#### 3. Implement (`standard`, Opus)
+#### 3. Implement (Opus)
 
 ```yaml
 - name: implement
-  type: standard
   prompt: prompts/implement.md
   model: claude-opus-4-6
   outputSchema:
@@ -796,13 +781,12 @@ The analyze bead explicitly sets `model: claude-opus-4-6` (same as agent default
     required: [status]
 ```
 
-The implement bead receives the analyze bead's selected improvement via `{{beads.analyze.output.selected}}` in its prompt. It has a simple schema: just report that the implementation is done.
+The implement step receives the analyze step's selected improvement via `{{steps.analyze.output.selected}}` in its prompt. It has a simple schema: just report that the implementation is done.
 
-#### 4. Verify (`standard`, Sonnet, with retry)
+#### 4. Verify (Sonnet, with retry)
 
 ```yaml
 - name: verify
-  type: standard
   prompt: prompts/verify.md
   model: claude-sonnet-4-6
   retry:
@@ -818,13 +802,12 @@ The implement bead receives the analyze bead's selected improvement via `{{beads
 
 **Why Sonnet for verify?** Verification is a focused task (run tests, check build) that does not need Opus-level reasoning. Sonnet is faster and cheaper.
 
-**Why retry from implement?** If verification fails, the implementation needs to change. The engine re-executes from `implement` through `verify`, up to 3 attempts. The `retry_error` variable carries the failure details so the implement bead can adapt.
+**Why retry from implement?** If verification fails, the implementation needs to change. The engine re-executes from `implement` through `verify`, up to 3 attempts. The `retry_error` variable carries the failure details so the implement step can adapt.
 
-#### 5. MR (`standard`, Sonnet, env: GITLAB_TOKEN)
+#### 5. MR (Sonnet, env: GITLAB_TOKEN)
 
 ```yaml
 - name: mr
-  type: standard
   prompt: prompts/mr.md
   model: claude-sonnet-4-6
   env:
@@ -839,13 +822,12 @@ The implement bead receives the analyze bead's selected improvement via `{{beads
     required: [outcome]
 ```
 
-The MR bead is the only standard bead (besides clone) that receives `GITLAB_TOKEN`. It uses `glab` to create branches, push commits, and open merge requests. The enum constraint distinguishes success from failure.
+The MR step is the only step (besides clone) that receives `GITLAB_TOKEN`. It uses `glab` to create branches, push commits, and open merge requests. The enum constraint distinguishes success from failure.
 
-#### 6. Log (`standard`, Sonnet, MCP tools, short timeout)
+#### 6. Log (Sonnet, MCP tools, short timeout)
 
 ```yaml
 - name: log
-  type: standard
   prompt: prompts/log.md
   model: claude-sonnet-4-6
   timeout: 2m
@@ -862,7 +844,7 @@ The MR bead is the only standard bead (besides clone) that receives `GITLAB_TOKE
     required: [logged]
 ```
 
-**Custom tools:** The log bead overrides the agent-level `allowedTools` entirely. It only needs Confluence MCP tools and `Read` (to read the run log file). No `Bash`, `Write`, or `Edit` -- this bead should not modify the repository.
+**Custom tools:** The log step overrides the agent-level `allowedTools` entirely. It only needs Confluence MCP tools and `Read` (to read the run log file). No `Bash`, `Write`, or `Edit` -- this step should not modify the repository.
 
 **mcpConfig with template variable:** The `{{mcp_config_path}}` is resolved at runtime from the manifest variable. This lets the user point to their MCP Atlassian config file without hardcoding the path.
 
@@ -904,9 +886,9 @@ The manifest loader performs path containment checks to prevent directory traver
 
 The prompt file uses `{{X}}` but `X` is not declared in the manifest `variables:` section. Add it to `variables:` with a default value, or check for typos.
 
-### "BEAD_CONTRACT_VIOLATION"
+### "STEP_CONTRACT_VIOLATION"
 
-The bead's output JSON does not match the declared `outputSchema`. Common causes:
+The step's output JSON does not match the declared `outputSchema`. Common causes:
 - Missing required fields in the JSON output
 - Wrong data types (e.g., string where integer is expected)
 - Invalid enum values
@@ -914,9 +896,9 @@ The bead's output JSON does not match the declared `outputSchema`. Common causes
 
 Check that the prompt instructs the AI to produce JSON matching the exact schema.
 
-### "BEAD_OUTPUT_MISSING"
+### "STEP_OUTPUT_MISSING"
 
-The bead's response did not contain a JSON code block. Ensure the prompt explicitly asks for output in a fenced code block with triple backticks.
+The step's response did not contain a JSON code block. Ensure the prompt explicitly asks for output in a fenced code block with triple backticks.
 
 ### "env var X (passthrough) is not set in the host environment"
 
@@ -926,13 +908,13 @@ A passthrough env var is declared but not available in the host. Export the vari
 
 A prompt path or agent directory resolves outside the agents root directory. Ensure all paths are relative and within the `agents/` tree.
 
-### "Duplicate bead names: X"
+### "Duplicate step names: X"
 
-Two or more beads share the same `name`. Bead names must be unique within a manifest.
+Two or more steps share the same `name`. Step names must be unique within a manifest.
 
-### "X is not a preceding bead name"
+### "X is not a preceding step name"
 
-A bead's `retry.retryFrom` references a bead that either does not exist or appears after the current bead in the pipeline. The `retryFrom` target must be a bead that comes before the bead with the retry configuration.
+A step's `retry.retryFrom` references a step that either does not exist or appears after the current step in the pipeline. The `retryFrom` target must be a step that comes before the step with the retry configuration.
 
 ### "Variable name collision with built-ins: X"
 
