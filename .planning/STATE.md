@@ -63,11 +63,11 @@ Carried from v1.0 (need empirical validation):
 
 ### Quick Tasks Completed
 
-14 quick tasks post-v2.0 — see STATE.md history or quick/ directory for full list.
-Most recent: quick-14 (daemon log rotation via dynamic date recomputation, 2026-03-12).
+15 quick tasks post-v2.0 — see STATE.md history or quick/ directory for full list.
+Most recent: quick-15 (Remove step type field since only standard type remains, 2026-03-16).
 
 ## Session Continuity
 
-Last session: 2026-03-16T16:37:40.925Z
-Stopped at: Completed quick-15-PLAN.md
+Last session: 2026-03-16
+Stopped at: Completed quick task 15: Remove step type field
 Resume file: None
