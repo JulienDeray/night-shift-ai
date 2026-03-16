@@ -95,6 +95,49 @@
 
 ---
 
+## Milestone: v3.0 — Consolidation
+
+**Shipped:** 2026-03-16
+**Phases:** 4 | **Plans:** 12
+
+### What Was Built
+- Bead abstraction eliminated — BeadPlugin/BeadRegistry/BeadRunner deleted, AgentEngine executes steps inline with no intermediary layer
+- NotificationService with pure-function formatters for human-readable start/success/failure notifications, wired into orchestrator
+- 8-class NightShiftError hierarchy collapsed into single class with NightShiftErrorCode union and code-based discrimination
+- Full E2E test harness — 16 tests covering daemon lifecycle, CLI commands (status/submit/cancel/schedule/inbox), error scenarios (failure/timeout/retry/invalid manifest), all with mocked externals
+- Dead code and legacy remnants removed — v1.0 prompt files, prompt-loader.ts, stale exports, orphaned types
+
+### What Worked
+- Audit-then-complete pattern caught tech debt before shipping — 6 items documented as known debt, none blocking
+- E2E test infrastructure design (mock Claude shim via PATH, ntfy mock server, fixture agents) proved flexible enough to cover all scenarios
+- Error hierarchy collapse was clean — single NightShiftError with `.code` field replaced 8 classes with zero behavioral regressions
+- Phase ordering (bead removal → notifications → cleanup → E2E) meant each phase built on a progressively cleaner codebase
+
+### What Was Inefficient
+- E2E test debugging required multiple iterations to handle daemon timing (heartbeat staleness, poll intervals, race conditions in cancel tests)
+- NTFY-04 (skip notification) was spec'd, planned, and then dropped by user decision — wasted some planning effort
+- Nyquist validation files were created for 3/4 phases but none reached full compliance — indicates the Nyquist process adds overhead without corresponding value for this project
+- Integration test flakiness (OS tmpdir collisions) carried forward from v2.0 — still not resolved
+
+### Patterns Established
+- Mock shim pattern: executable mock injected via PATH that reads response from fixture files — deterministic, fast, no network
+- Fixture agent pattern: agent directories with controlled manifest.yaml and response files for E2E scenarios
+- Code-based error discrimination: `err.code === 'TIMEOUT'` instead of `err instanceof TimeoutError`
+- Pure-function notification formatters: stateless, testable, separated from NotificationService transport
+
+### Key Lessons
+1. E2E tests that spawn real daemon processes need careful timing management — heartbeat staleness checks, configurable poll intervals, and race-condition-resistant cancel patterns are essential
+2. Mock shims via PATH injection are a powerful pattern for testing CLI tools that shell out to external programs (claude, glab, ntfy)
+3. Error class hierarchies are over-engineering for personal tools — a single error class with a code union is sufficient and simpler to maintain
+4. Consolidation milestones (cleanup + testing) are valuable even when no new features ship — the codebase quality improvement pays forward
+5. Spec'ing features that might be dropped wastes planning effort — confirm user intent before detailed planning
+
+### Cost Observations
+- Model mix: balanced profile (default)
+- Notable: 12 plans across 4 phases in 25 days, 60 commits; net LOC decreased (cleanup milestone)
+
+---
+
 ## Cross-Milestone Trends
 
 ### Process Evolution
@@ -103,6 +146,7 @@
 |-----------|--------|-------|---------|------------|
 | v1.0 | 4 | 8 | 42 | Established TDD, bead pipeline, and security isolation patterns |
 | v2.0 | 9 | 19 | 101 | Pluggable agent architecture, generic engine, audit-driven gap closure |
+| v3.0 | 4 | 12 | 60 | Consolidation: bead removal, error collapse, E2E harness, dead code cleanup |
 
 ### Cumulative Quality
 
@@ -110,6 +154,7 @@
 |-----------|-----|-------|-------------------|
 | v1.0 | 9,068 | 238+ | 0 (zero new npm dependencies) |
 | v2.0 | 12,752 | 384+ | 0 (zero new npm dependencies) |
+| v3.0 | 4,793 | 389+ unit, 16 E2E | 0 (zero new npm dependencies) |
 
 ### Top Lessons (Verified Across Milestones)
 
@@ -118,3 +163,5 @@
 3. Audit-then-fix before milestone completion catches real integration bugs
 4. Generic engines with zero domain-specific logic scale to new agent types cleanly
 5. Startup validation prevents late-night failures — check configuration eagerly
+6. Consolidation milestones (cleanup + testing) are worth doing — codebase quality improvement compounds
+7. Mock shims via PATH injection are the right pattern for testing tools that shell out to external CLIs

@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v3.0
 milestone_name: Consolidation
-status: completed
-stopped_at: Completed 17-04-PLAN.md
-last_updated: "2026-03-16T16:07:01.484Z"
-last_activity: 2026-03-13 — Phase 16 Plan 03 complete; agent-types.ts deleted, validateAgentName inlined, NightShiftTask.category and maxBudgetUsd removed, stale comments removed, 389 tests pass
+status: shipped
+stopped_at: Milestone v3.0 complete
+last_updated: "2026-03-16"
+last_activity: 2026-03-16 — v3.0 milestone shipped, all artifacts archived
 progress:
   total_phases: 4
   completed_phases: 4
@@ -18,20 +18,16 @@ progress:
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-03-13)
+See: .planning/PROJECT.md (updated 2026-03-16)
 
 **Core value:** Small, focused merge requests that appear in the morning — one coherent improvement per night, easy to review, never overwhelming.
-**Current focus:** Phase 16: Codebase Cleanup
+**Current focus:** Planning next milestone
 
 ## Current Position
 
-Milestone: v3.0 Consolidation
-Phase: 16 of 17 (Codebase Cleanup)
-Plan: 03 (complete — Plan 03 of 3 done)
-Status: Phase 16 complete
-Last activity: 2026-03-13 — Phase 16 Plan 03 complete; agent-types.ts deleted, validateAgentName inlined, NightShiftTask.category and maxBudgetUsd removed, stale comments removed, 389 tests pass
-
-Progress: [██████████] 100%
+Milestone: v3.0 Consolidation — SHIPPED
+Status: Complete, archived to .planning/milestones/
+Next: `/gsd:new-milestone` for v4.0 planning
 
 ## Performance Metrics
 
@@ -45,28 +41,16 @@ Progress: [██████████] 100%
 - Timeline: 13 days (2026-02-25 → 2026-03-09)
 - 101 commits, 12,752 LOC total (+23,824 / -4,414)
 
+**v3.0 Consolidation:**
+- 4 phases, 12 plans
+- Timeline: 25 days (2026-02-19 → 2026-03-16)
+- 60 commits, 4,793 LOC total (+8,875 / -3,983)
+
 ## Accumulated Context
 
 ### Decisions
 
 Full decision log in PROJECT.md Key Decisions table.
-- [Phase 14-bead-removal]: AgentPipelineContext moved from bead-plugin.ts into engine-types.ts; type field dropped from StepSchema; BeadsError/RegistryError deleted; TempDirManager creates flat tmpDir
-- [Phase 14-bead-removal]: AgentEngine constructor takes only logger — no registry parameter; inline step execution in engine.ts
-- [Phase 14-bead-removal]: Orchestrator uses file-queue only — BeadsClient and all beads branches removed
-- [Phase 14-03]: loadBeadPrompt renamed to loadStepPrompt; agent prompt .md files updated from "Bead" to "Step" role descriptions
-- [Phase 15-01]: Notification formatter as pure function module (not class); agentName fallback chain task→result→"unknown-agent"; duration format s/m+s/h+m; stack trace stripped via /^\s*at\s+/ pattern
-- [Phase 15-notifications]: NO_IMPROVEMENT fallback re-dispatch removed from orchestrator; agents handle retry logic internally
-- [Phase 15-notifications]: NTFY-04 (skip notification) not implemented per user decision
-- [Phase 16-codebase-cleanup]: INJECTION_MITIGATION_PREAMBLE moved from prompt-loader.ts into engine.ts as a non-exported local const; prompt-loader.ts deleted entirely; 5 v1.0 prompt templates deleted with zero runtime references confirmed
-- [Phase 16-codebase-cleanup]: Collapsed 8-class NightShiftError hierarchy into single class with NightShiftErrorCode union; TimeoutError.taskId/timeoutMs dropped; categorizeError updated to use err.code
-- [Phase 16-codebase-cleanup]: validateAgentName made private (non-exported) in scaffold.ts — only consumer; maxBudgetUsd removed from NightShiftTask, OneOffDefaults, and Zod ConfigSchema — no runtime code reads this value
-- [Phase 17-e2e-testing-framework]: Spawn daemon via npx tsx src/daemon/index.ts directly (not nightshift start) to avoid compiled-JS path resolution issue in start.ts
-- [Phase 17-e2e-testing-framework]: waitForDaemonReady requires heartbeat timestamp after poll start time — prevents stale heartbeat acceptance in crash recovery
-- [Phase 17-e2e-testing-framework]: Use {{failure_response_file}} and {{retry_fail_response_file}} placeholders in manifests resolved by config.ts at fixture copy time — same pattern as {{response_file}}
-- [Phase 17-e2e-testing-framework]: Retry exhaustion with maxAttempts:2 does 3 review executions before falling through — agent completes with SUCCESS, not FATAL
-- [Phase 17-e2e-testing-framework]: submit.ts propagates agentDecl.notify to task — without this, task.notify is undefined and NotificationService silently skips all notifications
-- [Phase 17-e2e-testing-framework]: cancel test uses pollIntervalMs=60000 in a separate tmpDir to ensure task stays pending long enough to cancel without race condition
-- [Phase 17-e2e-testing-framework]: Fixture manifest must include outputSchema — Zod StepSchema requires it; omitting it causes daemon startup validation to fail
 
 ### Pending Todos
 
@@ -75,7 +59,7 @@ None.
 ### Blockers/Concerns
 
 Carried from v1.0 (need empirical validation):
-- Skip criteria thresholds in bead prompts need tuning after first real runs
+- Skip criteria thresholds in step prompts need tuning after first real runs
 - GIT_CONFIG_NOSYSTEM=1 credential blocking needs integration test
 - Confluence macro-stripping workaround needs validation against real instance
 
@@ -86,6 +70,6 @@ Most recent: quick-14 (daemon log rotation via dynamic date recomputation, 2026-
 
 ## Session Continuity
 
-Last session: 2026-03-13T21:41:15.946Z
-Stopped at: Completed 17-04-PLAN.md
+Last session: 2026-03-16
+Stopped at: Milestone v3.0 complete
 Resume file: None
