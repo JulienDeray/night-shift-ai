@@ -345,6 +345,7 @@ describe("Orchestrator notification hooks", () => {
     it("orchestrator calls notificationService.taskStarted on dispatch (tick)", async () => {
       const mockScheduler = {
         evaluateSchedules: vi.fn().mockResolvedValue([]),
+        confirmDispatched: vi.fn().mockResolvedValue(undefined),
         updateConfig: vi.fn(),
         loadState: vi.fn(),
       };
@@ -415,7 +416,7 @@ describe("Orchestrator notification hooks", () => {
 
 describe("scheduled task dispatch", () => {
   let orchestrator: Orchestrator;
-  let mockScheduler: { evaluateSchedules: ReturnType<typeof vi.fn>; updateConfig: ReturnType<typeof vi.fn>; loadState: ReturnType<typeof vi.fn> };
+  let mockScheduler: { evaluateSchedules: ReturnType<typeof vi.fn>; confirmDispatched: ReturnType<typeof vi.fn>; updateConfig: ReturnType<typeof vi.fn>; loadState: ReturnType<typeof vi.fn> };
   let mockPool: {
     canAccept: ReturnType<typeof vi.fn>;
     dispatch: ReturnType<typeof vi.fn>;
@@ -429,6 +430,7 @@ describe("scheduled task dispatch", () => {
     logger = Logger.createCliLogger(false);
     mockScheduler = {
       evaluateSchedules: vi.fn().mockResolvedValue([]),
+      confirmDispatched: vi.fn().mockResolvedValue(undefined),
       updateConfig: vi.fn(),
       loadState: vi.fn(),
     };

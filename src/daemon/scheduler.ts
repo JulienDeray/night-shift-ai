@@ -13,8 +13,9 @@ export class Scheduler {
   private state: SchedulerState = { lastRuns: {} };
   private config: NightShiftConfig;
   private readonly logger: Logger;
-  /** Maps taskId → state key for tasks returned by evaluateSchedules but not yet confirmed */
-  private pendingKeys: Map<string, string> = new Map();
+  /** Maps taskId → { key, addedAt } for tasks returned by evaluateSchedules but not yet confirmed.
+   *  Map insertion order is used for FIFO priority when re-emitting. */
+  private pendingKeys: Map<string, { key: string; addedAt: number }> = new Map();
 
   constructor(config: NightShiftConfig, logger: Logger) {
     this.config = config;
@@ -38,12 +39,13 @@ export class Scheduler {
 
   async evaluateSchedules(): Promise<NightShiftTask[]> {
     const now = new Date();
-    const tasks: NightShiftTask[] = [];
+    const pendingTasks: NightShiftTask[] = [];
+    const newTasks: NightShiftTask[] = [];
     let needsSave = false;
 
     // Build reverse map: key → taskId for pending (unconfirmed) tasks
     const pendingByKey = new Map<string, string>();
-    for (const [taskId, key] of this.pendingKeys) {
+    for (const [taskId, { key }] of this.pendingKeys) {
       pendingByKey.set(key, taskId);
     }
 
@@ -72,14 +74,14 @@ export class Scheduler {
         if (!pendingByKey.has(key)) continue;
       }
 
+      // Merge agent-level and schedule-level variables
+      const agentDecl = this.config.agents.find((a) => a.name === entry.agent);
+      const mergedVars = { ...(agentDecl?.variables ?? {}), ...(entry.variables ?? {}) };
+
       // If there is already a pending task for this key, re-emit it
       // (don't create a new task ID — reuse the existing pending one)
       const existingPendingId = pendingByKey.get(key);
       if (existingPendingId) {
-        // Re-create the task object for the pending entry
-        const agentDecl = this.config.agents.find((a) => a.name === entry.agent);
-        const mergedVars = { ...(agentDecl?.variables ?? {}), ...(entry.variables ?? {}) };
-
         const task: NightShiftTask = {
           id: existingPendingId,
           name: `${entry.agent}-${existingPendingId}`,
@@ -93,7 +95,7 @@ export class Scheduler {
           variables: Object.keys(mergedVars).length > 0 ? mergedVars : undefined,
         };
 
-        tasks.push(task);
+        pendingTasks.push(task);
         this.logger.info(`Re-emitting pending task for agent ${entry.agent}`, {
           taskId: existingPendingId,
           cron: entry.cron,
@@ -103,10 +105,6 @@ export class Scheduler {
       }
 
       const taskId = `ns-${crypto.randomBytes(4).toString("hex")}`;
-
-      // Merge agent-level and schedule-level variables
-      const agentDecl = this.config.agents.find((a) => a.name === entry.agent);
-      const mergedVars = { ...(agentDecl?.variables ?? {}), ...(entry.variables ?? {}) };
 
       const task: NightShiftTask = {
         id: taskId,
@@ -121,9 +119,9 @@ export class Scheduler {
         variables: Object.keys(mergedVars).length > 0 ? mergedVars : undefined,
       };
 
-      tasks.push(task);
+      newTasks.push(task);
       // Track as pending — do NOT update lastRuns yet
-      this.pendingKeys.set(taskId, key);
+      this.pendingKeys.set(taskId, { key, addedAt: Date.now() });
 
       this.logger.info(`Scheduled task for agent ${entry.agent}`, {
         taskId,
@@ -136,7 +134,16 @@ export class Scheduler {
       await this.saveState();
     }
 
-    return tasks;
+    // Return pending (previously undispatched) tasks first so they get priority.
+    // Sort pending tasks by when they were originally added (FIFO) to ensure
+    // the oldest undispatched tasks get dispatched before newer ones.
+    const pendingOrder = new Map<string, number>();
+    for (const [taskId, { addedAt }] of this.pendingKeys) {
+      pendingOrder.set(taskId, addedAt);
+    }
+    pendingTasks.sort((a, b) => (pendingOrder.get(a.id) ?? 0) - (pendingOrder.get(b.id) ?? 0));
+
+    return [...pendingTasks, ...newTasks];
   }
 
   /**
@@ -149,9 +156,9 @@ export class Scheduler {
     let updated = false;
 
     for (const taskId of confirmedSet) {
-      const key = this.pendingKeys.get(taskId);
-      if (key) {
-        this.state.lastRuns[key] = new Date().toISOString();
+      const entry = this.pendingKeys.get(taskId);
+      if (entry) {
+        this.state.lastRuns[entry.key] = new Date().toISOString();
         this.pendingKeys.delete(taskId);
         updated = true;
       }
