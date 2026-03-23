@@ -145,6 +145,9 @@ describe("Scheduler.evaluateSchedules()", () => {
     const tasks1 = await scheduler.evaluateSchedules();
     expect(tasks1).toHaveLength(1);
 
+    // Confirm the task was dispatched
+    await scheduler.confirmDispatched(tasks1.map((t) => t.id));
+
     // Second call in same period — lastRun was recorded, so should skip
     const tasks2 = await scheduler.evaluateSchedules();
     expect(tasks2).toHaveLength(0);

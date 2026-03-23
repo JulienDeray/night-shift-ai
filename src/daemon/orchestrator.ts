@@ -229,19 +229,23 @@ export class Orchestrator {
       });
     }
 
-    // 1. Evaluate cron schedules and dispatch due tasks
-    const scheduledTasks = await this.scheduler.evaluateSchedules();
-    for (const task of scheduledTasks) {
-      if (!this.pool.canAccept()) break;
-      this.pool.dispatch(task);
-      this.notificationService.taskStarted(task);
-    }
-
-    // 2. Collect completed tasks
+    // 1. Collect completed tasks FIRST to free pool slots
     const completed = this.pool.collectCompleted();
     for (const taskResult of completed) {
       await this.handleCompleted(taskResult);
     }
+
+    // 2. Evaluate cron schedules and dispatch due tasks
+    const scheduledTasks = await this.scheduler.evaluateSchedules();
+    const dispatchedIds: string[] = [];
+    for (const task of scheduledTasks) {
+      if (!this.pool.canAccept()) break;
+      this.pool.dispatch(task);
+      dispatchedIds.push(task.id);
+      this.notificationService.taskStarted(task);
+    }
+    // Confirm only actually-dispatched tasks so undispatched ones are retried
+    await this.scheduler.confirmDispatched(dispatchedIds);
 
     // 3. Poll file queue for ready tasks and dispatch
     if (this.pool.canAccept()) {
