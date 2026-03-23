@@ -505,7 +505,100 @@ describe("Scheduler.evaluateSchedules()", () => {
   });
 
   // -------------------------------------------------------------------------
-  // 15. New schedule does not dispatch retroactively
+  // 15. Pool-full scenario: unconfirmed tasks reappear
+  // -------------------------------------------------------------------------
+
+  it("returns unconfirmed tasks again on next evaluateSchedules call", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-01-06T02:01:30Z"));
+
+    const config = makeConfig({
+      agents: [{ name: "agent-a" }, { name: "agent-b" }, { name: "agent-c" }],
+      schedule: [
+        { agent: "agent-a", cron: "* * * * *", enabled: true },
+        { agent: "agent-b", cron: "* * * * *", enabled: true },
+        { agent: "agent-c", cron: "* * * * *", enabled: true },
+      ],
+    });
+
+    const scheduler = new Scheduler(config, logger);
+    await seedScheduler(scheduler);
+
+    // Advance past 02:02 so previousRuns returns 02:02 (> seed time 02:01:30)
+    vi.setSystemTime(new Date("2026-01-06T02:02:30Z"));
+    const tasks = await scheduler.evaluateSchedules();
+    expect(tasks).toHaveLength(3);
+
+    // Confirm only 2 of 3 were dispatched
+    await scheduler.confirmDispatched([tasks[0].id, tasks[1].id]);
+
+    // Next tick — advance past 02:03
+    vi.setSystemTime(new Date("2026-01-06T02:03:30Z"));
+    const tasks2 = await scheduler.evaluateSchedules();
+    // agent-a and agent-b: lastRuns updated to 02:02:30, prevRun=02:03 > 02:02:30 → due again
+    // agent-c: lastRuns never updated (still 02:01:30), prevRun=02:03 > 02:01:30 → due again
+    // All 3 should reappear, and agent-c specifically was never lost
+    expect(tasks2).toHaveLength(3);
+    const agentNames = tasks2.map((t) => t.agentName);
+    expect(agentNames).toContain("agent-c");
+  });
+
+  it("returns all tasks again when none are confirmed", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-01-06T02:01:30Z"));
+
+    const config = makeConfig({
+      agents: [{ name: "agent-a" }, { name: "agent-b" }],
+      schedule: [
+        { agent: "agent-a", cron: "* * * * *", enabled: true },
+        { agent: "agent-b", cron: "* * * * *", enabled: true },
+      ],
+    });
+
+    const scheduler = new Scheduler(config, logger);
+    await seedScheduler(scheduler);
+
+    // Advance past 02:02
+    vi.setSystemTime(new Date("2026-01-06T02:02:30Z"));
+    const tasks = await scheduler.evaluateSchedules();
+    expect(tasks).toHaveLength(2);
+
+    // Confirm NONE — next evaluate both should reappear
+    vi.setSystemTime(new Date("2026-01-06T02:03:30Z"));
+    const tasks2 = await scheduler.evaluateSchedules();
+    expect(tasks2).toHaveLength(2);
+  });
+
+  it("does not return tasks again when all are confirmed", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-01-06T02:01:30Z"));
+
+    const config = makeConfig({
+      agents: [{ name: "agent-a" }, { name: "agent-b" }],
+      schedule: [
+        { agent: "agent-a", cron: "* * * * *", enabled: true },
+        { agent: "agent-b", cron: "* * * * *", enabled: true },
+      ],
+    });
+
+    const scheduler = new Scheduler(config, logger);
+    await seedScheduler(scheduler);
+
+    // Advance past 02:02
+    vi.setSystemTime(new Date("2026-01-06T02:02:30Z"));
+    const tasks = await scheduler.evaluateSchedules();
+    expect(tasks).toHaveLength(2);
+
+    // Confirm ALL
+    await scheduler.confirmDispatched(tasks.map((t) => t.id));
+
+    // Same period — should return nothing (already confirmed)
+    const tasks2 = await scheduler.evaluateSchedules();
+    expect(tasks2).toHaveLength(0);
+  });
+
+  // -------------------------------------------------------------------------
+  // 16. New schedule does not dispatch retroactively
   // -------------------------------------------------------------------------
 
   it("does not dispatch for a newly added schedule (no prior state)", async () => {
