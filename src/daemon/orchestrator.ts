@@ -238,25 +238,36 @@ export class Orchestrator {
     // 2. Evaluate cron schedules and dispatch due tasks
     const scheduledTasks = await this.scheduler.evaluateSchedules();
     const dispatchedIds: string[] = [];
+    let tickDispatches = 0;
     for (const task of scheduledTasks) {
       if (!this.pool.canAccept()) break;
+      if (tickDispatches >= this.config.maxDispatchesPerTick) break;
       this.pool.dispatch(task);
+      tickDispatches++;
       dispatchedIds.push(task.id);
       this.notificationService.taskStarted(task);
+    }
+    if (tickDispatches >= this.config.maxDispatchesPerTick) {
+      this.logger.debug("Per-tick dispatch cap reached", { limit: this.config.maxDispatchesPerTick });
     }
     // Confirm only actually-dispatched tasks so undispatched ones are retried
     await this.scheduler.confirmDispatched(dispatchedIds);
 
     // 3. Poll file queue for ready tasks and dispatch
-    if (this.pool.canAccept()) {
+    if (this.pool.canAccept() && tickDispatches < this.config.maxDispatchesPerTick) {
       const readyTasks = await this.getQueuedTasks();
       for (const task of readyTasks) {
         if (!this.pool.canAccept()) break;
+        if (tickDispatches >= this.config.maxDispatchesPerTick) {
+          this.logger.debug("Per-tick dispatch cap reached", { limit: this.config.maxDispatchesPerTick });
+          break;
+        }
 
         // Claim the task
         const claimed = await this.claimTask(task);
         if (claimed) {
           this.pool.dispatch(task);
+          tickDispatches++;
           this.notificationService.taskStarted(task);
         }
       }
