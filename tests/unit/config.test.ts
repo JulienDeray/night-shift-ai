@@ -314,4 +314,37 @@ schedule:
     expect(yaml).toContain("schedule:");
     expect(yaml).toContain("agents_dir:");
   });
+
+  it("max_dispatches_per_tick defaults to 2 when not set", async () => {
+    const yaml = `
+workspace: ./w
+`;
+    await writeConfig(tmpDir, yaml);
+
+    const config = await loadConfig(tmpDir);
+
+    expect(config.maxDispatchesPerTick).toBe(2);
+  });
+
+  it("max_dispatches_per_tick parses custom value", async () => {
+    const yaml = `
+workspace: ./w
+max_dispatches_per_tick: 5
+`;
+    await writeConfig(tmpDir, yaml);
+
+    const config = await loadConfig(tmpDir);
+
+    expect(config.maxDispatchesPerTick).toBe(5);
+  });
+
+  it("max_dispatches_per_tick: 0 fails Zod validation", async () => {
+    const yaml = `
+workspace: ./w
+max_dispatches_per_tick: 0
+`;
+    await writeConfig(tmpDir, yaml);
+
+    await expect(loadConfig(tmpDir)).rejects.toThrow("Invalid config");
+  });
 });

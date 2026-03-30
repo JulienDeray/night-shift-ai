@@ -37,6 +37,7 @@ const ConfigSchema = z
     workspace: z.string().default("./workspace"),
     inbox: z.string().default("./inbox"),
     max_concurrent: z.number().int().positive().default(2),
+    max_dispatches_per_tick: z.number().int().positive().default(2),
     default_timeout: z.string().default("30m"),
     daemon: z
       .object({
@@ -107,6 +108,7 @@ function mapConfig(raw: RawConfig): NightShiftConfig {
     workspace: raw.workspace,
     inbox: raw.inbox,
     maxConcurrent: raw.max_concurrent,
+    maxDispatchesPerTick: raw.max_dispatches_per_tick,
     defaultTimeout: raw.default_timeout,
     daemon: {
       pollIntervalMs: raw.daemon.poll_interval_ms,

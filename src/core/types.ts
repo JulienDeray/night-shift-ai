@@ -56,6 +56,7 @@ export interface NightShiftConfig {
   workspace: string;
   inbox: string;
   maxConcurrent: number;
+  maxDispatchesPerTick: number;
   defaultTimeout: string;
   daemon: DaemonConfig;
   agentsDir: string;
