@@ -17,6 +17,7 @@ function makeConfig(overrides?: Partial<NightShiftConfig>): NightShiftConfig {
     workspace: "./workspace",
     inbox: "./inbox",
     maxConcurrent: 1,
+    maxDispatchesPerTick: 2,
     defaultTimeout: "30m",
     daemon: {
       pollIntervalMs: 30000,
@@ -96,7 +97,7 @@ class MockPool {
  * Simulates one tick of the orchestrator dispatch pattern:
  * 1. Collect completed tasks (frees slots)
  * 2. Evaluate schedules
- * 3. Dispatch up to pool capacity
+ * 3. Dispatch up to pool capacity AND per-tick cap
  * 4. Confirm dispatched
  *
  * Returns the tasks that were dispatched and those that were not.
@@ -104,6 +105,7 @@ class MockPool {
 async function simulateTick(
   scheduler: Scheduler,
   pool: MockPool,
+  config?: NightShiftConfig,
 ): Promise<{ dispatched: NightShiftTask[]; notDispatched: NightShiftTask[] }> {
   // Step 1: Collect completed (frees slots)
   pool.collectCompleted();
@@ -111,17 +113,24 @@ async function simulateTick(
   // Step 2: Evaluate schedules
   const scheduledTasks = await scheduler.evaluateSchedules();
 
-  // Step 3: Dispatch up to capacity
+  // Step 3: Dispatch up to capacity AND per-tick cap
   const dispatched: NightShiftTask[] = [];
   const notDispatched: NightShiftTask[] = [];
+  let tickDispatches = 0;
+  const maxDispatchesPerTick = config?.maxDispatchesPerTick;
 
   for (const task of scheduledTasks) {
     if (!pool.canAccept()) {
       notDispatched.push(task);
       continue;
     }
+    if (maxDispatchesPerTick !== undefined && tickDispatches >= maxDispatchesPerTick) {
+      notDispatched.push(task);
+      continue;
+    }
     pool.dispatch(task);
     dispatched.push(task);
+    tickDispatches++;
   }
 
   // Step 4: Confirm only dispatched
@@ -260,5 +269,144 @@ describe("Orchestrator tick pattern: Scheduler + AgentPool", () => {
     // A new task should be dispatched for agent-a (next minute)
     expect(tick2.dispatched).toHaveLength(1);
     expect(tick2.dispatched[0].agentName).toBe("agent-a");
+  });
+});
+
+describe("per-tick dispatch cap", () => {
+  let tmpDir: string;
+  let logger: Logger;
+  let origCwd: typeof process.cwd;
+
+  beforeEach(async () => {
+    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "nightshift-tick-cap-"));
+    await fs.mkdir(path.join(tmpDir, ".nightshift"), { recursive: true });
+    logger = Logger.createCliLogger(false);
+
+    origCwd = process.cwd;
+    process.cwd = () => tmpDir;
+  });
+
+  afterEach(async () => {
+    process.cwd = origCwd;
+    vi.useRealTimers();
+    await fs.rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it("limits dispatches to maxDispatchesPerTick even when pool has more capacity", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-01-06T02:01:30Z"));
+
+    // Pool capacity = 5, but cap = 2, so only 2 should be dispatched
+    const config = makeConfig({
+      maxConcurrent: 5,
+      maxDispatchesPerTick: 2,
+      agents: [
+        { name: "agent-a" },
+        { name: "agent-b" },
+        { name: "agent-c" },
+        { name: "agent-d" },
+        { name: "agent-e" },
+      ],
+      schedule: [
+        { agent: "agent-a", cron: "* * * * *", enabled: true },
+        { agent: "agent-b", cron: "* * * * *", enabled: true },
+        { agent: "agent-c", cron: "* * * * *", enabled: true },
+        { agent: "agent-d", cron: "* * * * *", enabled: true },
+        { agent: "agent-e", cron: "* * * * *", enabled: true },
+      ],
+    });
+
+    const scheduler = new Scheduler(config, logger);
+    // Seed
+    await scheduler.evaluateSchedules();
+
+    const pool = new MockPool(5);
+
+    // Advance so all 5 schedules are due
+    vi.setSystemTime(new Date("2026-01-06T02:02:30Z"));
+
+    const tick1 = await simulateTick(scheduler, pool, config);
+
+    // Despite pool having 5 open slots, cap limits to 2 dispatches
+    expect(tick1.dispatched).toHaveLength(2);
+    expect(tick1.notDispatched).toHaveLength(3);
+  });
+
+  it("remaining tasks after cap are retried next tick (not lost)", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-01-06T02:01:30Z"));
+
+    const config = makeConfig({
+      maxConcurrent: 5,
+      maxDispatchesPerTick: 2,
+      agents: [
+        { name: "agent-a" },
+        { name: "agent-b" },
+        { name: "agent-c" },
+      ],
+      schedule: [
+        { agent: "agent-a", cron: "* * * * *", enabled: true },
+        { agent: "agent-b", cron: "* * * * *", enabled: true },
+        { agent: "agent-c", cron: "* * * * *", enabled: true },
+      ],
+    });
+
+    const scheduler = new Scheduler(config, logger);
+    await scheduler.evaluateSchedules();
+
+    const pool = new MockPool(5);
+
+    // Tick 1: all 3 due, cap=2 → 2 dispatched, 1 not dispatched
+    vi.setSystemTime(new Date("2026-01-06T02:02:30Z"));
+    const tick1 = await simulateTick(scheduler, pool, config);
+    expect(tick1.dispatched).toHaveLength(2);
+    expect(tick1.notDispatched).toHaveLength(1);
+
+    // Complete the 2 dispatched tasks
+    pool.completeAll();
+
+    // Tick 2: the 1 undispatched task should still be available (not lost)
+    vi.setSystemTime(new Date("2026-01-06T02:03:30Z"));
+    const tick2 = await simulateTick(scheduler, pool, config);
+
+    // At least the undispatched agent from tick1 plus newly due agents
+    expect(tick2.dispatched.length).toBeGreaterThanOrEqual(1);
+    const allDispatchedNames = new Set([
+      ...tick1.dispatched.map((t) => t.agentName),
+      ...tick2.dispatched.map((t) => t.agentName),
+    ]);
+    // All 3 agents should have been dispatched across ticks
+    expect(allDispatchedNames.size).toBe(3);
+  });
+
+  it("cap of 1 restricts to exactly 1 dispatch per tick", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-01-06T02:01:30Z"));
+
+    const config = makeConfig({
+      maxConcurrent: 10,
+      maxDispatchesPerTick: 1,
+      agents: [
+        { name: "agent-a" },
+        { name: "agent-b" },
+        { name: "agent-c" },
+      ],
+      schedule: [
+        { agent: "agent-a", cron: "* * * * *", enabled: true },
+        { agent: "agent-b", cron: "* * * * *", enabled: true },
+        { agent: "agent-c", cron: "* * * * *", enabled: true },
+      ],
+    });
+
+    const scheduler = new Scheduler(config, logger);
+    await scheduler.evaluateSchedules();
+
+    const pool = new MockPool(10);
+
+    vi.setSystemTime(new Date("2026-01-06T02:02:30Z"));
+    const tick1 = await simulateTick(scheduler, pool, config);
+
+    expect(tick1.dispatched).toHaveLength(1);
+    expect(tick1.notDispatched).toHaveLength(2);
   });
 });
