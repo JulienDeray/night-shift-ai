@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: planning
-stopped_at: Completed quick-17-PLAN.md
-last_updated: "2026-03-23T14:42:00.000Z"
+stopped_at: Completed quick-18-PLAN.md
+last_updated: "2026-03-30T11:20:00.000Z"
 progress:
   total_phases: 0
   completed_phases: 0
@@ -63,10 +63,10 @@ Carried from v1.0 (need empirical validation):
 
 ### Quick Tasks Completed
 
-17 quick tasks post-v2.0 — see STATE.md history or quick/ directory for full list.
-Most recent: quick-17 (Fix silent task dropping when agent pool is full, 2026-03-23).
+18 quick tasks post-v2.0 — see STATE.md history or quick/ directory for full list.
+Most recent: quick-18 (Add per-tick dispatch cap to prevent system overload, 2026-03-30).
 
 ## Session Continuity
 
-Last activity: 2026-03-23 - Completed quick task 17: Fix silent task dropping when agent pool is full and reorder tick phases.
+Last activity: 2026-03-30 - Completed quick task 18: Add per-tick dispatch cap (max_dispatches_per_tick) to prevent system overload from burst-spawning Claude processes.
 Resume file: None
