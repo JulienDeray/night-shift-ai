@@ -7,6 +7,7 @@ import {
   validateTemplateVars,
   buildBuiltIns,
   BUILT_IN_VARS,
+  RESERVED_VAR_NAMES,
 } from "../../src/agent/template.js";
 import { NightShiftError } from "../../src/core/errors.js";
 import { renderTemplate } from "../../src/utils/template.js";
@@ -57,6 +58,38 @@ describe("validateVariableNames", () => {
         expect.objectContaining({ code: "MANIFEST" }),
       );
     }
+  });
+
+  it("rejects state_dir as a user variable name", () => {
+    expect(() => validateVariableNames(["state_dir"])).toThrowError(NightShiftError);
+    expect(() => validateVariableNames(["state_dir"])).toThrowError(
+      expect.objectContaining({ code: "MANIFEST" }),
+    );
+    expect(() => validateVariableNames(["state_dir"])).toThrow(/state_dir/);
+  });
+
+  it("rejects state_dir mixed with valid names", () => {
+    expect(() => validateVariableNames(["my_var", "state_dir", "other"])).toThrow(/state_dir/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 1b. RESERVED_VAR_NAMES
+// ---------------------------------------------------------------------------
+
+describe("RESERVED_VAR_NAMES", () => {
+  it("includes all BUILT_IN_VARS", () => {
+    for (const name of BUILT_IN_VARS) {
+      expect(RESERVED_VAR_NAMES).toContain(name);
+    }
+  });
+
+  it("includes state_dir", () => {
+    expect(RESERVED_VAR_NAMES).toContain("state_dir");
+  });
+
+  it("has exactly BUILT_IN_VARS.length + 1 entries", () => {
+    expect(RESERVED_VAR_NAMES).toHaveLength(BUILT_IN_VARS.length + 1);
   });
 });
 

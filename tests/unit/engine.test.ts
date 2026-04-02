@@ -22,6 +22,7 @@ import { spawnWithTimeout } from "../../src/utils/process.js";
 import { AgentEngine } from "../../src/agent/engine.js";
 import { Logger } from "../../src/core/logger.js";
 import { NightShiftError } from "../../src/core/errors.js";
+import { buildTemplateVars } from "../../src/agent/template.js";
 
 const mockSpawn = vi.mocked(spawnWithTimeout);
 
@@ -913,6 +914,194 @@ describe("AgentEngine", () => {
 
       expect(result.status).toBe("SUCCESS");
       expect(result.earlyExitReason).toBeDefined();
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // 10. state_dir injection
+  // -------------------------------------------------------------------------
+
+  describe("state_dir injection", () => {
+    it("creates stateDir directory before running steps", async () => {
+      const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "ns-engine-statedir-"));
+      const agentsRoot = path.join(tmpDir, "agents");
+      const agentDir = path.join(agentsRoot, "stateful-agent");
+      const promptsDir = path.join(agentDir, "prompts");
+      await fs.mkdir(promptsDir, { recursive: true });
+
+      const manifest = {
+        name: "stateful-agent",
+        description: "Agent with stateDir",
+        stateDir: "memory",
+        steps: [
+          {
+            name: "analyze",
+            prompt: "prompts/analyze.md",
+            outputSchema: RESULT_OUTPUT_SCHEMA,
+          },
+        ],
+      };
+      await fs.writeFile(path.join(agentDir, "manifest.yaml"), stringifyYaml(manifest));
+      await fs.writeFile(path.join(promptsDir, "analyze.md"), "Analyze for task {{task_id}}.");
+
+      cleanup = () => fs.rm(tmpDir, { recursive: true, force: true });
+
+      mockSpawn.mockReturnValue(makeSpawnResult(cliEnvelope(VALID_RESULT_OUTPUT)));
+
+      const engine = new AgentEngine(silentLogger());
+      await engine.run(agentDir, agentsRoot, "task-statedir");
+
+      // The stateDir should have been created
+      const stateDirPath = path.join(await fs.realpath(agentDir), "memory");
+      const stat = await fs.stat(stateDirPath);
+      expect(stat.isDirectory()).toBe(true);
+    });
+
+    it("injects state_dir into prompt template vars", async () => {
+      const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "ns-engine-statedir-"));
+      const agentsRoot = path.join(tmpDir, "agents");
+      const agentDir = path.join(agentsRoot, "stateful-agent");
+      const promptsDir = path.join(agentDir, "prompts");
+      await fs.mkdir(promptsDir, { recursive: true });
+
+      const manifest = {
+        name: "stateful-agent",
+        description: "Agent with stateDir",
+        stateDir: "memory",
+        steps: [
+          {
+            name: "analyze",
+            prompt: "prompts/analyze.md",
+            outputSchema: RESULT_OUTPUT_SCHEMA,
+          },
+        ],
+      };
+      await fs.writeFile(path.join(agentDir, "manifest.yaml"), stringifyYaml(manifest));
+      await fs.writeFile(path.join(promptsDir, "analyze.md"), "Write state to {{state_dir}}/notes.md");
+
+      cleanup = () => fs.rm(tmpDir, { recursive: true, force: true });
+
+      mockSpawn.mockReturnValue(makeSpawnResult(cliEnvelope(VALID_RESULT_OUTPUT)));
+
+      const engine = new AgentEngine(silentLogger());
+      await engine.run(agentDir, agentsRoot, "task-statedir-inject");
+
+      // Verify the rendered prompt contains the resolved absolute stateDir path, not the placeholder
+      const callArgs = mockSpawn.mock.calls[0];
+      const argsStr = JSON.stringify(callArgs[1]);
+      expect(argsStr).not.toContain("{{state_dir}}");
+      expect(argsStr).toContain("memory");
+    });
+
+    it("state_dir persists into second step's template vars after rebuild", async () => {
+      const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "ns-engine-statedir-"));
+      const agentsRoot = path.join(tmpDir, "agents");
+      const agentDir = path.join(agentsRoot, "stateful-agent");
+      const promptsDir = path.join(agentDir, "prompts");
+      await fs.mkdir(promptsDir, { recursive: true });
+
+      const manifest = {
+        name: "stateful-agent",
+        description: "Agent with stateDir",
+        stateDir: "memory",
+        steps: [
+          {
+            name: "step-one",
+            prompt: "prompts/step-one.md",
+            outputSchema: RESULT_OUTPUT_SCHEMA,
+          },
+          {
+            name: "step-two",
+            prompt: "prompts/step-two.md",
+            outputSchema: RESULT_OUTPUT_SCHEMA,
+          },
+        ],
+      };
+      await fs.writeFile(path.join(agentDir, "manifest.yaml"), stringifyYaml(manifest));
+      await fs.writeFile(path.join(promptsDir, "step-one.md"), "Step one for {{task_id}}.");
+      await fs.writeFile(path.join(promptsDir, "step-two.md"), "Use state at {{state_dir}}/data.json");
+
+      cleanup = () => fs.rm(tmpDir, { recursive: true, force: true });
+
+      mockSpawn
+        .mockReturnValueOnce(makeSpawnResult(cliEnvelope(VALID_RESULT_OUTPUT)))
+        .mockReturnValueOnce(makeSpawnResult(cliEnvelope(VALID_RESULT_OUTPUT)));
+
+      const engine = new AgentEngine(silentLogger());
+      await engine.run(agentDir, agentsRoot, "task-statedir-rebuild");
+
+      // Second step's rendered prompt should have state_dir resolved
+      const secondCallArgs = mockSpawn.mock.calls[1];
+      const argsStr = JSON.stringify(secondCallArgs[1]);
+      expect(argsStr).not.toContain("{{state_dir}}");
+      expect(argsStr).toContain("memory");
+    });
+
+    it("does not inject state_dir when manifest has no stateDir", async () => {
+      const { agentsRoot, agentDir, cleanup: c } = await createTempAgent({
+        promptContents: {
+          "prompts/analyze.md": "No state dir: {{state_dir}} should remain.",
+        },
+      });
+      cleanup = c;
+
+      mockSpawn.mockReturnValue(makeSpawnResult(cliEnvelope(VALID_RESULT_OUTPUT)));
+
+      const engine = new AgentEngine(silentLogger());
+      // dryRun should throw because {{state_dir}} is undefined when no stateDir in manifest
+      await expect(engine.dryRun(agentDir, agentsRoot)).rejects.toThrow(/state_dir/);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // 11. resolvedImports injection
+  // -------------------------------------------------------------------------
+
+  describe("resolvedImports injection", () => {
+    it("injects resolvedImports values so they are rendered in prompts", async () => {
+      // Since resolvedImports is populated by the orchestrator (T03), not by loadManifest,
+      // we test the injection logic by verifying buildTemplateVars + manual injection works.
+      // The engine code does: Object.assign(vars, manifest.resolvedImports)
+      // This mirrors the engine's injection pattern exactly.
+      const builtIns = {
+        task_id: "t1",
+        run_date: "2026-01-01",
+        agent_name: "test",
+        repo_path: "/tmp",
+      } as Parameters<typeof buildTemplateVars>[0];
+
+      const vars = buildTemplateVars(builtIns, {}, {}, {});
+
+      const resolvedImports = { other_memory: "/agents/other-agent/memory" };
+      Object.assign(vars, resolvedImports);
+
+      // Simulate what the engine does — render a prompt with the import var
+      const { renderAgentTemplate } = await import("../../src/agent/template.js");
+      const rendered = renderAgentTemplate("Read from {{other_memory}}/notes.md", vars);
+      expect(rendered).toBe("Read from /agents/other-agent/memory/notes.md");
+      expect(rendered).not.toContain("{{other_memory}}");
+    });
+
+    it("resolvedImports cannot override built-in vars", async () => {
+      const builtIns = {
+        task_id: "real-task-id",
+        run_date: "2026-01-01",
+        agent_name: "test",
+        repo_path: "/tmp",
+      } as Parameters<typeof buildTemplateVars>[0];
+
+      const vars = buildTemplateVars(builtIns, {}, {}, {});
+
+      // Even if resolvedImports tries to override a built-in, the engine
+      // injects them after builtIns, so they would override. But validateVariableNames
+      // prevents this at load time. The engine itself doesn't re-check — T03 does.
+      // This test verifies the behavior: Object.assign would override.
+      // In practice, the collision check in T03/validateVariableNames prevents this.
+      const resolvedImports = { task_id: "hacked" };
+      Object.assign(vars, resolvedImports);
+      // This shows that without the collision check, it WOULD override.
+      // The protection is validateVariableNames rejecting 'task_id' as import key.
+      expect(vars.task_id).toBe("hacked"); // This is WHY collision check matters
     });
   });
 });

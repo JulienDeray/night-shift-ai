@@ -155,6 +155,15 @@ export class AgentEngine {
     const builtIns = buildBuiltIns(taskId, manifest.name, tmpDir);
     const initialVars = buildTemplateVars(builtIns, manifest.variables, configOverrides ?? {}, {});
 
+    // Inject state_dir and resolved imports at built-in precedence
+    if (manifest.stateDir) {
+      await ensureDir(manifest.stateDir);
+      initialVars.state_dir = manifest.stateDir;
+    }
+    if (manifest.resolvedImports) {
+      Object.assign(initialVars, manifest.resolvedImports);
+    }
+
     // Build initial context
     let ctx: AgentPipelineContext = {
       taskId,
@@ -261,14 +270,22 @@ export class AgentEngine {
         };
 
         // Rebuild variables with updated step outputs
+        const rebuiltVars = buildTemplateVars(
+          builtIns,
+          manifest.variables,
+          configOverrides ?? {},
+          ctx.previousSteps,
+        );
+        // Re-inject state_dir and resolved imports at built-in precedence
+        if (manifest.stateDir) {
+          rebuiltVars.state_dir = manifest.stateDir;
+        }
+        if (manifest.resolvedImports) {
+          Object.assign(rebuiltVars, manifest.resolvedImports);
+        }
         ctx = {
           ...ctx,
-          variables: buildTemplateVars(
-            builtIns,
-            manifest.variables,
-            configOverrides ?? {},
-            ctx.previousSteps,
-          ),
+          variables: rebuiltVars,
         };
 
         perStep.push({ name: step.name, status: "SUCCESS", durationMs });
@@ -555,6 +572,14 @@ export class AgentEngine {
       configOverrides ?? {},
       {},
     );
+
+    // Inject state_dir and resolved imports for template validation
+    if (manifest.stateDir) {
+      vars.state_dir = manifest.stateDir;
+    }
+    if (manifest.resolvedImports) {
+      Object.assign(vars, manifest.resolvedImports);
+    }
 
     for (const step of manifest.steps) {
       const promptPath = path.join(manifest.agentDir, step.prompt);

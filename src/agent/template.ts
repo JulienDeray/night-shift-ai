@@ -11,17 +11,26 @@ export const BUILT_IN_VARS = [
 type BuiltInVar = (typeof BUILT_IN_VARS)[number];
 
 /**
- * Validates that user-defined variable names do not collide with built-in names.
+ * Combined list of all reserved variable names: BUILT_IN_VARS + engine-injected vars.
+ * Used for collision checking — user-defined and import variable names must not use these.
+ */
+export const RESERVED_VAR_NAMES: readonly string[] = [
+  ...BUILT_IN_VARS,
+  "state_dir",
+];
+
+/**
+ * Validates that user-defined variable names do not collide with reserved names.
  * Throws ManifestError if any collision is found — hard error, not a warning.
  */
 export function validateVariableNames(userVarNames: string[]): void {
   const collisions = userVarNames.filter((name) =>
-    (BUILT_IN_VARS as readonly string[]).includes(name),
+    RESERVED_VAR_NAMES.includes(name),
   );
   if (collisions.length > 0) {
     throw new NightShiftError(
       `Variable name collision with built-ins: ${collisions.join(", ")}. ` +
-        `Built-in names are reserved: ${BUILT_IN_VARS.join(", ")}`,
+        `Reserved names: ${RESERVED_VAR_NAMES.join(", ")}`,
       "MANIFEST",
     );
   }
