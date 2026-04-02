@@ -276,4 +276,59 @@ describe("ManifestSchema", () => {
       expect(messages.some((m) => m.includes("verify") && (m.includes("preceding step") || m.includes("preceding or current step")))).toBe(true);
     }
   });
+
+  // --- earlyExit tests ---
+
+  it("earlyExit field is accepted on a step", () => {
+    const result = ManifestSchema.safeParse(validManifest({
+      steps: [
+        { name: "analyze", prompt: "prompts/analyze.md", outputSchema: {}, earlyExit: { when: { nothing_to_do: true } } },
+      ],
+    }));
+    expect(result.success).toBe(true);
+  });
+
+  it("earlyExit with missing when is rejected", () => {
+    const result = ManifestSchema.safeParse(validManifest({
+      steps: [
+        { name: "analyze", prompt: "prompts/analyze.md", outputSchema: {}, earlyExit: { reason: "skip" } } as unknown as z.input<typeof ManifestSchema>["steps"][number],
+      ],
+    }));
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const paths = result.error.issues.map((i) => i.path.join("."));
+      expect(paths.some((p) => p.includes("when"))).toBe(true);
+    }
+  });
+
+  it("earlyExit with invalid shape is rejected", () => {
+    const result = ManifestSchema.safeParse(validManifest({
+      steps: [
+        { name: "analyze", prompt: "prompts/analyze.md", outputSchema: {}, earlyExit: { when: "not-an-object" } } as unknown as z.input<typeof ManifestSchema>["steps"][number],
+      ],
+    }));
+    expect(result.success).toBe(false);
+  });
+
+  it("earlyExit with empty when object is accepted (boundary)", () => {
+    const result = ManifestSchema.safeParse(validManifest({
+      steps: [
+        { name: "analyze", prompt: "prompts/analyze.md", outputSchema: {}, earlyExit: { when: {} } },
+      ],
+    }));
+    expect(result.success).toBe(true);
+  });
+
+  it("earlyExit with extra field is rejected (strict)", () => {
+    const result = ManifestSchema.safeParse(validManifest({
+      steps: [
+        { name: "analyze", prompt: "prompts/analyze.md", outputSchema: {}, earlyExit: { when: {}, extra: true } } as unknown as z.input<typeof ManifestSchema>["steps"][number],
+      ],
+    }));
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const codes = result.error.issues.map((i) => i.code);
+      expect(codes).toContain("unrecognized_keys");
+    }
+  });
 });

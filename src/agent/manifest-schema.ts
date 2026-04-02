@@ -33,6 +33,11 @@ const RetrySchema = z.object({
   retryFrom: z.string().min(1),
 }).strict();
 
+export const EarlyExitSchema = z.object({
+  when: z.record(z.string(), z.unknown()),
+  reason: z.string().optional(),
+}).strict();
+
 export const StepSchema = z.object({
   name: z.string().min(1),
   prompt: z.string().min(1),
@@ -43,6 +48,7 @@ export const StepSchema = z.object({
   outputSchema: z.record(z.string(), z.unknown()),
   mcpConfig: z.string().optional(),     // relative path to MCP config file (or template variable)
   retry: RetrySchema.optional(),         // step-level retry config
+  earlyExit: EarlyExitSchema.optional(), // early exit config for skipping remaining steps
 }).strict().superRefine((step, ctx) => {
   if (step.prompt.startsWith('/')) {
     ctx.addIssue({

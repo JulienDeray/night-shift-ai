@@ -181,6 +181,7 @@ function resolveStepConfig(
     compiledOutputSchema: compileOutputSchema(step.outputSchema, step.name),
     mcpConfig: step.mcpConfig,  // store raw string — NOT resolved to absolute path here
     retry: step.retry ? { maxAttempts: step.retry.maxAttempts, retryFrom: step.retry.retryFrom } : undefined,
+    earlyExit: step.earlyExit ? { when: step.earlyExit.when, reason: step.earlyExit.reason } : undefined,
   };
 }
 

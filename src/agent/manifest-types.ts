@@ -27,6 +27,8 @@ export interface ResolvedStep {
   mcpConfig?: string;
   /** Step-level retry config. */
   retry?: { maxAttempts: number; retryFrom: string };
+  /** Early exit config — if step output matches `when`, skip remaining steps. */
+  earlyExit?: { when: Record<string, unknown>; reason?: string };
 }
 
 /**
