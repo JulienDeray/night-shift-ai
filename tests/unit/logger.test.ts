@@ -14,7 +14,7 @@ vi.mock("../../src/core/paths.js", () => ({
 }));
 
 import fs from "node:fs/promises";
-import { Logger } from "../../src/core/logger.js";
+import { Logger, type LogFormat } from "../../src/core/logger.js";
 import { getLogsDir, ensureDir } from "../../src/core/paths.js";
 
 const mockAppendFile = vi.mocked(fs.appendFile);
@@ -105,6 +105,117 @@ describe("Logger - daemon log rotation", () => {
 
     // CLI logger should NOT write to any file
     expect(mockAppendFile).not.toHaveBeenCalled();
+
+    consoleSpy.mockRestore();
+  });
+});
+
+describe("Logger - log format", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGetLogsDir.mockReturnValue("/base/.nightshift/logs");
+    mockEnsureDir.mockResolvedValue(undefined);
+    mockAppendFile.mockResolvedValue(undefined);
+    vi.useFakeTimers({ toFake: ["Date"] });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("text format matches expected pattern for an entry with data", async () => {
+    vi.setSystemTime(new Date("2026-04-02T02:00:05.123Z"));
+
+    const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    const logger = new Logger({ stdout: true });
+    logger.info("Step started", { step: "analyze", runId: "abc123" });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(consoleSpy).toHaveBeenCalledOnce();
+    const line = consoleSpy.mock.calls[0][0] as string;
+    expect(line).toBe("2026-04-02 02:00:05 [INFO] Step started step=analyze runId=abc123");
+
+    consoleSpy.mockRestore();
+  });
+
+  it("text format omits trailing key-value section when data is undefined", async () => {
+    vi.setSystemTime(new Date("2026-04-02T02:00:05.123Z"));
+
+    const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    const logger = new Logger({ stdout: true });
+    logger.info("Simple message");
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const line = consoleSpy.mock.calls[0][0] as string;
+    expect(line).toBe("2026-04-02 02:00:05 [INFO] Simple message");
+    // No trailing space or key=value pairs
+    expect(line).not.toMatch(/=$/);
+
+    consoleSpy.mockRestore();
+  });
+
+  it("text format quotes string values containing spaces", async () => {
+    vi.setSystemTime(new Date("2026-04-02T02:00:05.123Z"));
+
+    const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    const logger = new Logger({ stdout: true });
+    logger.info("User action", { user: "John Doe", action: "login" });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const line = consoleSpy.mock.calls[0][0] as string;
+    expect(line).toBe('2026-04-02 02:00:05 [INFO] User action user="John Doe" action=login');
+
+    consoleSpy.mockRestore();
+  });
+
+  it("JSON format works when format: json is passed explicitly", async () => {
+    vi.setSystemTime(new Date("2026-04-02T02:00:05.123Z"));
+
+    const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    const logger = new Logger({ stdout: true, format: "json" });
+    logger.info("Test message", { key: "val" });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const line = consoleSpy.mock.calls[0][0] as string;
+    const parsed = JSON.parse(line);
+    expect(parsed).toEqual({
+      timestamp: "2026-04-02T02:00:05.123Z",
+      level: "info",
+      message: "Test message",
+      data: { key: "val" },
+    });
+
+    consoleSpy.mockRestore();
+  });
+
+  it("createDaemonLogger defaults to text format", async () => {
+    vi.setSystemTime(new Date("2026-04-02T02:00:05.123Z"));
+
+    const logger = await Logger.createDaemonLogger("/base");
+    logger.info("Daemon message", { step: "init" });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(mockAppendFile).toHaveBeenCalledOnce();
+    const written = String(mockAppendFile.mock.calls[0][1]);
+    expect(written).toMatch(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} \[INFO\] Daemon message step=init\n$/);
+  });
+
+  it("createCliLogger defaults to text format", async () => {
+    vi.setSystemTime(new Date("2026-04-02T02:00:05.123Z"));
+
+    const consoleSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    const logger = Logger.createCliLogger();
+    logger.info("CLI message");
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const line = consoleSpy.mock.calls[0][0] as string;
+    expect(line).toMatch(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} \[INFO\] CLI message$/);
 
     consoleSpy.mockRestore();
   });

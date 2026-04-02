@@ -18,22 +18,27 @@ const LOG_LEVEL_PRIORITY: Record<LogLevel, number> = {
   error: 3,
 };
 
+export type LogFormat = "text" | "json";
+
 export class Logger {
   private logFile: string | null = null;
   private logsDir: string | null = null;
   private minLevel: LogLevel;
   private stdout: boolean;
+  private format: LogFormat;
 
   constructor(options?: {
     logFile?: string;
     logsDir?: string;
     minLevel?: LogLevel;
     stdout?: boolean;
+    format?: LogFormat;
   }) {
     this.logFile = options?.logFile ?? null;
     this.logsDir = options?.logsDir ?? null;
     this.minLevel = options?.minLevel ?? "info";
     this.stdout = options?.stdout ?? false;
+    this.format = options?.format ?? "text";
   }
 
   static async createDaemonLogger(base?: string): Promise<Logger> {
@@ -55,7 +60,27 @@ export class Logger {
     return LOG_LEVEL_PRIORITY[level] >= LOG_LEVEL_PRIORITY[this.minLevel];
   }
 
+  private formatTextEntry(entry: LogEntry): string {
+    // "2026-04-02T02:00:05.123Z" → "2026-04-02 02:00:05"
+    const ts = entry.timestamp.replace("T", " ").replace(/\.\d+Z$/, "").replace(/Z$/, "");
+    const level = `[${entry.level.toUpperCase()}]`;
+    let line = `${ts} ${level} ${entry.message}`;
+
+    if (entry.data && Object.keys(entry.data).length > 0) {
+      const pairs = Object.entries(entry.data).map(([k, v]) => {
+        const str = String(v);
+        return str.includes(" ") ? `${k}="${str}"` : `${k}=${str}`;
+      });
+      line += " " + pairs.join(" ");
+    }
+
+    return line;
+  }
+
   private formatEntry(entry: LogEntry): string {
+    if (this.format === "text") {
+      return this.formatTextEntry(entry);
+    }
     return JSON.stringify(entry);
   }
 
