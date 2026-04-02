@@ -13,8 +13,9 @@ import { NtfyClient } from "../notifications/ntfy-client.js";
 import { NotificationService } from "../notifications/notification-service.js";
 import fs from "node:fs/promises";
 import { loadManifest } from "../agent/manifest-loader.js";
-import { BUILT_IN_VARS, validateTemplateVars } from "../agent/template.js";
+import { BUILT_IN_VARS, RESERVED_VAR_NAMES, validateTemplateVars } from "../agent/template.js";
 import { NightShiftError } from "../core/errors.js";
+import type { LoadedManifest } from "../agent/manifest-types.js";
 import type { AgentRunResult } from "../agent/engine-types.js";
 import { appendRunLog } from "../agent/run-logger.js";
 
@@ -45,11 +46,15 @@ export async function validateAgentsAtStartup(
 
   const errors: string[] = [];
 
+  // --- Pass 1: Load manifests and validate per-agent (prompts, template vars) ---
+  const manifestsByAgent = new Map<string, LoadedManifest>();
+
   for (const agent of config.agents) {
     const agentDir = path.join(agentsRoot, agent.name);
     try {
       // Load and validate manifest (handles path containment, Zod validation, env var resolution)
       const manifest = await loadManifest(agentDir, agentsRoot);
+      manifestsByAgent.set(agent.name, manifest);
 
       // For each step, validate prompt file exists and template vars resolve
       for (const step of manifest.steps) {
@@ -93,6 +98,53 @@ export async function validateAgentsAtStartup(
       errors.push(
         `Agent '${agent.name}': ${err instanceof Error ? err.message : String(err)}`,
       );
+    }
+  }
+
+  // --- Pass 2: Cross-agent import validation ---
+  for (const [agentName, manifest] of manifestsByAgent) {
+    if (!manifest.rawImports) continue;
+
+    for (const [varName, importSpec] of Object.entries(manifest.rawImports)) {
+      // Parse "agentName/dirName" (schema already validated this pattern in T01)
+      const slashIdx = importSpec.indexOf("/");
+      const referencedAgent = importSpec.slice(0, slashIdx);
+      const dirName = importSpec.slice(slashIdx + 1);
+
+      // Check that the referenced agent exists in loaded manifests
+      if (!manifestsByAgent.has(referencedAgent)) {
+        errors.push(
+          `Agent '${agentName}': import '${varName}' references agent '${referencedAgent}' which is not declared in config.agents`,
+        );
+        continue;
+      }
+
+      // Validate the import variable name doesn't collide with reserved names
+      if (RESERVED_VAR_NAMES.includes(varName)) {
+        errors.push(
+          `Agent '${agentName}': import variable '${varName}' collides with reserved name`,
+        );
+        continue;
+      }
+
+      // Resolve the import to an absolute path
+      const resolvedPath = path.join(agentsRoot, referencedAgent, dirName);
+
+      // Check that the resolved directory exists on disk
+      try {
+        await fs.access(resolvedPath);
+      } catch {
+        errors.push(
+          `Agent '${agentName}': import '${varName}' references directory '${resolvedPath}' which does not exist`,
+        );
+        continue;
+      }
+
+      // Store resolved absolute path in manifest.resolvedImports
+      if (!manifest.resolvedImports) {
+        manifest.resolvedImports = {};
+      }
+      manifest.resolvedImports[varName] = resolvedPath;
     }
   }
 

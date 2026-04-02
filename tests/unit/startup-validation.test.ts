@@ -417,4 +417,191 @@ describe("validateAgentsAtStartup", () => {
     expect(err.message).toContain("env-var-agent");
     expect(err.message).toContain("REQUIRED_TOKEN");
   });
+
+  // -----------------------------------------------------------------------
+  // Cross-agent import validation (T03)
+  // -----------------------------------------------------------------------
+
+  // 15. Import referencing a missing (undeclared) agent is rejected
+  it("rejects import referencing undeclared agent", async () => {
+    const agentDir = path.join(tmpDir, "agents", "importer");
+    await fs.mkdir(path.join(agentDir, "prompts"), { recursive: true });
+    await fs.writeFile(path.join(agentDir, "prompts", "analyze.md"), "Use {{other_memory}}");
+
+    vi.mocked(loadManifest).mockResolvedValue({
+      ...makeLoadedManifest(agentDir, {
+        name: "importer",
+        variables: { other_memory: "placeholder" },
+      }),
+      rawImports: { other_memory: "ghost-agent/memory" },
+    });
+
+    const config = makeConfig({
+      agents: [{ name: "importer" }],
+      schedule: [],
+    });
+
+    const err = await validateAgentsAtStartup(config, tmpDir).catch((e) => e);
+    expect(err).toBeInstanceOf(NightShiftError);
+    expect((err as NightShiftError).code).toBe("CONFIG");
+    expect(err.message).toContain("ghost-agent");
+    expect(err.message).toContain("not declared");
+  });
+
+  // 16. Import referencing a missing directory on disk is rejected
+  it("rejects import referencing missing directory on disk", async () => {
+    // Set up two agents — provider exists but the referenced directory does not
+    const importerDir = path.join(tmpDir, "agents", "importer");
+    const providerDir = path.join(tmpDir, "agents", "provider");
+    await fs.mkdir(path.join(importerDir, "prompts"), { recursive: true });
+    await fs.mkdir(path.join(providerDir, "prompts"), { recursive: true });
+    await fs.writeFile(path.join(importerDir, "prompts", "analyze.md"), "Use {{provider_data}}");
+    await fs.writeFile(path.join(providerDir, "prompts", "analyze.md"), "I provide data.");
+
+    const importerManifest = {
+      ...makeLoadedManifest(importerDir, {
+        name: "importer",
+        variables: { provider_data: "placeholder" },
+      }),
+      rawImports: { provider_data: "provider/nonexistent-dir" },
+    };
+    const providerManifest = makeLoadedManifest(providerDir, { name: "provider" });
+
+    vi.mocked(loadManifest)
+      .mockResolvedValueOnce(importerManifest)
+      .mockResolvedValueOnce(providerManifest);
+
+    const config = makeConfig({
+      agents: [{ name: "importer" }, { name: "provider" }],
+      schedule: [],
+    });
+
+    const err = await validateAgentsAtStartup(config, tmpDir).catch((e) => e);
+    expect(err).toBeInstanceOf(NightShiftError);
+    expect((err as NightShiftError).code).toBe("CONFIG");
+    expect(err.message).toContain("does not exist");
+    expect(err.message).toContain("nonexistent-dir");
+  });
+
+  // 17. Valid import is resolved to absolute path in resolvedImports
+  it("resolves valid import to absolute path", async () => {
+    const importerDir = path.join(tmpDir, "agents", "importer");
+    const providerDir = path.join(tmpDir, "agents", "provider");
+    const sharedDir = path.join(providerDir, "memory");
+    await fs.mkdir(path.join(importerDir, "prompts"), { recursive: true });
+    await fs.mkdir(path.join(providerDir, "prompts"), { recursive: true });
+    await fs.mkdir(sharedDir, { recursive: true });
+    await fs.writeFile(path.join(importerDir, "prompts", "analyze.md"), "Use {{provider_memory}}");
+    await fs.writeFile(path.join(providerDir, "prompts", "analyze.md"), "I provide memory.");
+
+    const importerManifest = {
+      ...makeLoadedManifest(importerDir, {
+        name: "importer",
+        variables: { provider_memory: "placeholder" },
+      }),
+      rawImports: { provider_memory: "provider/memory" },
+    };
+    const providerManifest = makeLoadedManifest(providerDir, { name: "provider" });
+
+    vi.mocked(loadManifest)
+      .mockResolvedValueOnce(importerManifest)
+      .mockResolvedValueOnce(providerManifest);
+
+    const config = makeConfig({
+      agents: [{ name: "importer" }, { name: "provider" }],
+      schedule: [],
+    });
+
+    // Should NOT throw
+    await expect(validateAgentsAtStartup(config, tmpDir)).resolves.toBeUndefined();
+
+    // Verify resolvedImports was populated
+    expect(importerManifest.resolvedImports).toBeDefined();
+    expect(importerManifest.resolvedImports!.provider_memory).toBe(
+      path.join(tmpDir, "agents", "provider", "memory"),
+    );
+  });
+
+  // 18. Import variable name colliding with reserved name is rejected
+  it("rejects import variable name colliding with reserved name", async () => {
+    const importerDir = path.join(tmpDir, "agents", "importer");
+    const providerDir = path.join(tmpDir, "agents", "provider");
+    await fs.mkdir(path.join(importerDir, "prompts"), { recursive: true });
+    await fs.mkdir(path.join(providerDir, "prompts"), { recursive: true });
+    await fs.writeFile(path.join(importerDir, "prompts", "analyze.md"), "No vars.");
+    await fs.writeFile(path.join(providerDir, "prompts", "analyze.md"), "Provider.");
+
+    const importerManifest = {
+      ...makeLoadedManifest(importerDir, { name: "importer" }),
+      rawImports: { state_dir: "provider/memory" }, // "state_dir" is reserved
+    };
+    const providerManifest = makeLoadedManifest(providerDir, { name: "provider" });
+
+    vi.mocked(loadManifest)
+      .mockResolvedValueOnce(importerManifest)
+      .mockResolvedValueOnce(providerManifest);
+
+    const config = makeConfig({
+      agents: [{ name: "importer" }, { name: "provider" }],
+      schedule: [],
+    });
+
+    const err = await validateAgentsAtStartup(config, tmpDir).catch((e) => e);
+    expect(err).toBeInstanceOf(NightShiftError);
+    expect((err as NightShiftError).code).toBe("CONFIG");
+    expect(err.message).toContain("state_dir");
+    expect(err.message).toContain("collides with reserved name");
+  });
+
+  // 19. Agents without imports still pass validation
+  it("agents without imports still pass validation", async () => {
+    const agentDir = path.join(tmpDir, "agents", "no-imports-agent");
+    await fs.mkdir(path.join(agentDir, "prompts"), { recursive: true });
+    await fs.writeFile(path.join(agentDir, "prompts", "analyze.md"), "Simple prompt.");
+
+    vi.mocked(loadManifest).mockResolvedValue(
+      makeLoadedManifest(agentDir, {
+        name: "no-imports-agent",
+        variables: {},
+      }),
+    );
+
+    const config = makeConfig({
+      agents: [{ name: "no-imports-agent" }],
+      schedule: [],
+    });
+
+    await expect(validateAgentsAtStartup(config, tmpDir)).resolves.toBeUndefined();
+  });
+
+  // 20. Import referencing a built-in var like task_id is rejected
+  it("rejects import variable name colliding with built-in var", async () => {
+    const importerDir = path.join(tmpDir, "agents", "importer");
+    const providerDir = path.join(tmpDir, "agents", "provider");
+    await fs.mkdir(path.join(importerDir, "prompts"), { recursive: true });
+    await fs.mkdir(path.join(providerDir, "prompts"), { recursive: true });
+    await fs.writeFile(path.join(importerDir, "prompts", "analyze.md"), "No vars.");
+    await fs.writeFile(path.join(providerDir, "prompts", "analyze.md"), "Provider.");
+
+    const importerManifest = {
+      ...makeLoadedManifest(importerDir, { name: "importer" }),
+      rawImports: { task_id: "provider/memory" }, // "task_id" is a built-in
+    };
+    const providerManifest = makeLoadedManifest(providerDir, { name: "provider" });
+
+    vi.mocked(loadManifest)
+      .mockResolvedValueOnce(importerManifest)
+      .mockResolvedValueOnce(providerManifest);
+
+    const config = makeConfig({
+      agents: [{ name: "importer" }, { name: "provider" }],
+      schedule: [],
+    });
+
+    const err = await validateAgentsAtStartup(config, tmpDir).catch((e) => e);
+    expect(err).toBeInstanceOf(NightShiftError);
+    expect((err as NightShiftError).code).toBe("CONFIG");
+    expect(err.message).toContain("task_id");
+    expect(err.message).toContain("collides with reserved name");
+  });
 });
