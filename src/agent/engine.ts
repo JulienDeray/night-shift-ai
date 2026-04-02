@@ -273,6 +273,57 @@ export class AgentEngine {
 
         perStep.push({ name: step.name, status: "SUCCESS", durationMs });
 
+        // Check early exit: if step declares earlyExit.when and all conditions match parsed output
+        if (
+          step.earlyExit?.when &&
+          typeof parsed === "object" &&
+          parsed !== null
+        ) {
+          const conditions = step.earlyExit.when;
+          const output = parsed as Record<string, unknown>;
+          const allMatch = Object.entries(conditions).every(
+            ([key, expected]) =>
+              key in output &&
+              JSON.stringify(output[key]) === JSON.stringify(expected),
+          );
+
+          if (allMatch) {
+            // Mark remaining steps as SKIPPED (clean skip, not failure)
+            for (let j = i + 1; j < manifest.steps.length; j++) {
+              perStep.push({
+                name: manifest.steps[j].name,
+                status: "SKIPPED",
+                durationMs: 0,
+              });
+            }
+
+            const reason = step.earlyExit.reason ??
+              Object.entries(conditions).map(([k, v]) => `${k}: ${JSON.stringify(v)}`).join(", ");
+
+            this.logger.info("Early exit triggered", {
+              runId,
+              step: step.name,
+              reason,
+            });
+
+            // Write step output before returning
+            await this.writeStepOutput(runId, step.name, rawOutput);
+            await tmpDirManager.cleanup(tmpDir);
+
+            const totalDurationMs = Date.now() - startTime;
+            return {
+              runId,
+              agentName: manifest.name,
+              status: "SUCCESS" as const,
+              finalOutput: parsed as T,
+              perStep,
+              totalDurationMs,
+              earlyExitReason: reason,
+              stepOutputs,
+            };
+          }
+        }
+
         // Detect semantic failure: step output is valid JSON but indicates failure
         if (
           typeof parsed === "object" &&

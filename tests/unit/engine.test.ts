@@ -80,6 +80,7 @@ async function createTempAgent(options?: {
     prompt: string;
     outputSchema?: Record<string, unknown>;
     retry?: { maxAttempts: number; retryFrom: string };
+    earlyExit?: { when: Record<string, unknown>; reason?: string };
   }>;
   promptContents?: Record<string, string>;
 }): Promise<{
@@ -685,6 +686,233 @@ describe("AgentEngine", () => {
       expect(result.status).toBe("FATAL");
       expect(result.perStep[0].status).toBe("FAILED");
       expect(result.finalOutput).toBeNull();
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // 9. Early exit (earlyExit.when)
+  // -------------------------------------------------------------------------
+
+  describe("early exit (earlyExit.when)", () => {
+    it("triggers early exit when step output matches earlyExit.when conditions", async () => {
+      const { agentsRoot, agentDir, cleanup: c } = await createTempAgent({
+        steps: [
+          {
+            name: "check",
+            prompt: "prompts/check.md",
+            outputSchema: {
+              type: "object",
+              properties: { nothing_to_do: { type: "boolean" } },
+              required: ["nothing_to_do"],
+            },
+            earlyExit: { when: { nothing_to_do: true } },
+          },
+        ],
+      });
+      cleanup = c;
+
+      mockSpawn.mockReturnValue(
+        makeSpawnResult(cliEnvelope('```json\n{"nothing_to_do":true}\n```')),
+      );
+
+      const engine = new AgentEngine(silentLogger());
+      const result = await engine.run(agentDir, agentsRoot, "task-early-exit");
+
+      expect(result.status).toBe("SUCCESS");
+      expect(result.earlyExitReason).toBeDefined();
+    });
+
+    it("does NOT trigger early exit when output does not match", async () => {
+      const { agentsRoot, agentDir, cleanup: c } = await createTempAgent({
+        steps: [
+          {
+            name: "check",
+            prompt: "prompts/check.md",
+            outputSchema: {
+              type: "object",
+              properties: { nothing_to_do: { type: "boolean" } },
+              required: ["nothing_to_do"],
+            },
+            earlyExit: { when: { nothing_to_do: true } },
+          },
+        ],
+      });
+      cleanup = c;
+
+      mockSpawn.mockReturnValue(
+        makeSpawnResult(cliEnvelope('```json\n{"nothing_to_do":false}\n```')),
+      );
+
+      const engine = new AgentEngine(silentLogger());
+      const result = await engine.run(agentDir, agentsRoot, "task-no-early-exit");
+
+      expect(result.status).toBe("SUCCESS");
+      expect(result.earlyExitReason).toBeUndefined();
+    });
+
+    it("marks remaining steps SKIPPED with SUCCESS on early exit", async () => {
+      const { agentsRoot, agentDir, cleanup: c } = await createTempAgent({
+        steps: [
+          {
+            name: "step-one",
+            prompt: "prompts/step-one.md",
+            outputSchema: {
+              type: "object",
+              properties: { nothing_to_do: { type: "boolean" } },
+              required: ["nothing_to_do"],
+            },
+            earlyExit: { when: { nothing_to_do: true } },
+          },
+          {
+            name: "step-two",
+            prompt: "prompts/step-two.md",
+            outputSchema: RESULT_OUTPUT_SCHEMA,
+          },
+          {
+            name: "step-three",
+            prompt: "prompts/step-three.md",
+            outputSchema: RESULT_OUTPUT_SCHEMA,
+          },
+        ],
+        promptContents: {
+          "prompts/step-one.md": "Step one.",
+          "prompts/step-two.md": "Step two.",
+          "prompts/step-three.md": "Step three.",
+        },
+      });
+      cleanup = c;
+
+      mockSpawn.mockReturnValue(
+        makeSpawnResult(cliEnvelope('```json\n{"nothing_to_do":true}\n```')),
+      );
+
+      const engine = new AgentEngine(silentLogger());
+      const result = await engine.run(agentDir, agentsRoot, "task-skip-remaining");
+
+      expect(result.status).toBe("SUCCESS");
+      expect(result.perStep).toHaveLength(3);
+      expect(result.perStep[0]).toMatchObject({ name: "step-one", status: "SUCCESS" });
+      expect(result.perStep[1]).toMatchObject({ name: "step-two", status: "SKIPPED", durationMs: 0 });
+      expect(result.perStep[2]).toMatchObject({ name: "step-three", status: "SKIPPED", durationMs: 0 });
+      expect(result.earlyExitReason).toBeDefined();
+    });
+
+    it("populates earlyExitReason from step.earlyExit.reason", async () => {
+      const { agentsRoot, agentDir, cleanup: c } = await createTempAgent({
+        steps: [
+          {
+            name: "check",
+            prompt: "prompts/check.md",
+            outputSchema: {
+              type: "object",
+              properties: { skip: { type: "boolean" } },
+              required: ["skip"],
+            },
+            earlyExit: { when: { skip: true }, reason: "Nothing to do" },
+          },
+        ],
+      });
+      cleanup = c;
+
+      mockSpawn.mockReturnValue(
+        makeSpawnResult(cliEnvelope('```json\n{"skip":true}\n```')),
+      );
+
+      const engine = new AgentEngine(silentLogger());
+      const result = await engine.run(agentDir, agentsRoot, "task-reason");
+
+      expect(result.earlyExitReason).toBe("Nothing to do");
+    });
+
+    it("earlyExitReason auto-generated when reason not provided", async () => {
+      const { agentsRoot, agentDir, cleanup: c } = await createTempAgent({
+        steps: [
+          {
+            name: "check",
+            prompt: "prompts/check.md",
+            outputSchema: {
+              type: "object",
+              properties: { nothing_to_do: { type: "boolean" } },
+              required: ["nothing_to_do"],
+            },
+            earlyExit: { when: { nothing_to_do: true } },
+          },
+        ],
+      });
+      cleanup = c;
+
+      mockSpawn.mockReturnValue(
+        makeSpawnResult(cliEnvelope('```json\n{"nothing_to_do":true}\n```')),
+      );
+
+      const engine = new AgentEngine(silentLogger());
+      const result = await engine.run(agentDir, agentsRoot, "task-auto-reason");
+
+      expect(result.earlyExitReason).toContain("nothing_to_do");
+    });
+
+    it("earlyExit takes precedence over retry trigger", async () => {
+      const { agentsRoot, agentDir, cleanup: c } = await createTempAgent({
+        steps: [
+          {
+            name: "check",
+            prompt: "prompts/check.md",
+            outputSchema: {
+              type: "object",
+              properties: {
+                nothing_to_do: { type: "boolean" },
+                passed: { type: "boolean" },
+              },
+              required: ["nothing_to_do", "passed"],
+            },
+            earlyExit: { when: { nothing_to_do: true } },
+            retry: { maxAttempts: 3, retryFrom: "check" },
+          },
+        ],
+      });
+      cleanup = c;
+
+      // Output matches earlyExit.when AND has passed: false (retry trigger)
+      mockSpawn.mockReturnValue(
+        makeSpawnResult(cliEnvelope('```json\n{"nothing_to_do":true,"passed":false}\n```')),
+      );
+
+      const engine = new AgentEngine(silentLogger());
+      const result = await engine.run(agentDir, agentsRoot, "task-precedence");
+
+      // earlyExit should win — pipeline exits with SUCCESS, not retry
+      expect(result.status).toBe("SUCCESS");
+      expect(result.earlyExitReason).toBeDefined();
+      // Should only have been called once (no retry)
+      expect(mockSpawn).toHaveBeenCalledTimes(1);
+    });
+
+    it("deep equality matching for array values", async () => {
+      const { agentsRoot, agentDir, cleanup: c } = await createTempAgent({
+        steps: [
+          {
+            name: "check",
+            prompt: "prompts/check.md",
+            outputSchema: {
+              type: "object",
+              properties: { items: { type: "array", items: { type: "string" } } },
+              required: ["items"],
+            },
+            earlyExit: { when: { items: [] } },
+          },
+        ],
+      });
+      cleanup = c;
+
+      mockSpawn.mockReturnValue(
+        makeSpawnResult(cliEnvelope('```json\n{"items":[]}\n```')),
+      );
+
+      const engine = new AgentEngine(silentLogger());
+      const result = await engine.run(agentDir, agentsRoot, "task-deep-eq");
+
+      expect(result.status).toBe("SUCCESS");
+      expect(result.earlyExitReason).toBeDefined();
     });
   });
 });
