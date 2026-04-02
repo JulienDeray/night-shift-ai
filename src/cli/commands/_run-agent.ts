@@ -38,8 +38,8 @@ export async function runAgentForeground(
   if (ntfy) {
     await ntfy.send(
       {
-        title: `Night-shift started: ${taskName}`,
-        body: "Running\u2026",
+        title: `🕐 ${agentName} ▸ ${taskName}`,
+        body: "Task started",
         priority: 3,
       },
       logger,
@@ -109,16 +109,18 @@ export async function runAgentForeground(
   }
 
   if (ntfy) {
+    const ntfyTitle =
+      result.status === "SUCCESS"
+        ? `✅ ${agentName} ▸ ${taskName}`
+        : `❌ ${agentName} ▸ ${taskName}`;
+    const ntfyBody =
+      result.status === "SUCCESS"
+        ? formatDuration(durationSec)
+        : `${result.error?.slice(0, 200) ?? result.status}`;
     await ntfy.send(
       {
-        title:
-          result.status === "SUCCESS"
-            ? `Night-shift done: ${taskName}`
-            : `Night-shift FAILED: ${taskName}`,
-        body:
-          result.status === "SUCCESS"
-            ? `Duration: ${formatDuration(durationSec)}`
-            : `Error: ${result.error?.slice(0, 200) ?? result.status}`,
+        title: ntfyTitle,
+        body: ntfyBody,
         priority: result.status === "SUCCESS" ? 3 : 4,
       },
       logger,

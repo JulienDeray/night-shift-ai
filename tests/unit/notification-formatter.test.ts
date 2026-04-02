@@ -48,13 +48,13 @@ describe("formatStartNotification", () => {
   it("returns correct title with agent and task names", () => {
     const task = makeTask({ name: "nightly-refactor", agentName: "code-agent" });
     const msg = formatStartNotification(task);
-    expect(msg.title).toBe("code-agent started: nightly-refactor");
+    expect(msg.title).toBe("🕐 code-agent ▸ nightly-refactor");
   });
 
-  it("returns correct body with agent name", () => {
+  it("returns correct body with plain text", () => {
     const task = makeTask({ agentName: "code-agent" });
     const msg = formatStartNotification(task);
-    expect(msg.body).toBe("Agent: code-agent");
+    expect(msg.body).toBe("Task started");
   });
 
   it("returns priority 3", () => {
@@ -74,8 +74,8 @@ describe("formatStartNotification", () => {
   it("falls back to 'unknown-agent' when agentName is undefined", () => {
     const task = makeTask({ agentName: undefined });
     const msg = formatStartNotification(task);
-    expect(msg.title).toBe("unknown-agent started: nightly-refactor");
-    expect(msg.body).toBe("Agent: unknown-agent");
+    expect(msg.title).toBe("🕐 unknown-agent ▸ nightly-refactor");
+    expect(msg.body).toBe("Task started");
   });
 });
 
@@ -88,14 +88,15 @@ describe("formatSuccessNotification", () => {
     const task = makeTask({ name: "nightly-refactor", agentName: "code-agent" });
     const result = makeResult({ agentName: "code-agent" });
     const msg = formatSuccessNotification(task, result);
-    expect(msg.title).toBe("code-agent done: nightly-refactor");
+    expect(msg.title).toBe("✅ code-agent ▸ nightly-refactor");
   });
 
-  it("body contains agent name", () => {
+  it("body contains duration and summary separated by ·", () => {
     const task = makeTask({ agentName: "code-agent" });
     const result = makeResult();
     const msg = formatSuccessNotification(task, result);
-    expect(msg.body).toContain("code-agent");
+    expect(msg.body).toContain("3m 42s");
+    expect(msg.body).toContain(" · ");
   });
 
   it("body contains human-friendly duration (minutes + seconds)", () => {
@@ -111,6 +112,7 @@ describe("formatSuccessNotification", () => {
     const msg = formatSuccessNotification(task, result);
     expect(msg.body).toContain("Created MR !42");
     expect(msg.body).not.toContain("With details");
+    expect(msg.body).toBe("3m 42s · Created MR !42");
   });
 
   it("returns priority 3", () => {
@@ -155,9 +157,10 @@ describe("formatSuccessNotification", () => {
     const longObj = { data: "x".repeat(500) };
     const result = makeResult({ finalOutput: longObj });
     const msg = formatSuccessNotification(task, result);
-    // The summary part of the body should not exceed 200 chars
-    const summaryLine = (msg.body ?? "").split("\n").slice(1).join("\n");
-    expect(summaryLine.length).toBeLessThanOrEqual(200);
+    // The summary part of the body (after " · ") should not exceed 200 chars
+    const parts = (msg.body ?? "").split(" · ");
+    const summaryPart = parts.slice(1).join(" · ");
+    expect(summaryPart.length).toBeLessThanOrEqual(200);
   });
 
   it("formats duration as hours + minutes for long runs", () => {
@@ -178,7 +181,7 @@ describe("formatSuccessNotification", () => {
     const task = makeTask({ agentName: undefined });
     const result = makeResult({ agentName: "code-agent" });
     const msg = formatSuccessNotification(task, result);
-    expect(msg.title).toContain("code-agent");
+    expect(msg.title).toBe("✅ code-agent ▸ nightly-refactor");
   });
 });
 
@@ -195,7 +198,7 @@ describe("formatFailureNotification", () => {
       failedStepIndex: 1,
     });
     const msg = formatFailureNotification(task, result);
-    expect(msg.title).toBe("code-agent FAILED: nightly-refactor");
+    expect(msg.title).toBe("❌ code-agent ▸ nightly-refactor");
   });
 
   it("body contains the failed step name", () => {
@@ -210,7 +213,8 @@ describe("formatFailureNotification", () => {
       ],
     });
     const msg = formatFailureNotification(task, result);
-    expect(msg.body).toContain("execute");
+    expect(msg.body).toContain("Step 'execute' failed");
+    expect(msg.body).toContain("TypeError: x is not a function");
   });
 
   it("body strips stack trace frames from error", () => {
@@ -242,7 +246,7 @@ describe("formatFailureNotification", () => {
     expect((msg.tags as string[]).length).toBeGreaterThan(0);
   });
 
-  it("body contains 'unknown step' when failedStepIndex is undefined", () => {
+  it("body contains 'unknown step failed' when failedStepIndex is undefined", () => {
     const task = makeTask();
     const result = makeResult({
       status: "FATAL",
@@ -250,7 +254,7 @@ describe("formatFailureNotification", () => {
       failedStepIndex: undefined,
     });
     const msg = formatFailureNotification(task, result);
-    expect(msg.body).toMatch(/unknown step/i);
+    expect(msg.body).toContain("unknown step failed");
   });
 
   it("body contains step index fallback when failedStepIndex is out of bounds", () => {
@@ -265,7 +269,7 @@ describe("formatFailureNotification", () => {
       ],
     });
     const msg = formatFailureNotification(task, result);
-    expect(msg.body).toContain("5");
+    expect(msg.body).toContain("step 5 failed");
   });
 
   it("body contains 'Unknown error' when error is undefined", () => {

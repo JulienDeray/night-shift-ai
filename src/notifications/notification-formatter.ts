@@ -78,15 +78,15 @@ function cleanError(error: string | undefined): string {
 
 /**
  * Formats a start notification for a task.
- * Title: "{agent} started: {task}"
- * Body: "Agent: {agent}"
+ * Title: "🕐 {agent} ▸ {task}"
+ * Body: "Task started"
  * Priority: 3
  */
 export function formatStartNotification(task: NightShiftTask): NtfyMessage {
   const agent = task.agentName ?? "unknown-agent";
   return {
-    title: `${agent} started: ${task.name}`,
-    body: `Agent: ${agent}`,
+    title: `🕐 ${agent} ▸ ${task.name}`,
+    body: "Task started",
     priority: 3,
     tags: ["clock3"],
   };
@@ -94,8 +94,8 @@ export function formatStartNotification(task: NightShiftTask): NtfyMessage {
 
 /**
  * Formats a success notification for a completed task.
- * Title: "{agent} done: {task}"
- * Body: "{agent} • {duration}\n{first-line summary}"
+ * Title: "✅ {agent} ▸ {task}"
+ * Body: "{duration} · {summary}" or just "{duration}" if summary is empty
  * Priority: 3
  */
 export function formatSuccessNotification(
@@ -105,9 +105,10 @@ export function formatSuccessNotification(
   const agent = task.agentName ?? result.agentName ?? "unknown-agent";
   const duration = formatDuration(result.totalDurationMs);
   const summary = extractSummaryLine(result.finalOutput);
+  const body = summary ? `${duration} · ${summary}` : duration;
   return {
-    title: `${agent} done: ${task.name}`,
-    body: `${agent} \u2022 ${duration}\n${summary}`,
+    title: `✅ ${agent} ▸ ${task.name}`,
+    body,
     priority: 3,
     tags: ["white_check_mark"],
   };
@@ -115,8 +116,8 @@ export function formatSuccessNotification(
 
 /**
  * Formats a failure notification for a failed task.
- * Title: "{agent} FAILED: {task}"
- * Body: "{agent} • Step '{step}' failed\n{cleaned error}"
+ * Title: "❌ {agent} ▸ {task}"
+ * Body: "Step '{step}' failed\n{cleaned error}"
  * Priority: 4
  */
 export function formatFailureNotification(
@@ -127,21 +128,21 @@ export function formatFailureNotification(
 
   let stepLabel: string;
   if (result.failedStepIndex === undefined) {
-    stepLabel = "unknown step";
+    stepLabel = "unknown step failed";
   } else {
     const step = result.perStep[result.failedStepIndex];
     if (step !== undefined) {
       stepLabel = `Step '${step.name}' failed`;
     } else {
-      stepLabel = `step ${result.failedStepIndex}`;
+      stepLabel = `step ${result.failedStepIndex} failed`;
     }
   }
 
   const errorLine = cleanError(result.error);
 
   return {
-    title: `${agent} FAILED: ${task.name}`,
-    body: `${agent} \u2022 ${stepLabel}\n${errorLine}`,
+    title: `❌ ${agent} ▸ ${task.name}`,
+    body: `${stepLabel}\n${errorLine}`,
     priority: 4,
     tags: ["rotating_light"],
   };
