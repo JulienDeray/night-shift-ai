@@ -17,12 +17,13 @@ export interface NtfyMessage {
 }
 
 export class NtfyClient {
-  private readonly url: string;
+  private readonly baseUrl: string;
+  private readonly topic: string;
   private readonly token: string | undefined;
 
   constructor(config: NtfyConfig) {
-    const baseUrl = config.baseUrl.replace(/\/$/, "");
-    this.url = `${baseUrl}/${config.topic}`;
+    this.baseUrl = config.baseUrl.replace(/\/$/, "");
+    this.topic = config.topic;
     this.token = config.token;
   }
 
@@ -36,7 +37,11 @@ export class NtfyClient {
         headers["Authorization"] = `Bearer ${this.token}`;
       }
 
+      // POST to the base URL with topic in the JSON body.
+      // Posting JSON to /topic treats the body as raw text; the root
+      // endpoint correctly parses structured fields (title, priority, tags).
       const payload = {
+        topic: this.topic,
         title: message.title,
         message: message.body,
         priority: message.priority,
@@ -44,7 +49,7 @@ export class NtfyClient {
         actions: message.actions,
       };
 
-      const response = await fetch(this.url, {
+      const response = await fetch(this.baseUrl, {
         method: "POST",
         headers,
         body: JSON.stringify(payload),
@@ -54,16 +59,18 @@ export class NtfyClient {
       if (!response.ok) {
         logger.warn("Ntfy notification failed", {
           status: response.status,
-          url: this.url,
+          url: this.baseUrl,
         });
         return;
       }
 
-      logger.debug("Ntfy notification sent", { url: this.url });
+      logger.debug("Ntfy notification sent", {
+        topic: this.topic,
+      });
     } catch (err) {
       logger.warn("Ntfy notification error", {
         error: err instanceof Error ? err.message : String(err),
-        url: this.url,
+        url: this.baseUrl,
       });
     }
   }

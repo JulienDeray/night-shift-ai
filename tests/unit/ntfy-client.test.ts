@@ -18,7 +18,7 @@ describe("NtfyClient", () => {
     vi.restoreAllMocks();
   });
 
-  it("sends POST to assembled URL", async () => {
+  it("sends POST to base URL with topic in JSON body", async () => {
     const mockFetch = mockFetchOk();
     vi.stubGlobal("fetch", mockFetch);
 
@@ -31,12 +31,16 @@ describe("NtfyClient", () => {
     await client.send({ title: "Hello", body: "World" }, logger);
 
     expect(mockFetch).toHaveBeenCalledWith(
-      "https://ntfy.example.com/test-topic",
+      "https://ntfy.example.com",
       expect.objectContaining({ method: "POST" }),
     );
+
+    const [, init] = mockFetch.mock.calls[0] as [string, RequestInit];
+    const payload = JSON.parse(init.body as string) as Record<string, unknown>;
+    expect(payload).toHaveProperty("topic", "test-topic");
   });
 
-  it("maps body to message field in JSON payload", async () => {
+  it("maps body to message field and includes topic in JSON payload", async () => {
     const mockFetch = mockFetchOk();
     vi.stubGlobal("fetch", mockFetch);
 
@@ -51,11 +55,12 @@ describe("NtfyClient", () => {
     const [, init] = mockFetch.mock.calls[0] as [string, RequestInit];
     const payload = JSON.parse(init.body as string) as Record<string, unknown>;
 
+    expect(payload).toHaveProperty("topic", "test-topic");
     expect(payload).toHaveProperty("message", "test body");
     expect(payload).not.toHaveProperty("body");
   });
 
-  it("includes all NtfyMessage fields in payload", async () => {
+  it("includes all NtfyMessage fields plus topic in payload", async () => {
     const mockFetch = mockFetchOk();
     vi.stubGlobal("fetch", mockFetch);
 
@@ -78,6 +83,7 @@ describe("NtfyClient", () => {
     const [, init] = mockFetch.mock.calls[0] as [string, RequestInit];
     const payload = JSON.parse(init.body as string) as Record<string, unknown>;
 
+    expect(payload).toHaveProperty("topic", "test-topic");
     expect(payload).toHaveProperty("title", "My Title");
     expect(payload).toHaveProperty("message", "My Body");
     expect(payload).toHaveProperty("priority", 3);
@@ -197,7 +203,7 @@ describe("NtfyClient", () => {
     await client.send({ body: "hello" }, logger);
 
     expect(mockFetch).toHaveBeenCalledWith(
-      "https://ntfy.sh/test-topic",
+      "https://ntfy.sh",
       expect.any(Object),
     );
   });
