@@ -105,6 +105,8 @@ The manifest is a YAML file at `agents/<name>/manifest.yaml`. All fields are val
 | `allowedTools` | string[] | no | `["Bash", "Read", "Write"]` | Default tools for all steps. Step-level `allowedTools` **replaces** this entirely (no merge). |
 | `env` | array | no | `[]` | Agent-level environment variables. See [Environment Variables](#environment-variables). |
 | `variables` | Record<string, string> | no | `{}` | Template variables with default values. Overridden by `nightshift.yaml` config. |
+| `stateDir` | string | no | -- | Relative path to a persistent directory within the agent dir. Created automatically. Injected as `{{state_dir}}`. See [Persistent State Directory](#persistent-state-directory). |
+| `imports` | Record<string, string> | no | -- | Cross-agent directory imports. Maps variable names to `agentName/dirName`. See [Cross-Agent Imports](#cross-agent-imports). |
 | `steps` | array | yes | -- | Ordered list of pipeline stages. At least one step required. |
 
 The schema is strict -- unknown fields are rejected at load time.
@@ -146,7 +148,7 @@ Steps are the pipeline stages within an agent. They execute sequentially. Each s
 
 | Field | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
-| `name` | string | yes | -- | Unique identifier within the manifest. Used in template references (`{{steps.<name>.output.*}}`). |
+| `name` | string | yes | -- | Unique identifier within the manifest. Must match `/^[a-zA-Z][a-zA-Z0-9_]*$/` — no hyphens. Used in template references (`{{steps.<name>.output.*}}`). |
 | `prompt` | string | yes | -- | Relative path to the prompt markdown file (e.g., `prompts/analyze.md`). Must not start with `/`. |
 | `model` | string | no | inherits agent | Overrides the agent-level model for this step. |
 | `timeout` | string | no | inherits agent | Overrides the agent-level timeout for this step. |
@@ -155,6 +157,7 @@ Steps are the pipeline stages within an agent. They execute sequentially. Each s
 | `outputSchema` | object | yes | -- | JSON Schema object. Compiled to Zod at load time via `z.fromJSONSchema()`. |
 | `mcpConfig` | string | no | -- | Path to an MCP config JSON file. Supports template variables (e.g., `"{{mcp_config_path}}"`). Must be a relative path or template variable. |
 | `retry` | object | no | -- | Retry configuration: `{ maxAttempts: number, retryFrom: string }`. |
+| `earlyExit` | object | no | -- | Early exit configuration: `{ when: Record<string, unknown>, reason?: string }`. When step output matches `when` conditions, remaining steps are skipped. See [Pipeline Early Exit](#pipeline-early-exit). |
 
 The step schema is also strict -- unknown fields are rejected.
 
@@ -213,7 +216,78 @@ Step failures (exceptions, timeouts, missing output) are categorized as FATAL or
 
 ### Step Name Uniqueness
 
+### Step Name Uniqueness
+
 Step names must be unique within a manifest. The schema validation rejects duplicate names at load time.
+
+### Step Name Rules
+
+Step names must match `/^[a-zA-Z][a-zA-Z0-9_]*$/`:
+- Must start with a letter
+- Followed by letters, digits, or underscores
+- **No hyphens, no spaces, no special characters**
+
+Invalid names are rejected at manifest load time with an actionable error:
+
+```
+Step name 'pick-item' contains unsupported characters. Use 'pick_item' instead.
+```
+
+### Pipeline Early Exit
+
+The `earlyExit` field on a step enables declarative pipeline short-circuiting. When the step's JSON output matches all conditions in `earlyExit.when`, remaining steps are skipped:
+
+```yaml
+- name: check_inbox
+  prompt: prompts/check_inbox.md
+  earlyExit:
+    when:
+      result: "NOTHING_TO_DO"
+    reason: "No pending reviews"
+  outputSchema:
+    type: object
+    properties:
+      result:
+        type: string
+    required: [result]
+```
+
+- `when` (required): Key-value pairs to match against step output. Uses deep equality (JSON.stringify comparison). All pairs must match.
+- `reason` (optional): Human-readable reason for the notification body. Falls back to auto-generated text from matched conditions.
+- On match: remaining steps get status `SKIPPED` with `durationMs: 0`, overall result is `SUCCESS`, and `earlyExitReason` is populated on the `AgentRunResult`.
+- Early exit takes precedence over retry triggers.
+
+See the [M002 Developer Guide](m002-developer-guide.md#3-pipeline-early-exit) for detailed examples.
+
+### Persistent State Directory
+
+The `stateDir` top-level field declares a persistent directory within the agent directory:
+
+```yaml
+name: gardener-feedback
+stateDir: memory
+```
+
+- The path is relative to the agent directory (absolute paths are rejected)
+- The engine creates the directory automatically via `ensureDir()` before executing steps
+- The absolute path is injected as `{{state_dir}}` in all prompt templates
+- The directory persists across runs (never cleaned up by the framework)
+
+### Cross-Agent Imports
+
+The `imports` top-level field maps variable names to another agent's directory:
+
+```yaml
+name: gardener-v2
+imports:
+  gardener_memory: "gardener-feedback/memory"
+```
+
+- Import values must match `agentName/dirName` (exactly one slash)
+- At daemon startup, the orchestrator validates: referenced agent exists, directory exists on disk, variable name is not reserved
+- Resolved absolute paths are injected as template variables (e.g., `{{gardener_memory}}`)
+
+See the [M002 Developer Guide](m002-developer-guide.md) for full documentation of these features.
 
 ### Example: code-agent steps
 
@@ -252,6 +326,7 @@ Arrays and objects are JSON-serialized when injected into a prompt. Undefined pl
 | `run_date` | Current date (yyyy-MM-dd) | `2026-03-09` |
 | `agent_name` | Name from the manifest | `code-agent` |
 | `repo_path` | Path to the agent directory | `/path/to/agents/code-agent` |
+| `state_dir` | Absolute path to agent's persistent state directory (only when `stateDir` is declared in manifest) | `/path/to/agents/gardener-feedback/memory` |
 
 **User-defined variables**: Declared in the manifest `variables:` section with default values. Overridden by `nightshift.yaml` agent or schedule entries.
 
@@ -298,7 +373,7 @@ If a prompt references `{{category}}` but the manifest does not declare `categor
 Prompt references undefined variables: category
 ```
 
-**Variable name collision**: User-defined variable names must not collide with built-in names. Declaring a variable named `task_id` or `run_date` in the manifest is a hard error (`ManifestError`).
+**Variable name collision**: User-defined variable names (and import variable names) must not collide with reserved names (`task_id`, `run_date`, `agent_name`, `repo_path`, `state_dir`). Declaring a variable or import with any of these names is a hard error (`ManifestError`).
 
 ## nightshift.yaml Configuration
 
@@ -918,4 +993,20 @@ A step's `retry.retryFrom` references a step that either does not exist or appea
 
 ### "Variable name collision with built-ins: X"
 
-A manifest declares a user variable with the same name as a built-in variable (`task_id`, `run_date`, `agent_name`, or `repo_path`). Rename the variable to avoid the collision.
+A manifest declares a user variable or import variable with the same name as a reserved name (`task_id`, `run_date`, `agent_name`, `repo_path`, or `state_dir`). Rename the variable to avoid the collision.
+
+### "Step name 'X' contains unsupported characters. Use 'Y' instead."
+
+Step names must match `/^[a-zA-Z][a-zA-Z0-9_]*$/`. Hyphens, spaces, and leading digits are not allowed. The error suggests the snake_case equivalent.
+
+### "import value 'X' must match the pattern 'agentName/dirName'"
+
+An import value in the `imports` section doesn't follow the `agentName/dirName` pattern. Must be exactly one slash with no leading/trailing slashes.
+
+### "import 'X' references agent 'Y' which is not declared in config.agents"
+
+The import references an agent that is not listed in `nightshift.yaml`'s `agents` array. Add the referenced agent to your config.
+
+### "import 'X' references directory 'Y' which does not exist"
+
+The resolved import path doesn't exist on disk. Create the directory (or declare `stateDir` on the referenced agent and run it once).
