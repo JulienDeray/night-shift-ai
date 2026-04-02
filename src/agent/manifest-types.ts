@@ -41,6 +41,9 @@ export interface LoadedManifest {
   agentDir: string;         // absolute path to the agent directory
   variables: Record<string, string>;   // manifest-level variables (before overrides)
   steps: ResolvedStep[];    // fully resolved step configs
+  stateDir?: string;        // resolved absolute path to the agent's state directory
+  rawImports?: Record<string, string>; // raw import entries (varName → "agentName/dirName") for cross-agent validation
+  resolvedImports?: Record<string, string>; // resolved absolute paths (varName → absPath) — populated by orchestrator
 }
 
 /** Re-export Manifest type from schema for convenience. */

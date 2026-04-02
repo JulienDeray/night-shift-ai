@@ -605,6 +605,112 @@ describe("preprocessNullable — nullable field transformation", () => {
 });
 
 // ---------------------------------------------------------------------------
+// stateDir and rawImports resolution tests
+// ---------------------------------------------------------------------------
+
+describe("loadManifest — stateDir resolution", () => {
+  it("resolves stateDir to absolute path within agent directory", async () => {
+    const { agentsRoot, agentDir, cleanup } = await createTempAgent({
+      ...VALID_MANIFEST,
+      stateDir: "memory",
+    });
+    try {
+      const loaded = await loadManifest(agentDir, agentsRoot);
+      expect(loaded.stateDir).toBeDefined();
+      expect(path.isAbsolute(loaded.stateDir!)).toBe(true);
+      expect(loaded.stateDir).toBe(path.join(loaded.agentDir, "memory"));
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it("resolves nested stateDir path correctly", async () => {
+    const { agentsRoot, agentDir, cleanup } = await createTempAgent({
+      ...VALID_MANIFEST,
+      stateDir: "data/state",
+    });
+    try {
+      const loaded = await loadManifest(agentDir, agentsRoot);
+      expect(loaded.stateDir).toBe(path.join(loaded.agentDir, "data/state"));
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it("stateDir is undefined when not specified in manifest", async () => {
+    const { agentsRoot, agentDir, cleanup } = await createTempAgent(VALID_MANIFEST);
+    try {
+      const loaded = await loadManifest(agentDir, agentsRoot);
+      expect(loaded.stateDir).toBeUndefined();
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it("rejects stateDir with path traversal escaping agent directory", async () => {
+    const { agentsRoot, agentDir, cleanup } = await createTempAgent({
+      ...VALID_MANIFEST,
+      stateDir: "../../etc",
+    });
+    try {
+      await expect(loadManifest(agentDir, agentsRoot)).rejects.toThrow(NightShiftError);
+      await expect(loadManifest(agentDir, agentsRoot)).rejects.toMatchObject({
+        code: "MANIFEST_SECURITY",
+      });
+      await expect(loadManifest(agentDir, agentsRoot)).rejects.toThrow(
+        "Path containment violation",
+      );
+    } finally {
+      await cleanup();
+    }
+  });
+});
+
+describe("loadManifest — rawImports passthrough", () => {
+  it("passes through rawImports from manifest imports field", async () => {
+    const { agentsRoot, agentDir, cleanup } = await createTempAgent({
+      ...VALID_MANIFEST,
+      imports: { analyzer_state: "code-analyzer/memory" },
+    });
+    try {
+      const loaded = await loadManifest(agentDir, agentsRoot);
+      expect(loaded.rawImports).toEqual({ analyzer_state: "code-analyzer/memory" });
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it("rawImports is undefined when imports not specified", async () => {
+    const { agentsRoot, agentDir, cleanup } = await createTempAgent(VALID_MANIFEST);
+    try {
+      const loaded = await loadManifest(agentDir, agentsRoot);
+      expect(loaded.rawImports).toBeUndefined();
+    } finally {
+      await cleanup();
+    }
+  });
+
+  it("passes through multiple import entries", async () => {
+    const { agentsRoot, agentDir, cleanup } = await createTempAgent({
+      ...VALID_MANIFEST,
+      imports: {
+        analyzer_state: "code-analyzer/memory",
+        reviewer_data: "code-reviewer/data",
+      },
+    });
+    try {
+      const loaded = await loadManifest(agentDir, agentsRoot);
+      expect(loaded.rawImports).toEqual({
+        analyzer_state: "code-analyzer/memory",
+        reviewer_data: "code-reviewer/data",
+      });
+    } finally {
+      await cleanup();
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
 // 9. Nullable field integration tests (output schema compilation)
 // ---------------------------------------------------------------------------
 

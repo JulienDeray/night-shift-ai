@@ -331,4 +331,104 @@ describe("ManifestSchema", () => {
       expect(codes).toContain("unrecognized_keys");
     }
   });
+
+  // --- stateDir tests ---
+
+  it("stateDir relative path is accepted", () => {
+    const result = ManifestSchema.safeParse(validManifest({ stateDir: "memory" }));
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.stateDir).toBe("memory");
+    }
+  });
+
+  it("stateDir with nested relative path is accepted", () => {
+    const result = ManifestSchema.safeParse(validManifest({ stateDir: "data/state" }));
+    expect(result.success).toBe(true);
+  });
+
+  it("stateDir absolute path is rejected", () => {
+    const result = ManifestSchema.safeParse(validManifest({ stateDir: "/tmp/state" }));
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const messages = result.error.issues.map((i) => i.message);
+      expect(messages.some((m) => m.includes("relative path"))).toBe(true);
+    }
+  });
+
+  it("stateDir empty string is rejected", () => {
+    const result = ManifestSchema.safeParse(validManifest({ stateDir: "" }));
+    expect(result.success).toBe(false);
+  });
+
+  // --- imports tests ---
+
+  it("imports with valid agentName/dirName values is accepted", () => {
+    const result = ManifestSchema.safeParse(validManifest({
+      imports: { analyzer_state: "code-analyzer/memory" },
+    }));
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.imports).toEqual({ analyzer_state: "code-analyzer/memory" });
+    }
+  });
+
+  it("imports with multiple entries is accepted", () => {
+    const result = ManifestSchema.safeParse(validManifest({
+      imports: {
+        analyzer_state: "code-analyzer/memory",
+        reviewer_data: "code-reviewer/data",
+      },
+    }));
+    expect(result.success).toBe(true);
+  });
+
+  it("imports with invalid format (no slash) is rejected", () => {
+    const result = ManifestSchema.safeParse(validManifest({
+      imports: { bad: "no-slash" },
+    }));
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const messages = result.error.issues.map((i) => i.message);
+      expect(messages.some((m) => m.includes("agentName/dirName"))).toBe(true);
+    }
+  });
+
+  it("imports with invalid format (multiple slashes) is rejected", () => {
+    const result = ManifestSchema.safeParse(validManifest({
+      imports: { bad: "agent/dir/extra" },
+    }));
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const messages = result.error.issues.map((i) => i.message);
+      expect(messages.some((m) => m.includes("agentName/dirName"))).toBe(true);
+    }
+  });
+
+  it("imports with absolute path value is rejected", () => {
+    const result = ManifestSchema.safeParse(validManifest({
+      imports: { bad: "/absolute/path" },
+    }));
+    expect(result.success).toBe(false);
+  });
+
+  it("imports with empty value is rejected", () => {
+    const result = ManifestSchema.safeParse(validManifest({
+      imports: { bad: "" },
+    }));
+    expect(result.success).toBe(false);
+  });
+
+  it("unknown fields are still rejected when stateDir and imports are present", () => {
+    const result = ManifestSchema.safeParse(validManifest({
+      stateDir: "memory",
+      imports: { dep: "other-agent/state" },
+      unknownField: "oops",
+    } as unknown as Partial<z.input<typeof ManifestSchema>>));
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      const codes = result.error.issues.map((i) => i.code);
+      expect(codes).toContain("unrecognized_keys");
+    }
+  });
 });

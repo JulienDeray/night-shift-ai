@@ -243,12 +243,36 @@ export async function loadManifest(
     resolveStepConfig(manifest, step, agentEnv),
   );
 
+  const resolvedAgentDir = await fs.realpath(agentDir);
+
+  // Resolve stateDir to absolute path and validate containment within agent dir
+  let resolvedStateDir: string | undefined;
+  if (manifest.stateDir) {
+    resolvedStateDir = path.join(resolvedAgentDir, manifest.stateDir);
+    // Validate the resolved path stays within the agent directory.
+    // assertContained needs both paths to exist on disk (it calls realpath),
+    // but stateDir may not exist yet. Normalize and check prefix instead.
+    const normalizedStateDir = path.normalize(resolvedStateDir);
+    const agentDirWithSep = resolvedAgentDir.endsWith(path.sep)
+      ? resolvedAgentDir
+      : resolvedAgentDir + path.sep;
+    if (normalizedStateDir !== resolvedAgentDir && !normalizedStateDir.startsWith(agentDirWithSep)) {
+      throw new NightShiftError(
+        `Path containment violation: stateDir resolved to "${normalizedStateDir}", ` +
+        `which is outside agent directory "${resolvedAgentDir}"`,
+        "MANIFEST_SECURITY",
+      );
+    }
+  }
+
   return {
     name: manifest.name,
     description: manifest.description,
-    agentDir: await fs.realpath(agentDir),
+    agentDir: resolvedAgentDir,
     variables: manifest.variables ?? {},
     steps: resolvedSteps,
+    stateDir: resolvedStateDir,
+    rawImports: manifest.imports,
   };
 }
 

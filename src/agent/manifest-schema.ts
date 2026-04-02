@@ -1,4 +1,5 @@
 import { z } from "zod";
+import path from "node:path";
 
 /**
  * Known Claude tool names. Used to validate allowedTools at schema level.
@@ -67,6 +68,9 @@ export const StepSchema = z.object({
   }
 });
 
+/** Pattern for valid import values: agentName/dirName (no slashes at start/end, exactly one slash) */
+const IMPORT_VALUE_PATTERN = /^[a-zA-Z0-9_-]+\/[a-zA-Z0-9_-]+$/;
+
 export const ManifestSchema = z.object({
   name: z.string().min(1),
   description: z.string().min(1),
@@ -75,6 +79,8 @@ export const ManifestSchema = z.object({
   env: z.array(EnvVarSchema).optional(),
   timeout: z.string().optional(),
   variables: z.record(z.string(), z.string()).optional(),
+  stateDir: z.string().min(1).optional(),
+  imports: z.record(z.string(), z.string()).optional(),
   steps: z.array(StepSchema).min(1).superRefine((steps, ctx) => {
     const names = steps.map((s) => s.name);
     const dupes = names.filter((n, i) => names.indexOf(n) !== i);
@@ -101,6 +107,26 @@ export const ManifestSchema = z.object({
   }),
 }).strict().superRefine((manifest, ctx) => {
   validateAllowedTools(manifest.allowedTools, ctx, []);
+  // Reject absolute stateDir paths — must be relative to agent dir
+  if (manifest.stateDir && path.isAbsolute(manifest.stateDir)) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['stateDir'],
+      message: 'must be a relative path (no leading slash)',
+    });
+  }
+  // Validate import value format: must match agentName/dirName
+  if (manifest.imports) {
+    for (const [key, value] of Object.entries(manifest.imports)) {
+      if (!IMPORT_VALUE_PATTERN.test(value)) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['imports', key],
+          message: `import value "${value}" must match the pattern "agentName/dirName"`,
+        });
+      }
+    }
+  }
 });
 
 export type Manifest = z.infer<typeof ManifestSchema>;
