@@ -109,22 +109,33 @@ export async function runAgentForeground(
   }
 
   if (ntfy) {
-    const ntfyTitle =
-      result.status === "SUCCESS"
-        ? `✅ ${agentName} ▸ ${taskName}`
-        : `❌ ${agentName} ▸ ${taskName}`;
-    const ntfyBody =
-      result.status === "SUCCESS"
-        ? formatDuration(durationSec)
-        : `${result.error?.slice(0, 200) ?? result.status}`;
-    await ntfy.send(
-      {
-        title: ntfyTitle,
-        body: ntfyBody,
-        priority: result.status === "SUCCESS" ? 3 : 4,
-      },
-      logger,
-    );
+    if (result.earlyExitReason !== undefined) {
+      await ntfy.send(
+        {
+          title: `⏭️ ${agentName} ▸ ${taskName}`,
+          body: `${formatDuration(durationSec)} · ${result.earlyExitReason}`,
+          priority: 3,
+        },
+        logger,
+      );
+    } else {
+      const ntfyTitle =
+        result.status === "SUCCESS"
+          ? `✅ ${agentName} ▸ ${taskName}`
+          : `❌ ${agentName} ▸ ${taskName}`;
+      const ntfyBody =
+        result.status === "SUCCESS"
+          ? formatDuration(durationSec)
+          : `${result.error?.slice(0, 200) ?? result.status}`;
+      await ntfy.send(
+        {
+          title: ntfyTitle,
+          body: ntfyBody,
+          priority: result.status === "SUCCESS" ? 3 : 4,
+        },
+        logger,
+      );
+    }
   }
 
   if (result.status !== "SUCCESS") {

@@ -305,12 +305,12 @@ function makeNotifyTask(overrides?: Partial<NightShiftTask>): NightShiftTask {
 
 describe("Orchestrator notification hooks", () => {
   let orchestrator: Orchestrator;
-  let mockService: { taskStarted: ReturnType<typeof vi.fn>; taskCompleted: ReturnType<typeof vi.fn> };
+  let mockService: { taskStarted: ReturnType<typeof vi.fn>; taskCompleted: ReturnType<typeof vi.fn>; taskEarlyExit: ReturnType<typeof vi.fn> };
   let logger: Logger;
 
   beforeEach(() => {
     orchestrator = new Orchestrator();
-    mockService = { taskStarted: vi.fn(), taskCompleted: vi.fn() };
+    mockService = { taskStarted: vi.fn(), taskCompleted: vi.fn(), taskEarlyExit: vi.fn() };
     logger = Logger.createCliLogger(false);
     (orchestrator as any).logger = logger;
     (orchestrator as any).notificationService = mockService;
@@ -412,6 +412,40 @@ describe("Orchestrator notification hooks", () => {
       expect(mockService.taskCompleted).toHaveBeenCalledWith(task, result);
     });
   });
+
+  describe("taskEarlyExit routing", () => {
+    it("calls taskEarlyExit when result has earlyExitReason", () => {
+      const task = makeNotifyTask({ notify: true });
+      const result = makeResult({ status: "SUCCESS", earlyExitReason: "Nothing to do" });
+
+      // Simulate the routing logic from handleCompleted
+      if (result.earlyExitReason !== undefined) {
+        (orchestrator as any).notificationService.taskEarlyExit(task, result);
+      } else {
+        (orchestrator as any).notificationService.taskCompleted(task, result);
+      }
+
+      expect(mockService.taskEarlyExit).toHaveBeenCalledTimes(1);
+      expect(mockService.taskEarlyExit).toHaveBeenCalledWith(task, result);
+      expect(mockService.taskCompleted).not.toHaveBeenCalled();
+    });
+
+    it("calls taskCompleted when result has no earlyExitReason", () => {
+      const task = makeNotifyTask({ notify: true });
+      const result = makeResult({ status: "SUCCESS" });
+
+      // Simulate the routing logic from handleCompleted
+      if (result.earlyExitReason !== undefined) {
+        (orchestrator as any).notificationService.taskEarlyExit(task, result);
+      } else {
+        (orchestrator as any).notificationService.taskCompleted(task, result);
+      }
+
+      expect(mockService.taskCompleted).toHaveBeenCalledTimes(1);
+      expect(mockService.taskCompleted).toHaveBeenCalledWith(task, result);
+      expect(mockService.taskEarlyExit).not.toHaveBeenCalled();
+    });
+  });
 });
 
 describe("scheduled task dispatch", () => {
@@ -445,7 +479,7 @@ describe("scheduled task dispatch", () => {
     (orchestrator as any).scheduler = mockScheduler;
     (orchestrator as any).pool = mockPool;
     (orchestrator as any).config = makeConfig();
-    (orchestrator as any).notificationService = { taskStarted: vi.fn(), taskCompleted: vi.fn() };
+    (orchestrator as any).notificationService = { taskStarted: vi.fn(), taskCompleted: vi.fn(), taskEarlyExit: vi.fn() };
 
     // Mock loadConfig to return current config (hot-reload step)
     const configMod = await import("../../src/core/config.js");

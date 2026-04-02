@@ -364,8 +364,12 @@ export class Orchestrator {
       });
     }
 
-    // Notify
-    this.notificationService.taskCompleted(task, result);
+    // Notify — route early-exit results to dedicated handler
+    if (result.earlyExitReason !== undefined) {
+      this.notificationService.taskEarlyExit(task, result);
+    } else {
+      this.notificationService.taskCompleted(task, result);
+    }
   }
 
   private async writeHeartbeat(): Promise<void> {
