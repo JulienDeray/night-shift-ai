@@ -194,6 +194,7 @@ export class Orchestrator {
 
     await ensureNightShiftDirs();
     await this.scheduler.loadState();
+    await this.scheduler.fastForwardStaleEntries();
     await writePidFile(process.pid);
     await this.writeHeartbeat();
 
@@ -327,6 +328,13 @@ export class Orchestrator {
 
     // Update state
     this.state.activeTasks = this.pool.activeCount;
+    this.state.runningTaskDetails = this.pool.runningTasks.map((t) => ({
+      id: t.id,
+      name: t.name,
+      agentName: t.agentName,
+      startedAt: t.startedAt.toISOString(),
+    }));
+    this.state.pendingTaskCount = this.scheduler.pendingCount;
     await this.writeHeartbeat();
   }
 

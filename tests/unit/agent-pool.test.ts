@@ -87,6 +87,21 @@ describe("AgentPool", () => {
     });
   });
 
+  describe("runningTasks", () => {
+    it("returns details of all running tasks for status reporting", () => {
+      mockEngineRunFn = vi.fn().mockReturnValue(new Promise(() => {}));
+
+      pool.dispatch(makeTask({ id: "ns-rt001", agentName: "agent-a" }));
+      pool.dispatch(makeTask({ id: "ns-rt002", agentName: "agent-b" }));
+
+      const running = pool.runningTasks;
+      expect(running).toHaveLength(2);
+      expect(running[0]).toMatchObject({ id: "ns-rt001", agentName: "agent-a" });
+      expect(running[1]).toMatchObject({ id: "ns-rt002", agentName: "agent-b" });
+      expect(running[0].startedAt).toBeInstanceOf(Date);
+    });
+  });
+
   describe("dispatch", () => {
     it("calls engine.run() for a task with agentName", async () => {
       const task = makeTask({ id: "ns-disp0001", agentName: "test-agent" });

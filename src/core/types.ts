@@ -74,6 +74,10 @@ export interface DaemonState {
   totalExecuted: number;
   totalCostUsd: number;
   status: "running" | "stopping" | "stopped";
+  /** Tasks dispatched from scheduler that haven't completed yet (running in pool). */
+  runningTaskDetails?: Array<{ id: string; name: string; agentName: string; startedAt: string }>;
+  /** Tasks returned by scheduler but not yet dispatched (pool full / cap reached). */
+  pendingTaskCount?: number;
 }
 
 export interface InboxEntry {

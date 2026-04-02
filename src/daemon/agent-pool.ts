@@ -44,6 +44,16 @@ export class AgentPool {
     return this.running.size;
   }
 
+  /** Returns details of all currently-running tasks for status reporting. */
+  get runningTasks(): Array<{ id: string; name: string; agentName: string; startedAt: Date }> {
+    return Array.from(this.running.values()).map((r) => ({
+      id: r.task.id,
+      name: r.task.name,
+      agentName: r.task.agentName ?? "unknown",
+      startedAt: r.startedAt,
+    }));
+  }
+
   get availableSlots(): number {
     return this.maxConcurrent - this.running.size;
   }

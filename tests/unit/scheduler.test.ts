@@ -635,3 +635,210 @@ describe("Scheduler.evaluateSchedules()", () => {
     expect(tasks2[0].agentName).toBe("weekly-agent");
   });
 });
+
+// ---------------------------------------------------------------------------
+// fastForwardStaleEntries
+// ---------------------------------------------------------------------------
+
+describe("Scheduler.fastForwardStaleEntries()", () => {
+  let tmpDir: string;
+  let logger: Logger;
+  let origCwd: typeof process.cwd;
+
+  beforeEach(async () => {
+    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "nightshift-sched-"));
+    await fs.mkdir(path.join(tmpDir, ".nightshift"), { recursive: true });
+    logger = Logger.createCliLogger(false);
+    origCwd = process.cwd;
+    process.cwd = () => tmpDir;
+  });
+
+  afterEach(async () => {
+    process.cwd = origCwd;
+    vi.useRealTimers();
+    await fs.rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it("fast-forwards stale lastRun to now so missed schedules don't catch up", async () => {
+    vi.useFakeTimers();
+    // Simulate daemon restart on Wednesday after being off since Sunday.
+    // Cron "0 2 * * 1-5" triggers Mon-Fri at 02:00.
+    // lastRun is from Sunday (before Mon/Tue triggers), so it's stale.
+    vi.setSystemTime(new Date("2026-01-08T10:00:00Z")); // Wednesday 10:00
+
+    const key = "my-agent:0 2 * * 1-5";
+    const stateData = { lastRuns: { [key]: new Date("2026-01-05T02:00:30Z").toISOString() } }; // Sunday
+    await fs.writeFile(
+      path.join(tmpDir, ".nightshift", "scheduler.json"),
+      JSON.stringify(stateData),
+      "utf-8",
+    );
+
+    const config = makeConfig({
+      agents: [{ name: "my-agent" }],
+      schedule: [{ agent: "my-agent", cron: "0 2 * * 1-5", enabled: true }],
+    });
+
+    const scheduler = new Scheduler(config, logger);
+    await scheduler.loadState(tmpDir);
+    await scheduler.fastForwardStaleEntries(tmpDir);
+
+    // After fast-forward, evaluateSchedules should NOT create a catch-up task
+    const tasks = await scheduler.evaluateSchedules();
+    expect(tasks).toHaveLength(0);
+  });
+
+  it("does not fast-forward entries that are already current", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-01-08T02:01:00Z")); // Wednesday 02:01
+
+    // lastRun at 02:00:30 — after today's trigger
+    const key = "my-agent:0 2 * * 1-5";
+    const stateData = { lastRuns: { [key]: new Date("2026-01-08T02:00:30Z").toISOString() } };
+    await fs.writeFile(
+      path.join(tmpDir, ".nightshift", "scheduler.json"),
+      JSON.stringify(stateData),
+      "utf-8",
+    );
+
+    const config = makeConfig({
+      agents: [{ name: "my-agent" }],
+      schedule: [{ agent: "my-agent", cron: "0 2 * * 1-5", enabled: true }],
+    });
+
+    const scheduler = new Scheduler(config, logger);
+    await scheduler.loadState(tmpDir);
+    await scheduler.fastForwardStaleEntries(tmpDir);
+
+    // State should NOT have been changed — verify file timestamp or content
+    const state = await readJsonFile<{ lastRuns: Record<string, string> }>(
+      path.join(tmpDir, ".nightshift", "scheduler.json"),
+    );
+    // lastRun should still be 02:00:30, not fast-forwarded
+    expect(state!.lastRuns[key]).toBe("2026-01-08T02:00:30.000Z");
+  });
+
+  it("fast-forwards multiple stale entries from different agents", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-01-08T10:00:00Z")); // Wednesday 10:00
+
+    // Both agents' lastRun from 3 days ago
+    const stateData = {
+      lastRuns: {
+        "agent-a:0 2 * * 1-5": new Date("2026-01-05T02:00:30Z").toISOString(),
+        "agent-b:0 2 * * 1-5": new Date("2026-01-05T02:00:30Z").toISOString(),
+      },
+    };
+    await fs.writeFile(
+      path.join(tmpDir, ".nightshift", "scheduler.json"),
+      JSON.stringify(stateData),
+      "utf-8",
+    );
+
+    const config = makeConfig({
+      agents: [{ name: "agent-a" }, { name: "agent-b" }],
+      schedule: [
+        { agent: "agent-a", cron: "0 2 * * 1-5", enabled: true },
+        { agent: "agent-b", cron: "0 2 * * 1-5", enabled: true },
+      ],
+    });
+
+    const scheduler = new Scheduler(config, logger);
+    await scheduler.loadState(tmpDir);
+    await scheduler.fastForwardStaleEntries(tmpDir);
+
+    // Neither agent should produce catch-up tasks
+    const tasks = await scheduler.evaluateSchedules();
+    expect(tasks).toHaveLength(0);
+  });
+
+  it("allows the NEXT scheduled run to fire after fast-forward", async () => {
+    vi.useFakeTimers();
+    // Restart at Wednesday 10:00 — stale lastRun from Sunday
+    vi.setSystemTime(new Date("2026-01-08T10:00:00Z"));
+
+    const key = "my-agent:0 2 * * 1-5";
+    const stateData = { lastRuns: { [key]: new Date("2026-01-05T02:00:30Z").toISOString() } };
+    await fs.writeFile(
+      path.join(tmpDir, ".nightshift", "scheduler.json"),
+      JSON.stringify(stateData),
+      "utf-8",
+    );
+
+    const config = makeConfig({
+      agents: [{ name: "my-agent" }],
+      schedule: [{ agent: "my-agent", cron: "0 2 * * 1-5", enabled: true }],
+    });
+
+    const scheduler = new Scheduler(config, logger);
+    await scheduler.loadState(tmpDir);
+    await scheduler.fastForwardStaleEntries(tmpDir);
+
+    // No catch-up now
+    expect(await scheduler.evaluateSchedules()).toHaveLength(0);
+
+    // Advance to Thursday 02:01 — next genuine trigger
+    vi.setSystemTime(new Date("2026-01-09T02:01:00Z"));
+    const tasks = await scheduler.evaluateSchedules();
+    expect(tasks).toHaveLength(1);
+    expect(tasks[0].agentName).toBe("my-agent");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// pendingCount
+// ---------------------------------------------------------------------------
+
+describe("Scheduler.pendingCount", () => {
+  let tmpDir: string;
+  let logger: Logger;
+  let origCwd: typeof process.cwd;
+
+  beforeEach(async () => {
+    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "nightshift-sched-"));
+    await fs.mkdir(path.join(tmpDir, ".nightshift"), { recursive: true });
+    logger = Logger.createCliLogger(false);
+    origCwd = process.cwd;
+    process.cwd = () => tmpDir;
+  });
+
+  afterEach(async () => {
+    process.cwd = origCwd;
+    vi.useRealTimers();
+    await fs.rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it("is 0 before any tasks are evaluated", () => {
+    const scheduler = new Scheduler(makeConfig(), logger);
+    expect(scheduler.pendingCount).toBe(0);
+  });
+
+  it("reflects unconfirmed tasks after evaluateSchedules", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-01-06T02:01:30Z"));
+
+    const config = makeConfig({
+      agents: [{ name: "agent-a" }, { name: "agent-b" }],
+      schedule: [
+        { agent: "agent-a", cron: "* * * * *", enabled: true },
+        { agent: "agent-b", cron: "* * * * *", enabled: true },
+      ],
+    });
+
+    const scheduler = new Scheduler(config, logger);
+    await seedScheduler(scheduler);
+
+    vi.setSystemTime(new Date("2026-01-06T02:02:30Z"));
+    const tasks = await scheduler.evaluateSchedules();
+    expect(tasks).toHaveLength(2);
+    expect(scheduler.pendingCount).toBe(2);
+
+    // Confirm one
+    await scheduler.confirmDispatched([tasks[0].id]);
+    expect(scheduler.pendingCount).toBe(1);
+
+    // Confirm the other
+    await scheduler.confirmDispatched([tasks[1].id]);
+    expect(scheduler.pendingCount).toBe(0);
+  });
+});

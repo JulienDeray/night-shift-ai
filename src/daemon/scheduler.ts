@@ -22,6 +22,11 @@ export class Scheduler {
     this.logger = logger;
   }
 
+  /** Number of tasks returned by evaluateSchedules() that haven't been confirmed as dispatched yet. */
+  get pendingCount(): number {
+    return this.pendingKeys.size;
+  }
+
   updateConfig(config: NightShiftConfig): void {
     this.config = config;
   }
@@ -30,6 +35,53 @@ export class Scheduler {
     const state = await readJsonFile<SchedulerState>(getSchedulerStatePath(base));
     if (state) {
       this.state = state;
+    }
+  }
+
+  /**
+   * Fast-forward stale lastRun entries to the current time.
+   *
+   * When the daemon restarts after a long outage (e.g. 3 days), each schedule
+   * entry whose lastRun is older than the most recent cron trigger would
+   * immediately produce a catch-up task. This is almost never desired — the
+   * user doesn't want 6 stale tasks to fire simultaneously on restart.
+   *
+   * Call this after loadState() during daemon startup. It advances every
+   * lastRun that predates the previous cron trigger to `now`, so the
+   * scheduler waits for the *next* scheduled time instead of catching up.
+   */
+  async fastForwardStaleEntries(base?: string): Promise<void> {
+    const now = new Date();
+    let updated = false;
+
+    for (const entry of this.config.schedule) {
+      if (!entry.enabled) continue;
+
+      const key = `${entry.agent}:${entry.cron}`;
+      const lastRun = this.state.lastRuns[key];
+      if (!lastRun) continue; // new schedule — handled by evaluateSchedules
+
+      const cron = new Cron(entry.cron);
+      const prevRuns = cron.previousRuns(1, now);
+      if (prevRuns.length === 0) continue;
+      const prevRun = prevRuns[0];
+
+      // If lastRun is before the most recent scheduled time, the daemon
+      // missed this run. Fast-forward to now instead of catching up.
+      if (new Date(lastRun) < prevRun) {
+        this.state.lastRuns[key] = now.toISOString();
+        updated = true;
+        this.logger.info("Fast-forwarded stale schedule entry", {
+          agent: entry.agent,
+          cron: entry.cron,
+          lastRun,
+          missedAt: prevRun.toISOString(),
+        });
+      }
+    }
+
+    if (updated) {
+      await this.saveState(base);
     }
   }
 

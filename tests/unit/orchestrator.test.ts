@@ -348,12 +348,14 @@ describe("Orchestrator notification hooks", () => {
         confirmDispatched: vi.fn().mockResolvedValue(undefined),
         updateConfig: vi.fn(),
         loadState: vi.fn(),
+        pendingCount: 0,
       };
       const mockPool = {
         canAccept: vi.fn().mockReturnValue(true),
         dispatch: vi.fn(),
         collectCompleted: vi.fn().mockReturnValue([]),
         activeCount: 0,
+        runningTasks: [],
       };
       (orchestrator as any).scheduler = mockScheduler;
       (orchestrator as any).pool = mockPool;
@@ -456,6 +458,7 @@ describe("scheduled task dispatch", () => {
     dispatch: ReturnType<typeof vi.fn>;
     collectCompleted: ReturnType<typeof vi.fn>;
     activeCount: number;
+    runningTasks: Array<{ id: string; name: string; agentName: string; startedAt: Date }>;
   };
   let logger: Logger;
 
@@ -467,12 +470,14 @@ describe("scheduled task dispatch", () => {
       confirmDispatched: vi.fn().mockResolvedValue(undefined),
       updateConfig: vi.fn(),
       loadState: vi.fn(),
+      pendingCount: 0,
     };
     mockPool = {
       canAccept: vi.fn().mockReturnValue(true),
       dispatch: vi.fn(),
       collectCompleted: vi.fn().mockReturnValue([]),
       activeCount: 0,
+      runningTasks: [],
     };
 
     (orchestrator as any).logger = logger;
