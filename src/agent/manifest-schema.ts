@@ -39,8 +39,23 @@ export const EarlyExitSchema = z.object({
   reason: z.string().optional(),
 }).strict();
 
+/** Regex for valid step names: must start with a letter, then letters/digits/underscores */
+const STEP_NAME_PATTERN = /^[a-zA-Z][a-zA-Z0-9_]*$/;
+
+/** Suggest a snake_case fix for an invalid step name */
+function suggestStepName(name: string): string {
+  return name.replace(/[^a-zA-Z0-9_]/g, '_').replace(/^(\d)/, '_$1');
+}
+
 export const StepSchema = z.object({
-  name: z.string().min(1),
+  name: z.string().min(1).superRefine((name, ctx) => {
+    if (!STEP_NAME_PATTERN.test(name)) {
+      ctx.addIssue({
+        code: 'custom',
+        message: `Step name '${name}' contains unsupported characters. Use '${suggestStepName(name)}' instead.`,
+      });
+    }
+  }),
   prompt: z.string().min(1),
   model: z.string().optional(),
   allowedTools: z.array(z.string()).optional(),

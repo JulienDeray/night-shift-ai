@@ -419,6 +419,67 @@ describe("ManifestSchema", () => {
     expect(result.success).toBe(false);
   });
 
+  // --- step name validation tests ---
+
+  describe("step name validation", () => {
+    it("valid snake_case name 'analyze_code' passes", () => {
+      const result = ManifestSchema.safeParse(validManifest({
+        steps: [
+          { name: "analyze_code", prompt: "prompts/analyze.md", outputSchema: {} },
+        ],
+      }));
+      expect(result.success).toBe(true);
+    });
+
+    it("kebab-case 'pick-item' is rejected with suggestion 'pick_item'", () => {
+      const result = ManifestSchema.safeParse(validManifest({
+        steps: [
+          { name: "pick-item", prompt: "prompts/pick.md", outputSchema: {} },
+        ],
+      }));
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        const messages = result.error.issues.map((i) => i.message);
+        expect(messages.some((m) => m.includes("pick-item") && m.includes("pick_item"))).toBe(true);
+      }
+    });
+
+    it("name with spaces 'pick item' is rejected with suggestion 'pick_item'", () => {
+      const result = ManifestSchema.safeParse(validManifest({
+        steps: [
+          { name: "pick item", prompt: "prompts/pick.md", outputSchema: {} },
+        ],
+      }));
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        const messages = result.error.issues.map((i) => i.message);
+        expect(messages.some((m) => m.includes("pick item") && m.includes("pick_item"))).toBe(true);
+      }
+    });
+
+    it("name starting with digit '1step' is rejected with suggestion '_1step'", () => {
+      const result = ManifestSchema.safeParse(validManifest({
+        steps: [
+          { name: "1step", prompt: "prompts/step.md", outputSchema: {} },
+        ],
+      }));
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        const messages = result.error.issues.map((i) => i.message);
+        expect(messages.some((m) => m.includes("1step") && m.includes("_1step"))).toBe(true);
+      }
+    });
+
+    it("valid single-word name 'analyze' passes", () => {
+      const result = ManifestSchema.safeParse(validManifest({
+        steps: [
+          { name: "analyze", prompt: "prompts/analyze.md", outputSchema: {} },
+        ],
+      }));
+      expect(result.success).toBe(true);
+    });
+  });
+
   it("unknown fields are still rejected when stateDir and imports are present", () => {
     const result = ManifestSchema.safeParse(validManifest({
       stateDir: "memory",
