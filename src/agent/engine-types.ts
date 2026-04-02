@@ -42,6 +42,8 @@ export interface AgentRunResult<T = unknown> {
   /** TRANSIENT hint: suggested delay in ms before caller retries. */
   suggestedDelayMs?: number;
   error?: string;
+  /** Reason string when pipeline exited early (e.g. 'Nothing to do'). Set by earlyExit.when logic. */
+  earlyExitReason?: string;
   /** All step outputs keyed by step name — allows caller to inspect intermediate results. */
   stepOutputs?: Record<string, unknown>;
 }

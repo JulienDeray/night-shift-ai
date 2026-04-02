@@ -6,6 +6,7 @@ import {
   formatStartNotification,
   formatSuccessNotification,
   formatFailureNotification,
+  formatEarlyExitNotification,
 } from "./notification-formatter.js";
 
 /**
@@ -48,5 +49,16 @@ export class NotificationService {
         ? formatSuccessNotification(task, result)
         : formatFailureNotification(task, result);
     void this.ntfy.send(message, this.logger);
+  }
+
+  /**
+   * Fires a "task early exit" notification. No-ops if ntfy is not configured
+   * or if the task does not have notify enabled.
+   */
+  taskEarlyExit(task: NightShiftTask, result: AgentRunResult): void {
+    if (this.ntfy === null || !task.notify) {
+      return;
+    }
+    void this.ntfy.send(formatEarlyExitNotification(task, result), this.logger);
   }
 }

@@ -147,3 +147,27 @@ export function formatFailureNotification(
     tags: ["rotating_light"],
   };
 }
+
+/**
+ * Formats an early-exit notification for a task that was skipped.
+ * Title: "⏭️ {agent} ▸ {task}"
+ * Body: "{duration} · {reason}" with "Nothing to do" fallback
+ * Priority: 3
+ */
+export function formatEarlyExitNotification(
+  task: NightShiftTask,
+  result: AgentRunResult,
+): NtfyMessage {
+  const agent = task.agentName ?? result.agentName ?? "unknown-agent";
+  const duration = formatDuration(result.totalDurationMs);
+  const reason =
+    result.earlyExitReason && result.earlyExitReason.length > 0
+      ? result.earlyExitReason
+      : "Nothing to do";
+  return {
+    title: `⏭️ ${agent} ▸ ${task.name}`,
+    body: `${duration} · ${reason}`,
+    priority: 3,
+    tags: ["fast_forward"],
+  };
+}

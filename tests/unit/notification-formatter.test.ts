@@ -3,6 +3,7 @@ import {
   formatStartNotification,
   formatSuccessNotification,
   formatFailureNotification,
+  formatEarlyExitNotification,
 } from "../../src/notifications/notification-formatter.js";
 import type { NightShiftTask } from "../../src/core/types.js";
 import type { AgentRunResult } from "../../src/agent/engine-types.js";
@@ -281,5 +282,79 @@ describe("formatFailureNotification", () => {
     });
     const msg = formatFailureNotification(task, result);
     expect(msg.body).toContain("Unknown error");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// formatEarlyExitNotification
+// ---------------------------------------------------------------------------
+
+describe("formatEarlyExitNotification", () => {
+  it("returns correct title with ⏭️ prefix, agent and task names", () => {
+    const task = makeTask({ name: "nightly-refactor", agentName: "code-agent" });
+    const result = makeResult({ earlyExitReason: "Nothing to do" });
+    const msg = formatEarlyExitNotification(task, result);
+    expect(msg.title).toBe("⏭️ code-agent ▸ nightly-refactor");
+  });
+
+  it("body contains duration and earlyExitReason", () => {
+    const task = makeTask();
+    const result = makeResult({
+      totalDurationMs: 222000,
+      earlyExitReason: "No open PRs",
+    });
+    const msg = formatEarlyExitNotification(task, result);
+    expect(msg.body).toBe("3m 42s · No open PRs");
+  });
+
+  it("uses fallback 'Nothing to do' when earlyExitReason is undefined", () => {
+    const task = makeTask();
+    const result = makeResult({ earlyExitReason: undefined });
+    const msg = formatEarlyExitNotification(task, result);
+    expect(msg.body).toContain("Nothing to do");
+  });
+
+  it("uses fallback 'Nothing to do' when earlyExitReason is empty string", () => {
+    const task = makeTask();
+    const result = makeResult({ earlyExitReason: "" });
+    const msg = formatEarlyExitNotification(task, result);
+    expect(msg.body).toContain("Nothing to do");
+  });
+
+  it("returns priority 3", () => {
+    const task = makeTask();
+    const result = makeResult({ earlyExitReason: "Skipped" });
+    const msg = formatEarlyExitNotification(task, result);
+    expect(msg.priority).toBe(3);
+  });
+
+  it("returns tags array with fast_forward tag", () => {
+    const task = makeTask();
+    const result = makeResult({ earlyExitReason: "Skipped" });
+    const msg = formatEarlyExitNotification(task, result);
+    expect(msg.tags).toBeDefined();
+    expect(Array.isArray(msg.tags)).toBe(true);
+    expect(msg.tags).toContain("fast_forward");
+  });
+
+  it("falls back to 'unknown-agent' when task.agentName is undefined", () => {
+    const task = makeTask({ agentName: undefined });
+    const result = makeResult({ agentName: undefined, earlyExitReason: "No work" });
+    const msg = formatEarlyExitNotification(task, result);
+    expect(msg.title).toBe("⏭️ unknown-agent ▸ nightly-refactor");
+  });
+
+  it("formats short durations correctly (seconds only)", () => {
+    const task = makeTask();
+    const result = makeResult({ totalDurationMs: 8000, earlyExitReason: "Quick skip" });
+    const msg = formatEarlyExitNotification(task, result);
+    expect(msg.body).toBe("8s · Quick skip");
+  });
+
+  it("prefers task.agentName over result.agentName", () => {
+    const task = makeTask({ agentName: "task-agent" });
+    const result = makeResult({ agentName: "result-agent", earlyExitReason: "Done" });
+    const msg = formatEarlyExitNotification(task, result);
+    expect(msg.title).toBe("⏭️ task-agent ▸ nightly-refactor");
   });
 });
