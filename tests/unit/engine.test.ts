@@ -264,32 +264,32 @@ describe("AgentEngine", () => {
       const { agentsRoot, agentDir, cleanup: c } = await createTempAgent({
         steps: [
           {
-            name: "step-one",
-            prompt: "prompts/step-one.md",
+            name: "step_one",
+            prompt: "prompts/step_one.md",
             outputSchema: RESULT_OUTPUT_SCHEMA,
           },
           {
-            name: "step-two",
-            prompt: "prompts/step-two.md",
+            name: "step_two",
+            prompt: "prompts/step_two.md",
             outputSchema: RESULT_OUTPUT_SCHEMA,
           },
           {
-            name: "step-three",
-            prompt: "prompts/step-three.md",
+            name: "step_three",
+            prompt: "prompts/step_three.md",
             outputSchema: RESULT_OUTPUT_SCHEMA,
           },
         ],
         promptContents: {
-          "prompts/step-one.md": "Step one.",
-          "prompts/step-two.md": "Step two.",
-          "prompts/step-three.md": "Step three.",
+          "prompts/step_one.md": "Step one.",
+          "prompts/step_two.md": "Step two.",
+          "prompts/step_three.md": "Step three.",
         },
       });
       cleanup = c;
 
       mockSpawn
-        .mockReturnValueOnce(makeSpawnResult(cliEnvelope('```json\n{"result":"step-one"}\n```')))
-        .mockReturnValueOnce(makeSpawnResult("", { exitCode: 1, stderr: "step-two exploded" }));
+        .mockReturnValueOnce(makeSpawnResult(cliEnvelope('```json\n{"result":"step_one"}\n```')))
+        .mockReturnValueOnce(makeSpawnResult("", { exitCode: 1, stderr: "step_two exploded" }));
 
       const engine = new AgentEngine(silentLogger());
       const result = await engine.run(agentDir, agentsRoot, "task-fail");
@@ -299,7 +299,7 @@ describe("AgentEngine", () => {
       expect(result.perStep[0].status).toBe("SUCCESS");
       expect(result.perStep[1].status).toBe("FAILED");
       expect(result.perStep[2].status).toBe("SKIPPED");
-      expect(result.error).toContain("step-two");
+      expect(result.error).toContain("step_two");
       expect(result.finalOutput).toBeNull();
     });
 
@@ -623,19 +623,19 @@ describe("AgentEngine", () => {
       const { agentsRoot, agentDir, cleanup: c } = await createTempAgent({
         steps: [
           {
-            name: "step-a",
-            prompt: "prompts/step-a.md",
+            name: "step_a",
+            prompt: "prompts/step_a.md",
             outputSchema: RESULT_OUTPUT_SCHEMA,
           },
           {
-            name: "step-b",
-            prompt: "prompts/step-b.md",
+            name: "step_b",
+            prompt: "prompts/step_b.md",
             outputSchema: RESULT_OUTPUT_SCHEMA,
           },
         ],
         promptContents: {
-          "prompts/step-a.md": "Step A.",
-          "prompts/step-b.md": "Step B.",
+          "prompts/step_a.md": "Step A.",
+          "prompts/step_b.md": "Step B.",
         },
       });
       cleanup = c;
@@ -648,8 +648,8 @@ describe("AgentEngine", () => {
       const result = await engine.run(agentDir, agentsRoot, "task-outputs");
 
       expect(result.stepOutputs).toBeDefined();
-      expect(result.stepOutputs!["step-a"]).toEqual({ result: "a-output" });
-      expect(result.stepOutputs!["step-b"]).toEqual({ result: "b-output" });
+      expect(result.stepOutputs!["step_a"]).toEqual({ result: "a-output" });
+      expect(result.stepOutputs!["step_b"]).toEqual({ result: "b-output" });
     });
   });
 
@@ -755,8 +755,8 @@ describe("AgentEngine", () => {
       const { agentsRoot, agentDir, cleanup: c } = await createTempAgent({
         steps: [
           {
-            name: "step-one",
-            prompt: "prompts/step-one.md",
+            name: "step_one",
+            prompt: "prompts/step_one.md",
             outputSchema: {
               type: "object",
               properties: { nothing_to_do: { type: "boolean" } },
@@ -765,20 +765,20 @@ describe("AgentEngine", () => {
             earlyExit: { when: { nothing_to_do: true } },
           },
           {
-            name: "step-two",
-            prompt: "prompts/step-two.md",
+            name: "step_two",
+            prompt: "prompts/step_two.md",
             outputSchema: RESULT_OUTPUT_SCHEMA,
           },
           {
-            name: "step-three",
-            prompt: "prompts/step-three.md",
+            name: "step_three",
+            prompt: "prompts/step_three.md",
             outputSchema: RESULT_OUTPUT_SCHEMA,
           },
         ],
         promptContents: {
-          "prompts/step-one.md": "Step one.",
-          "prompts/step-two.md": "Step two.",
-          "prompts/step-three.md": "Step three.",
+          "prompts/step_one.md": "Step one.",
+          "prompts/step_two.md": "Step two.",
+          "prompts/step_three.md": "Step three.",
         },
       });
       cleanup = c;
@@ -792,9 +792,9 @@ describe("AgentEngine", () => {
 
       expect(result.status).toBe("SUCCESS");
       expect(result.perStep).toHaveLength(3);
-      expect(result.perStep[0]).toMatchObject({ name: "step-one", status: "SUCCESS" });
-      expect(result.perStep[1]).toMatchObject({ name: "step-two", status: "SKIPPED", durationMs: 0 });
-      expect(result.perStep[2]).toMatchObject({ name: "step-three", status: "SKIPPED", durationMs: 0 });
+      expect(result.perStep[0]).toMatchObject({ name: "step_one", status: "SUCCESS" });
+      expect(result.perStep[1]).toMatchObject({ name: "step_two", status: "SKIPPED", durationMs: 0 });
+      expect(result.perStep[2]).toMatchObject({ name: "step_three", status: "SKIPPED", durationMs: 0 });
       expect(result.earlyExitReason).toBeDefined();
     });
 
@@ -1006,20 +1006,20 @@ describe("AgentEngine", () => {
         stateDir: "memory",
         steps: [
           {
-            name: "step-one",
-            prompt: "prompts/step-one.md",
+            name: "step_one",
+            prompt: "prompts/step_one.md",
             outputSchema: RESULT_OUTPUT_SCHEMA,
           },
           {
-            name: "step-two",
-            prompt: "prompts/step-two.md",
+            name: "step_two",
+            prompt: "prompts/step_two.md",
             outputSchema: RESULT_OUTPUT_SCHEMA,
           },
         ],
       };
       await fs.writeFile(path.join(agentDir, "manifest.yaml"), stringifyYaml(manifest));
-      await fs.writeFile(path.join(promptsDir, "step-one.md"), "Step one for {{task_id}}.");
-      await fs.writeFile(path.join(promptsDir, "step-two.md"), "Use state at {{state_dir}}/data.json");
+      await fs.writeFile(path.join(promptsDir, "step_one.md"), "Step one for {{task_id}}.");
+      await fs.writeFile(path.join(promptsDir, "step_two.md"), "Use state at {{state_dir}}/data.json");
 
       cleanup = () => fs.rm(tmpDir, { recursive: true, force: true });
 
