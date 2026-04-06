@@ -68,7 +68,7 @@ export class Logger {
 
     if (entry.data && Object.keys(entry.data).length > 0) {
       const pairs = Object.entries(entry.data).map(([k, v]) => {
-        const str = String(v);
+        const str = typeof v === "object" && v !== null ? JSON.stringify(v) : String(v);
         return str.includes(" ") ? `${k}="${str}"` : `${k}=${str}`;
       });
       line += " " + pairs.join(" ");
