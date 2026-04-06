@@ -340,6 +340,59 @@ export class AgentEngine {
           }
         }
 
+        // Check retry trigger: if step has retry config and output indicates failure
+        // This must run BEFORE the semantic failure check so retries get a chance.
+        if (step.retry && typeof parsed === "object" && parsed !== null) {
+          const rec = parsed as Record<string, unknown>;
+          const stepFailed =
+            ("passed" in rec && rec.passed === false) ||
+            ("status" in rec && rec.status === "FAILED");
+
+          if (stepFailed) {
+            retryCount++;
+            if (retryCount <= step.retry.maxAttempts) {
+              const retryFromIndex = manifest.steps.findIndex((s) => s.name === step.retry!.retryFrom);
+
+              this.logger.info("Step triggered retry", {
+                runId,
+                step: step.name,
+                retryFrom: step.retry.retryFrom,
+                attempt: retryCount,
+                maxAttempts: step.retry.maxAttempts,
+              });
+
+              // Inject retry_error into variables for the retryFrom step
+              const errorDetails = rec.error_details ?? "";
+              ctx = {
+                ...ctx,
+                variables: {
+                  ...ctx.variables,
+                  retry_error: String(errorDetails),
+                },
+              };
+
+              // Write step output before retrying
+              await this.writeStepOutput(runId, step.name, rawOutput);
+
+              // Reset working directory before retry (skip for self-retry — nothing to undo)
+              if (retryFromIndex !== i) {
+                await this.resetWorkDir(ctx.workDir);
+              }
+
+              // Jump back to retryFrom step (or re-run current step for self-retry)
+              i = retryFromIndex;
+              continue;
+            }
+            // Max retries exhausted — log and fall through to semantic failure
+            this.logger.warn("Retry exhausted", {
+              runId,
+              step: step.name,
+              retryCount,
+              maxAttempts: step.retry.maxAttempts,
+            });
+          }
+        }
+
         // Detect semantic failure: step output is valid JSON but indicates failure
         if (
           typeof parsed === "object" &&
@@ -382,54 +435,6 @@ export class AgentEngine {
             error: `Step "${step.name}" output status: FAILED`,
             stepOutputs,
           };
-        }
-
-        // Check retry trigger: if step has retry config and output has passed === false
-        if (
-          step.retry &&
-          typeof parsed === "object" &&
-          parsed !== null &&
-          "passed" in parsed &&
-          (parsed as Record<string, unknown>).passed === false
-        ) {
-          retryCount++;
-          if (retryCount <= step.retry.maxAttempts) {
-            const retryFromIndex = manifest.steps.findIndex((s) => s.name === step.retry!.retryFrom);
-
-            this.logger.info("Step triggered retry", {
-              runId,
-              step: step.name,
-              retryFrom: step.retry.retryFrom,
-              attempt: retryCount,
-              maxAttempts: step.retry.maxAttempts,
-            });
-
-            // Inject retry_error into variables for the retryFrom step
-            const errorDetails = (parsed as Record<string, unknown>).error_details ?? "";
-            ctx = {
-              ...ctx,
-              variables: {
-                ...ctx.variables,
-                retry_error: String(errorDetails),
-              },
-            };
-
-            // Reset working directory before retry (skip for self-retry — nothing to undo)
-            if (retryFromIndex !== i) {
-              await this.resetWorkDir(ctx.workDir);
-            }
-
-            // Jump back to retryFrom step (or re-run current step for self-retry)
-            i = retryFromIndex;
-            continue;
-          }
-          // Max retries exhausted — log and fall through to normal progression
-          this.logger.warn("Retry exhausted", {
-            runId,
-            step: step.name,
-            retryCount,
-            maxAttempts: step.retry.maxAttempts,
-          });
         }
 
         this.logger.info("Step completed", {
