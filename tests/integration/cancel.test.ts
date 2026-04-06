@@ -85,7 +85,7 @@ ${overrides}`;
   });
 
   it("exits non-zero and prints error when task ID does not exist", async () => {
-    const res = await run(["cancel", "ns-00000000"]);
+    const res = await run(["cancel", "00000000-0000-0000-0000-000000000000"]);
     expect(res.exitCode).not.toBe(0);
     const combined = res.stdout + res.stderr;
     expect(combined.toLowerCase()).toMatch(/not found|does not exist|no task/);
@@ -110,7 +110,7 @@ ${overrides}`;
   it("exits non-zero and mentions 'running' when task has status running", async () => {
     const queueDir = path.join(tmpDir, ".nightshift", "queue");
     const runningTask: NightShiftTask = {
-      id: "ns-aaaabbbb",
+      id: "aaaabbbb-0000-0000-0000-000000000000",
       name: "running-task",
       origin: "one-off",
       prompt: "Some prompt",
@@ -120,11 +120,11 @@ ${overrides}`;
       agentName: "my-agent",
     };
     await fs.writeFile(
-      path.join(queueDir, "ns-aaaabbbb.json"),
+      path.join(queueDir, "aaaabbbb-0000-0000-0000-000000000000.json"),
       JSON.stringify(runningTask),
     );
 
-    const res = await run(["cancel", "ns-aaaabbbb"]);
+    const res = await run(["cancel", "aaaabbbb-0000-0000-0000-000000000000"]);
     expect(res.exitCode).not.toBe(0);
     const combined = res.stdout + res.stderr;
     expect(combined.toLowerCase()).toContain("running");

@@ -152,11 +152,12 @@ export class Scheduler {
           taskId: existingPendingId,
           cron: entry.cron,
           agentName: entry.agent,
+          variables: Object.keys(mergedVars).length > 0 ? mergedVars : undefined,
         });
         continue;
       }
 
-      const taskId = `ns-${crypto.randomBytes(4).toString("hex")}`;
+      const taskId = crypto.randomUUID();
 
       const task: NightShiftTask = {
         id: taskId,
@@ -179,6 +180,7 @@ export class Scheduler {
         taskId,
         cron: entry.cron,
         agentName: entry.agent,
+        variables: Object.keys(mergedVars).length > 0 ? mergedVars : undefined,
       });
     }
 

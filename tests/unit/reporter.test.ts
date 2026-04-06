@@ -7,7 +7,7 @@ import type { NightShiftTask } from "../../src/core/types.js";
 import type { AgentRunResult } from "../../src/agent/engine-types.js";
 
 const makeTask = (overrides?: Partial<NightShiftTask>): NightShiftTask => ({
-  id: "ns-abc12345",
+  id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
   name: "test-task",
   origin: "one-off",
   prompt: "Do something useful",
@@ -41,7 +41,7 @@ describe("generateReport", () => {
 
     // Check frontmatter
     expect(report).toContain("---");
-    expect(report).toContain("task_id: ns-abc12345");
+    expect(report).toContain("task_id: a1b2c3d4-e5f6-7890-abcd-ef1234567890");
     expect(report).toContain("task_name: test-task");
     expect(report).toContain("origin: one-off");
     expect(report).toContain("status: completed");
@@ -187,7 +187,7 @@ describe("writeReport", () => {
   });
 
   it("writes report file to inbox directory", async () => {
-    const task = makeTask({ id: "ns-abc12345", name: "my-task" });
+    const task = makeTask({ id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890", name: "my-task" });
     const result = makeResult();
     const started = new Date("2026-02-20T03:00:00Z");
     const completed = new Date("2026-02-20T03:02:29Z");
@@ -196,11 +196,11 @@ describe("writeReport", () => {
 
     expect(filePath).toContain(path.join(".nightshift", "inbox"));
     const content = await fs.readFile(filePath, "utf-8");
-    expect(content).toContain("task_id: ns-abc12345");
+    expect(content).toContain("task_id: a1b2c3d4-e5f6-7890-abcd-ef1234567890");
   });
 
   it("generates filename following {date}_{name}_{shortid}.md pattern", async () => {
-    const task = makeTask({ id: "ns-abc12345", name: "daily-standup" });
+    const task = makeTask({ id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890", name: "daily-standup" });
     const result = makeResult();
     const started = new Date("2026-02-20T03:00:00Z");
     const completed = new Date("2026-02-20T03:02:29Z");
@@ -208,12 +208,12 @@ describe("writeReport", () => {
     const filePath = await writeReport(task, result, started, completed, tmpDir);
     const fileName = path.basename(filePath);
 
-    expect(fileName).toMatch(/^2026-02-20_daily-standup_ns-abc12\.md$/);
+    expect(fileName).toMatch(/^2026-02-20_daily-standup_a1b2c3d4\.md$/);
   });
 
   it("writes to custom output path when task has output field", async () => {
     const task = makeTask({
-      id: "ns-abc12345",
+      id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
       name: "daily-report",
       output: "custom-reports/daily-report.md",
     });
@@ -228,7 +228,7 @@ describe("writeReport", () => {
     expect(exists).toBe(true);
 
     const content = await fs.readFile(customPath, "utf-8");
-    expect(content).toContain("task_id: ns-abc12345");
+    expect(content).toContain("task_id: a1b2c3d4-e5f6-7890-abcd-ef1234567890");
   });
 });
 
@@ -247,7 +247,7 @@ describe("toInboxEntry", () => {
 
     const entry = toInboxEntry(task, result, started, completed, "/path/to/report.md");
 
-    expect(entry.taskId).toBe("ns-abc12345");
+    expect(entry.taskId).toBe("a1b2c3d4-e5f6-7890-abcd-ef1234567890");
     expect(entry.taskName).toBe("test-task");
     expect(entry.origin).toBe("one-off");
     expect(entry.status).toBe("completed");

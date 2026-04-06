@@ -120,8 +120,8 @@ describe("Scheduler.evaluateSchedules()", () => {
     expect(tasks[0].agentName).toBe("my-agent");
     expect(tasks[0].origin).toBe("recurring");
     expect(tasks[0].status).toBe("pending");
-    expect(tasks[0].id).toMatch(/^ns-[0-9a-f]{8}$/);
-    expect(tasks[0].name).toMatch(/^my-agent-ns-/);
+    expect(tasks[0].id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
+    expect(tasks[0].name).toMatch(/^my-agent-[0-9a-f]{8}-/);
   });
 
   // -------------------------------------------------------------------------
@@ -300,8 +300,8 @@ describe("Scheduler.evaluateSchedules()", () => {
 
     expect(tasks).toHaveLength(1);
     const task = tasks[0];
-    expect(task.id).toMatch(/^ns-[0-9a-f]{8}$/);
-    expect(task.name).toMatch(/^my-agent-ns-/);
+    expect(task.id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
+    expect(task.name).toMatch(/^my-agent-[0-9a-f]{8}-/);
     expect(task.origin).toBe("recurring");
     expect(task.agentName).toBe("my-agent");
     expect(task.status).toBe("pending");

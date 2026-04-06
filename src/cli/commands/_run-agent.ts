@@ -32,6 +32,13 @@ export async function runAgentForeground(
   const config = await loadConfig();
   const logger = Logger.createCliLogger(true);
 
+  // Merge agent-level config variables with CLI --var overrides (CLI wins)
+  const agentDecl = config.agents.find((a) => a.name === agentName);
+  const mergedVars = { ...(agentDecl?.variables ?? {}), ...vars };
+  const varsLine = Object.keys(mergedVars).length > 0
+    ? Object.entries(mergedVars).map(([k, v]) => `${k}=${v}`).join(", ")
+    : "";
+
   // Set up ntfy client if --notify is requested
   const ntfy = notify && ntfyConfig ? new NtfyClient(ntfyConfig) : null;
 
@@ -39,7 +46,7 @@ export async function runAgentForeground(
     await ntfy.send(
       {
         title: `🕐 ${agentName} ▸ ${taskName}`,
-        body: "Task started",
+        body: varsLine ? `Task started\n${varsLine}` : "Task started",
         priority: 3,
       },
       logger,
@@ -48,15 +55,14 @@ export async function runAgentForeground(
 
   console.log(info(`Running agent: ${agentName}`));
   console.log(info(`Task ID: ${taskId}`));
+  if (varsLine) {
+    console.log(info(`Vars:    ${varsLine}`));
+  }
 
   // Build agent paths
   const configDir = process.cwd();
   const agentsRoot = path.resolve(configDir, config.agentsDir);
   const agentDir = path.join(agentsRoot, agentName);
-
-  // Merge agent-level config variables with CLI --var overrides (CLI wins)
-  const agentDecl = config.agents.find((a) => a.name === agentName);
-  const mergedVars = { ...(agentDecl?.variables ?? {}), ...vars };
 
   // Create engine directly (no registry)
   const engine = new AgentEngine(logger);
@@ -110,10 +116,12 @@ export async function runAgentForeground(
 
   if (ntfy) {
     if (result.earlyExitReason !== undefined) {
+      let earlyBody = `${formatDuration(durationSec)} · ${result.earlyExitReason}`;
+      if (varsLine) earlyBody += `\n${varsLine}`;
       await ntfy.send(
         {
           title: `⏭️ ${agentName} ▸ ${taskName}`,
-          body: `${formatDuration(durationSec)} · ${result.earlyExitReason}`,
+          body: earlyBody,
           priority: 3,
         },
         logger,
@@ -123,10 +131,11 @@ export async function runAgentForeground(
         result.status === "SUCCESS"
           ? `✅ ${agentName} ▸ ${taskName}`
           : `❌ ${agentName} ▸ ${taskName}`;
-      const ntfyBody =
+      let ntfyBody =
         result.status === "SUCCESS"
           ? formatDuration(durationSec)
           : `${result.error?.slice(0, 200) ?? result.status}`;
+      if (varsLine) ntfyBody += `\n${varsLine}`;
       await ntfy.send(
         {
           title: ntfyTitle,
@@ -146,8 +155,8 @@ export async function runAgentForeground(
 }
 
 /**
- * Generates a random task ID with the ns- prefix.
+ * Generates a random task ID (UUID v4).
  */
 export function generateTaskId(): string {
-  return `ns-${crypto.randomBytes(4).toString("hex")}`;
+  return crypto.randomUUID();
 }

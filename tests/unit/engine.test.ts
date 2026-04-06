@@ -182,18 +182,16 @@ describe("AgentEngine", () => {
       expect(result.totalDurationMs).toBeGreaterThanOrEqual(0);
     });
 
-    it("runId is a valid UUID", async () => {
+    it("runId equals the taskId passed to engine.run()", async () => {
       const { agentsRoot, agentDir, cleanup: c } = await createTempAgent();
       cleanup = c;
       mockSpawn.mockReturnValue(makeSpawnResult(cliEnvelope(VALID_RESULT_OUTPUT)));
 
       const engine = new AgentEngine(silentLogger());
-      const result = await engine.run(agentDir, agentsRoot, "task-001");
+      const taskId = "task-001";
+      const result = await engine.run(agentDir, agentsRoot, taskId);
 
-      // UUID v4 pattern
-      expect(result.runId).toMatch(
-        /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
-      );
+      expect(result.runId).toBe(taskId);
     });
 
     it("multi-step pipeline: second step receives first step output in template vars", async () => {

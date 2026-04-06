@@ -1,4 +1,3 @@
-import crypto from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 import type { Logger } from "../core/logger.js";
@@ -119,7 +118,7 @@ export class AgentEngine {
     taskId: string,
     configOverrides?: Record<string, string>,
   ): Promise<AgentRunResult<T>> {
-    const runId = crypto.randomUUID();
+    const runId = taskId;
     const startTime = Date.now();
 
     // Create temp dir before loading manifest so we always have a dir to clean up

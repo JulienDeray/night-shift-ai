@@ -78,6 +78,14 @@ describe("formatStartNotification", () => {
     expect(msg.title).toBe("🕐 unknown-agent ▸ nightly-refactor");
     expect(msg.body).toBe("Task started");
   });
+
+  it("includes variables in body when task has variables", () => {
+    const task = makeTask({ variables: { repo_url: "https://gitlab.com/repo.git", category: "tests" } });
+    const msg = formatStartNotification(task);
+    expect(msg.body).toContain("Task started");
+    expect(msg.body).toContain("repo_url=https://gitlab.com/repo.git");
+    expect(msg.body).toContain("category=tests");
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -183,6 +191,13 @@ describe("formatSuccessNotification", () => {
     const result = makeResult({ agentName: "code-agent" });
     const msg = formatSuccessNotification(task, result);
     expect(msg.title).toBe("✅ code-agent ▸ nightly-refactor");
+  });
+
+  it("includes variables in body when task has variables", () => {
+    const task = makeTask({ variables: { env: "staging" } });
+    const result = makeResult();
+    const msg = formatSuccessNotification(task, result);
+    expect(msg.body).toContain("env=staging");
   });
 });
 

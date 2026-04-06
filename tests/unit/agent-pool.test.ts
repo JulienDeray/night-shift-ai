@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { AgentPool } from "../../src/daemon/agent-pool.js";
 import { Logger } from "../../src/core/logger.js";
@@ -27,7 +28,7 @@ function makeSuccessResult(overrides: Partial<AgentRunResult> = {}): AgentRunRes
 
 function makeTask(overrides: Partial<NightShiftTask> = {}): NightShiftTask {
   return {
-    id: `ns-${Math.random().toString(16).slice(2, 10)}`,
+    id: crypto.randomUUID(),
     name: "test-task",
     origin: "one-off",
     prompt: "Do something",
@@ -63,14 +64,14 @@ describe("AgentPool", () => {
 
     it("returns true when under maxConcurrent", () => {
       mockEngineRunFn = vi.fn().mockReturnValue(new Promise(() => {}));
-      pool.dispatch(makeTask({ id: "ns-task0001" }));
+      pool.dispatch(makeTask({ id: "00000000-0000-0000-0000-000000000001" }));
       expect(pool.canAccept()).toBe(true);
     });
 
     it("returns false when at maxConcurrent", () => {
       mockEngineRunFn = vi.fn().mockReturnValue(new Promise(() => {}));
-      pool.dispatch(makeTask({ id: "ns-task0001" }));
-      pool.dispatch(makeTask({ id: "ns-task0002" }));
+      pool.dispatch(makeTask({ id: "00000000-0000-0000-0000-000000000001" }));
+      pool.dispatch(makeTask({ id: "00000000-0000-0000-0000-000000000002" }));
       expect(pool.canAccept()).toBe(false);
     });
   });
@@ -80,9 +81,9 @@ describe("AgentPool", () => {
       mockEngineRunFn = vi.fn().mockReturnValue(new Promise(() => {}));
 
       expect(pool.activeCount).toBe(0);
-      pool.dispatch(makeTask({ id: "ns-count001" }));
+      pool.dispatch(makeTask({ id: "00000000-0000-0000-0000-000000000003" }));
       expect(pool.activeCount).toBe(1);
-      pool.dispatch(makeTask({ id: "ns-count002" }));
+      pool.dispatch(makeTask({ id: "00000000-0000-0000-0000-000000000004" }));
       expect(pool.activeCount).toBe(2);
     });
   });
@@ -91,20 +92,20 @@ describe("AgentPool", () => {
     it("returns details of all running tasks for status reporting", () => {
       mockEngineRunFn = vi.fn().mockReturnValue(new Promise(() => {}));
 
-      pool.dispatch(makeTask({ id: "ns-rt001", agentName: "agent-a" }));
-      pool.dispatch(makeTask({ id: "ns-rt002", agentName: "agent-b" }));
+      pool.dispatch(makeTask({ id: "00000000-0000-0000-0000-000000000005", agentName: "agent-a" }));
+      pool.dispatch(makeTask({ id: "00000000-0000-0000-0000-000000000006", agentName: "agent-b" }));
 
       const running = pool.runningTasks;
       expect(running).toHaveLength(2);
-      expect(running[0]).toMatchObject({ id: "ns-rt001", agentName: "agent-a" });
-      expect(running[1]).toMatchObject({ id: "ns-rt002", agentName: "agent-b" });
+      expect(running[0]).toMatchObject({ id: "00000000-0000-0000-0000-000000000005", agentName: "agent-a" });
+      expect(running[1]).toMatchObject({ id: "00000000-0000-0000-0000-000000000006", agentName: "agent-b" });
       expect(running[0].startedAt).toBeInstanceOf(Date);
     });
   });
 
   describe("dispatch", () => {
     it("calls engine.run() for a task with agentName", async () => {
-      const task = makeTask({ id: "ns-disp0001", agentName: "test-agent" });
+      const task = makeTask({ id: "00000000-0000-0000-0000-000000000007", agentName: "test-agent" });
       pool.dispatch(task);
 
       await new Promise((r) => setTimeout(r, 50));
@@ -113,7 +114,7 @@ describe("AgentPool", () => {
     });
 
     it("immediately pushes a FATAL result for tasks without agentName", async () => {
-      const task = makeTask({ id: "ns-disp0002", agentName: undefined });
+      const task = makeTask({ id: "00000000-0000-0000-0000-000000000008", agentName: undefined });
       pool.dispatch(task);
 
       // No async needed — rejected synchronously
@@ -128,23 +129,23 @@ describe("AgentPool", () => {
       mockEngineRunFn = vi.fn().mockReturnValue(new Promise(() => {}));
       pool = new AgentPool({ maxConcurrent: 1, workspaceDir: "/tmp/workspace", logger, configDir: "/tmp/config" });
 
-      pool.dispatch(makeTask({ id: "ns-full0001" }));
+      pool.dispatch(makeTask({ id: "00000000-0000-0000-0000-000000000009" }));
       expect(pool.activeCount).toBe(1);
 
-      pool.dispatch(makeTask({ id: "ns-full0002" }));
+      pool.dispatch(makeTask({ id: "00000000-0000-0000-0000-00000000000a" }));
       expect(pool.activeCount).toBe(1);
     });
   });
 
   describe("collectCompleted", () => {
     it("returns completed tasks and drains the queue", async () => {
-      pool.dispatch(makeTask({ id: "ns-coll0001" }));
+      pool.dispatch(makeTask({ id: "00000000-0000-0000-0000-00000000000b" }));
 
       await new Promise((r) => setTimeout(r, 50));
 
       const completed = pool.collectCompleted();
       expect(completed).toHaveLength(1);
-      expect(completed[0].task.id).toBe("ns-coll0001");
+      expect(completed[0].task.id).toBe("00000000-0000-0000-0000-00000000000b");
       expect(completed[0].result.status).toBe("SUCCESS");
 
       // Second call should return empty
@@ -158,11 +159,11 @@ describe("AgentPool", () => {
       mockEngineRunFn = vi.fn().mockReturnValue(new Promise(() => {}));
       pool = new AgentPool({ maxConcurrent: 2, workspaceDir: "/tmp/workspace", logger, configDir: "/tmp/config" });
 
-      pool.dispatch(makeTask({ id: "ns-conc0001" }));
-      pool.dispatch(makeTask({ id: "ns-conc0002" }));
+      pool.dispatch(makeTask({ id: "00000000-0000-0000-0000-00000000000c" }));
+      pool.dispatch(makeTask({ id: "00000000-0000-0000-0000-00000000000d" }));
       expect(pool.canAccept()).toBe(false);
 
-      pool.dispatch(makeTask({ id: "ns-conc0003" }));
+      pool.dispatch(makeTask({ id: "00000000-0000-0000-0000-00000000000e" }));
       expect(pool.activeCount).toBe(2); // third was rejected
     });
   });
@@ -171,7 +172,7 @@ describe("AgentPool", () => {
     it("produces a FATAL TaskResult when engine.run() rejects", async () => {
       mockEngineRunFn = vi.fn().mockRejectedValue(new Error("Engine crashed"));
 
-      pool.dispatch(makeTask({ id: "ns-fail0001" }));
+      pool.dispatch(makeTask({ id: "00000000-0000-0000-0000-00000000000f" }));
 
       await new Promise((r) => setTimeout(r, 50));
 
@@ -184,8 +185,8 @@ describe("AgentPool", () => {
 
   describe("drain", () => {
     it("waits for all running tasks and returns results", async () => {
-      pool.dispatch(makeTask({ id: "ns-drain001" }));
-      pool.dispatch(makeTask({ id: "ns-drain002" }));
+      pool.dispatch(makeTask({ id: "00000000-0000-0000-0000-000000000010" }));
+      pool.dispatch(makeTask({ id: "00000000-0000-0000-0000-000000000011" }));
 
       const results = await pool.drain();
       expect(results).toHaveLength(2);
@@ -197,8 +198,8 @@ describe("AgentPool", () => {
     it("logs a warning for in-progress tasks (AgentEngine cannot be interrupted)", () => {
       mockEngineRunFn = vi.fn().mockReturnValue(new Promise(() => {}));
 
-      pool.dispatch(makeTask({ id: "ns-kill0001" }));
-      pool.dispatch(makeTask({ id: "ns-kill0002" }));
+      pool.dispatch(makeTask({ id: "00000000-0000-0000-0000-000000000012" }));
+      pool.dispatch(makeTask({ id: "00000000-0000-0000-0000-000000000013" }));
 
       // Should not throw
       expect(() => pool.killAll()).not.toThrow();

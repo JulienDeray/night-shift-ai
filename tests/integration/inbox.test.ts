@@ -34,7 +34,7 @@ one_off_defaults:
 
   function makeReport(name: string, status: string, date: string): string {
     return `---
-task_id: ns-12345678
+task_id: 12345678-0000-0000-0000-000000000000
 task_name: ${name}
 origin: one-off
 status: ${status}
@@ -79,7 +79,7 @@ Task completed successfully.
   it("lists reports as a table with task name, status, duration, cost", async () => {
     const inboxDir = path.join(tmpDir, ".nightshift", "inbox");
     await fs.writeFile(
-      path.join(inboxDir, "2026-02-20_daily-task_ns-12345.md"),
+      path.join(inboxDir, "2026-02-20_daily-task_12345678.md"),
       makeReport("daily-task", "completed", "2026-02-20"),
     );
 
@@ -93,11 +93,11 @@ Task completed successfully.
   it("sorts reports newest first", async () => {
     const inboxDir = path.join(tmpDir, ".nightshift", "inbox");
     await fs.writeFile(
-      path.join(inboxDir, "2026-02-18_old-task_ns-11111.md"),
+      path.join(inboxDir, "2026-02-18_old-task_11111111.md"),
       makeReport("old-task", "completed", "2026-02-18"),
     );
     await fs.writeFile(
-      path.join(inboxDir, "2026-02-20_new-task_ns-22222.md"),
+      path.join(inboxDir, "2026-02-20_new-task_22222222.md"),
       makeReport("new-task", "completed", "2026-02-20"),
     );
 
@@ -114,7 +114,7 @@ Task completed successfully.
     const inboxDir = path.join(tmpDir, ".nightshift", "inbox");
     for (let i = 1; i <= 5; i++) {
       await fs.writeFile(
-        path.join(inboxDir, `2026-02-${String(i).padStart(2, "0")}_task-${i}_ns-${String(i).padStart(5, "0")}.md`),
+        path.join(inboxDir, `2026-02-${String(i).padStart(2, "0")}_task-${i}_${String(i).padStart(8, "0")}.md`),
         makeReport(`task-${i}`, "completed", `2026-02-${String(i).padStart(2, "0")}`),
       );
     }
@@ -129,7 +129,7 @@ Task completed successfully.
 
   it("displays full report content with --read flag", async () => {
     const inboxDir = path.join(tmpDir, ".nightshift", "inbox");
-    const fileName = "2026-02-20_read-test_ns-12345.md";
+    const fileName = "2026-02-20_read-test_12345678.md";
     await fs.writeFile(
       path.join(inboxDir, fileName),
       makeReport("read-test", "completed", "2026-02-20"),

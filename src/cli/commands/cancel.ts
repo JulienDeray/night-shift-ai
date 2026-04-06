@@ -7,7 +7,7 @@ import type { NightShiftTask } from "../../core/types.js";
 
 export const cancelCommand = new Command("cancel")
   .description("Cancel a pending task by ID, removing it from the queue")
-  .argument("<task-id>", "The task ID to cancel (e.g. ns-XXXXXXXX)")
+  .argument("<task-id>", "The task ID to cancel")
   .action(async (taskId) => {
     try {
       // File-based queue mode

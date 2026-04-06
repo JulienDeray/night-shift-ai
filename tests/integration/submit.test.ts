@@ -105,14 +105,15 @@ ${overrides}`;
     expect(tasks[0].name).toBe("my-custom-name");
   });
 
-  it("generates a unique ID starting with ns-", async () => {
+  it("generates a unique UUID task ID", async () => {
     await run(["submit", "--agent", "my-agent", "Task 1"]);
     await run(["submit", "--agent", "my-agent", "Task 2"]);
 
     const tasks = await readQueuedTasks();
     expect(tasks).toHaveLength(2);
-    expect(tasks[0].id).toMatch(/^ns-[0-9a-f]{8}$/);
-    expect(tasks[1].id).toMatch(/^ns-[0-9a-f]{8}$/);
+    const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+    expect(tasks[0].id).toMatch(uuidRe);
+    expect(tasks[1].id).toMatch(uuidRe);
     expect(tasks[0].id).not.toBe(tasks[1].id);
   });
 
@@ -122,7 +123,7 @@ ${overrides}`;
     const tasks = await readQueuedTasks();
     expect(tasks).toHaveLength(1);
     // Name is now {agentName}-{taskId}
-    expect(tasks[0].name).toMatch(/^my-agent-ns-/);
+    expect(tasks[0].name).toMatch(/^my-agent-[0-9a-f]{8}-/);
   });
 
   it("sets createdAt timestamp", async () => {
@@ -156,7 +157,7 @@ ${overrides}`;
 
     expect(res.exitCode).toBe(0);
     expect(res.stdout).toContain("Task queued");
-    expect(res.stdout).toContain("ns-");
+    expect(res.stdout).toMatch(/Task queued: [0-9a-f]{8}-/);
     expect(res.stdout).toContain("my-agent");
     expect(res.stdout).toContain("Timeout:");
   });

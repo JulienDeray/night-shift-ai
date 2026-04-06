@@ -36,7 +36,7 @@ function makeConfig(): NightShiftConfig {
 
 function makeTask(overrides: Partial<NightShiftTask> = {}): NightShiftTask {
   return {
-    id: "ns-test0001",
+    id: "00000000-0000-0000-0000-000000000001",
     name: "test-task",
     origin: "one-off",
     prompt: "Say hello",
@@ -79,8 +79,8 @@ describe("File-based queue operations", () => {
 
   describe("queue reading", () => {
     it("reads pending tasks from queue directory", async () => {
-      const task1 = makeTask({ id: "ns-aaa00001", name: "task-1" });
-      const task2 = makeTask({ id: "ns-bbb00002", name: "task-2" });
+      const task1 = makeTask({ id: "00000000-0000-0000-0000-aaa000000001", name: "task-1" });
+      const task2 = makeTask({ id: "00000000-0000-0000-0000-bbb000000002", name: "task-2" });
       await writeJsonFile(path.join(queueDir, `${task1.id}.json`), task1);
       await writeJsonFile(path.join(queueDir, `${task2.id}.json`), task2);
 
@@ -97,8 +97,8 @@ describe("File-based queue operations", () => {
     });
 
     it("skips non-pending tasks", async () => {
-      const pending = makeTask({ id: "ns-pend0001", status: "pending" });
-      const running = makeTask({ id: "ns-runn0002", status: "running" });
+      const pending = makeTask({ id: "00000000-0000-0000-0000-pend00000001", status: "pending" });
+      const running = makeTask({ id: "00000000-0000-0000-0000-runn00000002", status: "running" });
       await writeJsonFile(path.join(queueDir, `${pending.id}.json`), pending);
       await writeJsonFile(path.join(queueDir, `${running.id}.json`), running);
 
@@ -111,7 +111,7 @@ describe("File-based queue operations", () => {
       }
 
       expect(tasks).toHaveLength(1);
-      expect(tasks[0].id).toBe("ns-pend0001");
+      expect(tasks[0].id).toBe("00000000-0000-0000-0000-pend00000001");
     });
 
     it("handles empty queue directory", async () => {
@@ -122,8 +122,8 @@ describe("File-based queue operations", () => {
     it("ignores non-json files in queue", async () => {
       await fs.writeFile(path.join(queueDir, "README.txt"), "ignore me");
       await writeJsonFile(
-        path.join(queueDir, "ns-real0001.json"),
-        makeTask({ id: "ns-real0001" }),
+        path.join(queueDir, "00000000-0000-0000-0000-real00000001.json"),
+        makeTask({ id: "00000000-0000-0000-0000-real00000001" }),
       );
 
       const files = await fs.readdir(queueDir);
@@ -134,7 +134,7 @@ describe("File-based queue operations", () => {
 
   describe("task claiming", () => {
     it("updates task status from pending to running", async () => {
-      const task = makeTask({ id: "ns-claim001" });
+      const task = makeTask({ id: "00000000-0000-0000-0000-claim0000001" });
       const filePath = path.join(queueDir, `${task.id}.json`);
       await writeJsonFile(filePath, task);
 
@@ -149,7 +149,7 @@ describe("File-based queue operations", () => {
     });
 
     it("claimed task is no longer picked up as pending", async () => {
-      const task = makeTask({ id: "ns-claim002" });
+      const task = makeTask({ id: "00000000-0000-0000-0000-claim0000002" });
       const filePath = path.join(queueDir, `${task.id}.json`);
       await writeJsonFile(filePath, task);
 
@@ -171,7 +171,7 @@ describe("File-based queue operations", () => {
 
   describe("task completion / queue cleanup", () => {
     it("removes task file from queue after completion", async () => {
-      const task = makeTask({ id: "ns-done0001" });
+      const task = makeTask({ id: "00000000-0000-0000-0000-done00000001" });
       const filePath = path.join(queueDir, `${task.id}.json`);
       await writeJsonFile(filePath, task);
 
@@ -291,7 +291,7 @@ describe("Config hot-reload in tick", () => {
 // Helpers for notification hook tests
 function makeNotifyTask(overrides?: Partial<NightShiftTask>): NightShiftTask {
   return {
-    id: "ns-test001",
+    id: "00000000-0000-0000-0000-000000000002",
     name: "test-task",
     origin: "recurring",
     prompt: "do something",
@@ -502,8 +502,8 @@ describe("scheduled task dispatch", () => {
   });
 
   it("dispatches scheduled tasks returned by evaluateSchedules", async () => {
-    const task1 = makeTask({ id: "ns-sched001", name: "sched-1", origin: "recurring" });
-    const task2 = makeTask({ id: "ns-sched002", name: "sched-2", origin: "recurring" });
+    const task1 = makeTask({ id: "00000000-0000-0000-0000-sched0000001", name: "sched-1", origin: "recurring" });
+    const task2 = makeTask({ id: "00000000-0000-0000-0000-sched0000002", name: "sched-2", origin: "recurring" });
     mockScheduler.evaluateSchedules.mockResolvedValue([task1, task2]);
     mockPool.canAccept.mockReturnValue(true);
 
@@ -516,8 +516,8 @@ describe("scheduled task dispatch", () => {
   });
 
   it("skips remaining scheduled tasks when pool.canAccept returns false", async () => {
-    const task1 = makeTask({ id: "ns-sched003", name: "sched-3", origin: "recurring" });
-    const task2 = makeTask({ id: "ns-sched004", name: "sched-4", origin: "recurring" });
+    const task1 = makeTask({ id: "00000000-0000-0000-0000-sched0000003", name: "sched-3", origin: "recurring" });
+    const task2 = makeTask({ id: "00000000-0000-0000-0000-sched0000004", name: "sched-4", origin: "recurring" });
     mockScheduler.evaluateSchedules.mockResolvedValue([task1, task2]);
     mockPool.canAccept.mockReturnValueOnce(true).mockReturnValueOnce(false);
 

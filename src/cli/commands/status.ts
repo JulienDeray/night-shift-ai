@@ -102,10 +102,11 @@ export const statusCommand = new Command("status")
         });
 
         const rows = allDisplayTasks.map((task) => {
+          const shortId = task.id.slice(0, 8);
           const name = task.name.length > 30 ? task.name.slice(0, 30) + "..." : task.name;
           const status = statusColor(task.status);
           const created = formatDistanceToNow(new Date(task.created)) + " ago";
-          return [task.id, name, task.agentName, status, created];
+          return [shortId, name, task.agentName, status, created];
         });
 
         console.log("");

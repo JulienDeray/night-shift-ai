@@ -1,12 +1,11 @@
 import { Command } from "@commander-js/extra-typings";
-import crypto from "node:crypto";
 import { loadConfig } from "../../core/config.js";
 import { writeJsonFile } from "../../utils/fs.js";
 import { getQueueDir } from "../../core/paths.js";
 import { success, error, info } from "../formatters.js";
 import path from "node:path";
 import type { NightShiftTask } from "../../core/types.js";
-import { runAgentForeground } from "./_run-agent.js";
+import { runAgentForeground, generateTaskId } from "./_run-agent.js";
 
 export const submitCommand = new Command("submit")
   .description("Submit a one-off task for the daemon to execute")
@@ -25,7 +24,7 @@ export const submitCommand = new Command("submit")
       }
 
       const config = await loadConfig();
-      const taskId = `ns-${crypto.randomBytes(4).toString("hex")}`;
+      const taskId = generateTaskId();
       const taskName = options.name ?? `${options.agent}-${taskId}`;
 
       // Parse --var key=value pairs into a Record

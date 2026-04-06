@@ -72,6 +72,17 @@ function cleanError(error: string | undefined): string {
   return "Unknown error";
 }
 
+/**
+ * Formats task variables as a compact "key=value, ..." string.
+ * Returns empty string if no variables.
+ */
+function formatVarsLine(variables: Record<string, string> | undefined): string {
+  if (!variables || Object.keys(variables).length === 0) return "";
+  return Object.entries(variables)
+    .map(([k, v]) => `${k}=${v}`)
+    .join(", ");
+}
+
 // ---------------------------------------------------------------------------
 // Public formatter functions
 // ---------------------------------------------------------------------------
@@ -84,9 +95,10 @@ function cleanError(error: string | undefined): string {
  */
 export function formatStartNotification(task: NightShiftTask): NtfyMessage {
   const agent = task.agentName ?? "unknown-agent";
+  const varsLine = formatVarsLine(task.variables);
   return {
     title: `🕐 ${agent} ▸ ${task.name}`,
-    body: "Task started",
+    body: varsLine ? `Task started\n${varsLine}` : "Task started",
     priority: 3,
     tags: ["clock3"],
   };
@@ -105,7 +117,9 @@ export function formatSuccessNotification(
   const agent = task.agentName ?? result.agentName ?? "unknown-agent";
   const duration = formatDuration(result.totalDurationMs);
   const summary = extractSummaryLine(result.finalOutput);
-  const body = summary ? `${duration} · ${summary}` : duration;
+  const varsLine = formatVarsLine(task.variables);
+  let body = summary ? `${duration} · ${summary}` : duration;
+  if (varsLine) body += `\n${varsLine}`;
   return {
     title: `✅ ${agent} ▸ ${task.name}`,
     body,
@@ -139,10 +153,13 @@ export function formatFailureNotification(
   }
 
   const errorLine = cleanError(result.error);
+  const varsLine = formatVarsLine(task.variables);
+  let body = `${stepLabel}\n${errorLine}`;
+  if (varsLine) body += `\n${varsLine}`;
 
   return {
     title: `❌ ${agent} ▸ ${task.name}`,
-    body: `${stepLabel}\n${errorLine}`,
+    body,
     priority: 4,
     tags: ["rotating_light"],
   };
@@ -164,9 +181,12 @@ export function formatEarlyExitNotification(
     result.earlyExitReason && result.earlyExitReason.length > 0
       ? result.earlyExitReason
       : "Nothing to do";
+  const varsLine = formatVarsLine(task.variables);
+  let body = `${duration} · ${reason}`;
+  if (varsLine) body += `\n${varsLine}`;
   return {
     title: `⏭️ ${agent} ▸ ${task.name}`,
-    body: `${duration} · ${reason}`,
+    body,
     priority: 3,
     tags: ["fast_forward"],
   };

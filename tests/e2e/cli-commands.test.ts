@@ -105,16 +105,16 @@ describe("CLI commands", () => {
 
     expect(result.exitCode).toBe(0);
 
-    // Output should contain "queued" and a task ID like ns-XXXXXXXX
+    // Output should contain "queued" and a UUID task ID
     expect(result.stdout).toMatch(/queued/i);
-    expect(result.stdout).toMatch(/ns-[a-f0-9]{8}/);
+    expect(result.stdout).toMatch(/[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}/);
 
     // A task file should appear in the queue (daemon may pick it up quickly)
     // We verify the task was queued by checking the stdout contains a valid task ID
-    const match = result.stdout.match(/ns-[a-f0-9]{8}/);
+    const match = result.stdout.match(/[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}/);
     expect(match).toBeTruthy();
     const taskId = match![0];
-    expect(taskId).toMatch(/^ns-[a-f0-9]{8}$/);
+    expect(taskId).toMatch(/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/);
   });
 
   it("cancel removes a pending task before daemon picks it up", async () => {
@@ -153,7 +153,7 @@ describe("CLI commands", () => {
         expect(submitResult.exitCode).toBe(0);
 
         // Extract task ID from submit output
-        const taskIdMatch = submitResult.stdout.match(/ns-[a-f0-9]{8}/);
+        const taskIdMatch = submitResult.stdout.match(/[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}/);
         expect(taskIdMatch).toBeTruthy();
         const taskId = taskIdMatch![0];
 

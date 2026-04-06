@@ -73,8 +73,8 @@ one_off_defaults:
   it("shows queue depth for file-based queue", async () => {
     // Create some pending tasks in the queue
     const queueDir = path.join(tmpDir, ".nightshift", "queue");
-    await writeJsonFile(path.join(queueDir, "ns-task0001.json"), {
-      id: "ns-task0001",
+    await writeJsonFile(path.join(queueDir, "a0000001-0000-0000-0000-000000000000.json"), {
+      id: "a0000001-0000-0000-0000-000000000000",
       name: "task-1",
       origin: "one-off",
       prompt: "Do something",
@@ -92,8 +92,8 @@ one_off_defaults:
 
   it("lists pending tasks with ID, name, and agent", async () => {
     const queueDir = path.join(tmpDir, ".nightshift", "queue");
-    await writeJsonFile(path.join(queueDir, "ns-aaa00001.json"), {
-      id: "ns-aaa00001",
+    await writeJsonFile(path.join(queueDir, "aaa00001-0000-0000-0000-000000000001.json"), {
+      id: "aaa00001-0000-0000-0000-000000000001",
       name: "lint-check",
       origin: "one-off",
       prompt: "Run lint",
@@ -102,8 +102,8 @@ one_off_defaults:
       createdAt: new Date().toISOString(),
       agentName: "code-agent",
     });
-    await writeJsonFile(path.join(queueDir, "ns-aaa00002.json"), {
-      id: "ns-aaa00002",
+    await writeJsonFile(path.join(queueDir, "aaa00002-0000-0000-0000-000000000002.json"), {
+      id: "aaa00002-0000-0000-0000-000000000002",
       name: "deploy-staging",
       origin: "one-off",
       prompt: "Deploy to staging",
@@ -116,10 +116,10 @@ one_off_defaults:
     const res = await run(["status"]);
 
     expect(res.exitCode).toBe(0);
-    expect(res.stdout).toContain("ns-aaa00001");
+    expect(res.stdout).toContain("aaa00001");
     expect(res.stdout).toContain("lint-check");
     expect(res.stdout).toContain("code-agent");
-    expect(res.stdout).toContain("ns-aaa00002");
+    expect(res.stdout).toContain("aaa00002");
     expect(res.stdout).toContain("deploy-staging");
     expect(res.stdout).toContain("deploy-agent");
   });
@@ -137,8 +137,8 @@ one_off_defaults:
     await writeJsonFile(path.join(tmpDir, ".nightshift", "daemon.json"), state);
 
     const queueDir = path.join(tmpDir, ".nightshift", "queue");
-    await writeJsonFile(path.join(queueDir, "ns-bbb00001.json"), {
-      id: "ns-bbb00001",
+    await writeJsonFile(path.join(queueDir, "bbb00001-0000-0000-0000-000000000001.json"), {
+      id: "bbb00001-0000-0000-0000-000000000001",
       name: "build-task",
       origin: "one-off",
       prompt: "Build the project",
@@ -151,7 +151,7 @@ one_off_defaults:
     const res = await run(["status"]);
 
     expect(res.exitCode).toBe(0);
-    expect(res.stdout).toContain("ns-bbb00001");
+    expect(res.stdout).toContain("bbb00001");
     expect(res.stdout).toContain("running");
   });
 
