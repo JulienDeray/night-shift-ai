@@ -6,7 +6,7 @@ import type { NightShiftConfig, NightShiftTask } from "../core/types.js";
 import type { Logger } from "../core/logger.js";
 
 interface SchedulerState {
-  lastRuns: Record<string, string>; // `${agent}:${cron}` → ISO timestamp of last task creation
+  lastRuns: Record<string, string>; // scheduleKey → ISO timestamp of last task creation
 }
 
 export class Scheduler {
@@ -20,6 +20,26 @@ export class Scheduler {
   constructor(config: NightShiftConfig, logger: Logger) {
     this.config = config;
     this.logger = logger;
+  }
+
+  /**
+   * Deterministic key for a schedule entry. Includes sorted schedule-level
+   * variables so that the same agent at the same cron with different variables
+   * gets independent state tracking.
+   */
+  private static scheduleKey(entry: {
+    agent: string;
+    cron: string;
+    variables?: Record<string, string>;
+  }): string {
+    if (!entry.variables || Object.keys(entry.variables).length === 0) {
+      return `${entry.agent}:${entry.cron}`;
+    }
+    const sorted = JSON.stringify(
+      entry.variables,
+      Object.keys(entry.variables).sort(),
+    );
+    return `${entry.agent}:${entry.cron}:${sorted}`;
   }
 
   /** Number of tasks returned by evaluateSchedules() that haven't been confirmed as dispatched yet. */
@@ -57,7 +77,7 @@ export class Scheduler {
     for (const entry of this.config.schedule) {
       if (!entry.enabled) continue;
 
-      const key = `${entry.agent}:${entry.cron}`;
+      const key = Scheduler.scheduleKey(entry);
       const lastRun = this.state.lastRuns[key];
       if (!lastRun) continue; // new schedule — handled by evaluateSchedules
 
@@ -104,7 +124,7 @@ export class Scheduler {
     for (const entry of this.config.schedule) {
       if (!entry.enabled) continue;
 
-      const key = `${entry.agent}:${entry.cron}`;
+      const key = Scheduler.scheduleKey(entry);
       const lastRun = this.state.lastRuns[key];
 
       if (!lastRun) {

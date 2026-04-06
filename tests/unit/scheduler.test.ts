@@ -463,7 +463,7 @@ describe("Scheduler.evaluateSchedules()", () => {
   // 13. State key uses agent:cron format
   // -------------------------------------------------------------------------
 
-  it("uses agent:cron as state key to avoid collisions", async () => {
+  it("uses agent:cron as state key when no variables", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-01-06T02:01:00Z"));
 
@@ -482,6 +482,115 @@ describe("Scheduler.evaluateSchedules()", () => {
     const state = await readJsonFile<{ lastRuns: Record<string, string> }>(statePath);
 
     expect(state!.lastRuns).toHaveProperty("my-agent:0 2 * * 1-5");
+  });
+
+  it("uses agent:cron:vars as state key when schedule has variables", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-01-06T02:01:00Z"));
+
+    const config = makeConfig({
+      agents: [{ name: "my-agent" }],
+      schedule: [
+        {
+          agent: "my-agent",
+          cron: "0 2 * * 1-5",
+          enabled: true,
+          variables: { team_name: "Alpha" },
+        },
+      ],
+    });
+
+    const scheduler = new Scheduler(config, logger);
+    await seedScheduler(scheduler);
+
+    vi.setSystemTime(new Date("2026-01-07T02:01:00Z"));
+    await scheduler.evaluateSchedules();
+
+    const statePath = path.join(tmpDir, ".nightshift", "scheduler.json");
+    const state = await readJsonFile<{ lastRuns: Record<string, string> }>(statePath);
+
+    expect(state!.lastRuns).toHaveProperty(
+      'my-agent:0 2 * * 1-5:{"team_name":"Alpha"}',
+    );
+  });
+
+  // -------------------------------------------------------------------------
+  // 13b. Same agent + same cron + different variables → independent tasks
+  // -------------------------------------------------------------------------
+
+  it("creates independent tasks for same agent/cron with different variables", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-01-06T10:01:00Z"));
+
+    const config = makeConfig({
+      agents: [{ name: "tracker", variables: { base_url: "http://localhost" } }],
+      schedule: [
+        { agent: "tracker", cron: "0 10 * * 1", enabled: true, variables: { team_name: "Alpha" } },
+        { agent: "tracker", cron: "0 10 * * 1", enabled: true, variables: { team_name: "Beta" } },
+        { agent: "tracker", cron: "0 10 * * 1", enabled: true, variables: { team_name: "Gamma" } },
+      ],
+    });
+
+    const scheduler = new Scheduler(config, logger);
+    await seedScheduler(scheduler);
+
+    // Advance to next Monday 10:01
+    vi.setSystemTime(new Date("2026-01-12T10:01:00Z"));
+    const tasks = await scheduler.evaluateSchedules();
+
+    // All 3 should produce independent tasks
+    expect(tasks).toHaveLength(3);
+    const teamNames = tasks.map((t) => t.variables?.["team_name"]);
+    expect(teamNames).toContain("Alpha");
+    expect(teamNames).toContain("Beta");
+    expect(teamNames).toContain("Gamma");
+
+    // Each task should have merged variables (agent-level + schedule-level)
+    for (const task of tasks) {
+      expect(task.variables?.["base_url"]).toBe("http://localhost");
+    }
+
+    // All task IDs should be unique
+    const ids = new Set(tasks.map((t) => t.id));
+    expect(ids.size).toBe(3);
+
+    // State file should have 3 distinct keys
+    const statePath = path.join(tmpDir, ".nightshift", "scheduler.json");
+    const state = await readJsonFile<{ lastRuns: Record<string, string> }>(statePath);
+    const keys = Object.keys(state!.lastRuns);
+    expect(keys).toHaveLength(3);
+    expect(keys).toContain('tracker:0 10 * * 1:{"team_name":"Alpha"}');
+    expect(keys).toContain('tracker:0 10 * * 1:{"team_name":"Beta"}');
+    expect(keys).toContain('tracker:0 10 * * 1:{"team_name":"Gamma"}');
+  });
+
+  it("confirming one variable-variant does not suppress others", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-01-06T10:01:00Z"));
+
+    const config = makeConfig({
+      agents: [{ name: "tracker" }],
+      schedule: [
+        { agent: "tracker", cron: "0 10 * * 1", enabled: true, variables: { team_name: "Alpha" } },
+        { agent: "tracker", cron: "0 10 * * 1", enabled: true, variables: { team_name: "Beta" } },
+      ],
+    });
+
+    const scheduler = new Scheduler(config, logger);
+    await seedScheduler(scheduler);
+
+    vi.setSystemTime(new Date("2026-01-12T10:01:00Z"));
+    const tasks = await scheduler.evaluateSchedules();
+    expect(tasks).toHaveLength(2);
+
+    // Confirm only Alpha
+    const alphaTask = tasks.find((t) => t.variables?.["team_name"] === "Alpha")!;
+    await scheduler.confirmDispatched([alphaTask.id]);
+
+    // Next evaluate: Alpha is confirmed (skip), Beta is still pending
+    const tasks2 = await scheduler.evaluateSchedules();
+    expect(tasks2).toHaveLength(1);
+    expect(tasks2[0].variables?.["team_name"]).toBe("Beta");
   });
 
   // -------------------------------------------------------------------------
