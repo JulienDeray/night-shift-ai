@@ -182,17 +182,46 @@ The `retryFrom` step must appear **before** the current step in the pipeline —
 
 **How retry triggers:**
 
-Retry is NOT triggered by step exceptions or crashes. It triggers when the step **succeeds** (produces valid JSON matching its schema) but the output contains `passed: false`. This means:
+The `retry` field triggers in two situations:
 
-1. The step must include a `passed` boolean field in its `outputSchema`
-2. When `passed` is `false`, the engine checks for retry config
-3. If retries remain, the engine:
-   a. Reads `error_details` from the step output and injects it as the `retry_error` template variable
-   b. Runs `git reset --hard HEAD` on the working directory to restore a clean state
-   c. Re-executes from the `retryFrom` step
-4. If retries are exhausted (`retryCount > maxAttempts`), execution continues to the next step
+**1. Semantic failure** — the step produces valid JSON matching its schema, but the output indicates failure:
 
-Step failures (exceptions, timeouts, missing output) are categorized as FATAL or TRANSIENT errors and abort the pipeline immediately — they do not trigger retry.
+1. The step output contains `passed: false` or `status: "FAILED"`
+2. The engine reads `error_details` from the step output and injects it as the `retry_error` template variable
+3. Runs `git reset --hard HEAD` on the working directory to restore a clean state (skipped for self-retry)
+4. Re-executes from the `retryFrom` step
+5. If retries are exhausted (`retryCount > maxAttempts`), execution continues to the semantic failure handler
+
+**2. Transient error** — the step fails with a TRANSIENT error (missing JSON block, schema violation, or non-zero CLI exit code):
+
+1. The engine categorizes the error — `STEP_OUTPUT_MISSING`, `STEP_CONTRACT_VIOLATION`, and `STEP_EXECUTION_FAILED` are all TRANSIENT
+2. If the step has a `retry` config and retries remain, the engine re-executes from the `retryFrom` step
+3. The `retry_error` variable is populated with an enriched error message that includes what went wrong and explicit format guidance
+4. Timeouts are always FATAL and never trigger retry
+
+Both trigger paths share the same `retryCount` and `maxAttempts` limit.
+
+### Auto-retry (no manifest config needed)
+
+Every step automatically gets **1 self-retry** on TRANSIENT errors, even without a `retry` field in the manifest. This handles the common case where Claude fails to produce a JSON code block on the first attempt but succeeds on a second try.
+
+How auto-retry works:
+- Applies only to TRANSIENT errors (`STEP_OUTPUT_MISSING`, `STEP_CONTRACT_VIOLATION`, `STEP_EXECUTION_FAILED`)
+- Retries the **same step** (not a different `retryFrom` step)
+- Maximum 1 auto-retry attempt (hardcoded, not configurable)
+- If the step has a manifest `retry` config, that takes precedence — auto-retry only fires when manifest retry is absent
+- The `retry_error` variable is populated with enriched error details
+- No `git reset` is performed (self-retry — no changes to undo)
+
+### Error categories
+
+| Error | Code | Category | Retryable? |
+|-------|------|----------|------------|
+| No JSON code block in output | `STEP_OUTPUT_MISSING` | TRANSIENT | Yes |
+| JSON doesn't match schema | `STEP_CONTRACT_VIOLATION` | TRANSIENT | Yes |
+| Non-zero CLI exit code | `STEP_EXECUTION_FAILED` | TRANSIENT | Yes |
+| Step timed out | — | FATAL | No |
+| Manifest/config error | `MANIFEST` / `MANIFEST_SECURITY` | FATAL | No |
 
 **How code-agent uses retry:** The `verify` step retries from `implement`. If verification fails (tests break), the engine re-runs `implement` and `verify` up to 3 times. The `retry_error` variable is populated with the error details from the failed verify run, so the implement step can see what went wrong and adapt its approach.
 

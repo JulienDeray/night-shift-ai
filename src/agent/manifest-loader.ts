@@ -279,12 +279,26 @@ export async function loadManifest(
 /**
  * Extracts the content of the LAST JSON code block from a text string.
  * Matches both ```json and ``` (no language tag) blocks.
- * Returns null if no code blocks found.
+ * Tolerates trailing whitespace on fence lines and \r\n line endings.
+ * Falls back to parsing the entire trimmed text as bare JSON if no fenced block is found.
+ * Returns null if no code blocks and no bare JSON found.
  */
 export function extractLastJsonBlock(text: string): string | null {
-  const blocks = [...text.matchAll(/```(?:json)?\n([\s\S]*?)\n```/g)];
-  if (blocks.length === 0) return null;
-  return blocks[blocks.length - 1][1];
+  const blocks = [...text.matchAll(/```(?:json)?[ \t]*\r?\n([\s\S]*?)\r?\n[ \t]*```/g)];
+  if (blocks.length > 0) return blocks[blocks.length - 1][1];
+
+  // Fallback: if the entire output is bare JSON (no fences), accept it
+  const trimmed = text.trim();
+  if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
+    try {
+      JSON.parse(trimmed);
+      return trimmed;
+    } catch {
+      // Not valid JSON — fall through
+    }
+  }
+
+  return null;
 }
 
 /**

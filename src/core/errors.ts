@@ -4,7 +4,8 @@ export type NightShiftErrorCode =
   | "MANIFEST"
   | "MANIFEST_SECURITY"
   | "STEP_CONTRACT_VIOLATION"
-  | "STEP_OUTPUT_MISSING";
+  | "STEP_OUTPUT_MISSING"
+  | "STEP_EXECUTION_FAILED";
 
 export class NightShiftError extends Error {
   constructor(

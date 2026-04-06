@@ -285,9 +285,11 @@ describe("AgentEngine", () => {
       });
       cleanup = c;
 
+      const failResult = makeSpawnResult("", { exitCode: 1, stderr: "step_two exploded" });
       mockSpawn
         .mockReturnValueOnce(makeSpawnResult(cliEnvelope('```json\n{"result":"step_one"}\n```')))
-        .mockReturnValueOnce(makeSpawnResult("", { exitCode: 1, stderr: "step_two exploded" }));
+        .mockReturnValueOnce(failResult)   // step_two fails
+        .mockReturnValueOnce(failResult);  // step_two auto-retry also fails
 
       const engine = new AgentEngine(silentLogger());
       const result = await engine.run(agentDir, agentsRoot, "task-fail");
@@ -358,17 +360,19 @@ describe("AgentEngine", () => {
       expect(result.suggestedDelayMs).toBe(60_000);
     });
 
-    it("generic Error (non-zero exit) categorized as FATAL (safe default)", async () => {
+    it("non-zero exit categorized as TRANSIENT (STEP_EXECUTION_FAILED)", async () => {
       const { agentsRoot, agentDir, cleanup: c } = await createTempAgent();
       cleanup = c;
+      // Both auto-retry attempts fail with non-zero exit
       mockSpawn.mockReturnValue(makeSpawnResult("", { exitCode: 1, stderr: "something unexpected" }));
 
       const engine = new AgentEngine(silentLogger());
       const result = await engine.run(agentDir, agentsRoot, "task-generic");
 
-      expect(result.status).toBe("FATAL");
-      expect(result.errorCategory).toBe("FATAL");
-      expect(result.suggestedDelayMs).toBeUndefined();
+      expect(result.status).toBe("TRANSIENT");
+      expect(result.errorCategory).toBe("TRANSIENT");
+      // Auto-retry: 1 original + 1 auto-retry = 2 calls
+      expect(mockSpawn).toHaveBeenCalledTimes(2);
     });
 
     it("TRANSIENT result has suggestedDelayMs of 60000ms", async () => {
@@ -1100,6 +1104,237 @@ describe("AgentEngine", () => {
       // This shows that without the collision check, it WOULD override.
       // The protection is validateVariableNames rejecting 'task_id' as import key.
       expect(vars.task_id).toBe("hacked"); // This is WHY collision check matters
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Transient error retry
+  // -------------------------------------------------------------------------
+
+  describe("transient error retry", () => {
+    it("retries on STEP_OUTPUT_MISSING when step has retry config", async () => {
+      const { agentsRoot, agentDir, cleanup: c } = await createTempAgent({
+        steps: [
+          {
+            name: "gather",
+            prompt: "prompts/gather.md",
+            outputSchema: RESULT_OUTPUT_SCHEMA,
+            retry: { maxAttempts: 1, retryFrom: "gather" },
+          },
+        ],
+      });
+      cleanup = c;
+
+      // First call: no JSON block → STEP_OUTPUT_MISSING
+      // Second call (retry): valid JSON block → SUCCESS
+      mockSpawn
+        .mockReturnValueOnce(
+          makeSpawnResult(cliEnvelope("No JSON here, just prose.")),
+        )
+        .mockReturnValueOnce(
+          makeSpawnResult(cliEnvelope(VALID_RESULT_OUTPUT)),
+        );
+
+      const engine = new AgentEngine(silentLogger());
+      const result = await engine.run(agentDir, agentsRoot, "task-transient-retry");
+
+      expect(result.status).toBe("SUCCESS");
+      expect(mockSpawn).toHaveBeenCalledTimes(2);
+    });
+
+    it("fails after exhausting retries on STEP_OUTPUT_MISSING", async () => {
+      const { agentsRoot, agentDir, cleanup: c } = await createTempAgent({
+        steps: [
+          {
+            name: "gather",
+            prompt: "prompts/gather.md",
+            outputSchema: RESULT_OUTPUT_SCHEMA,
+            retry: { maxAttempts: 1, retryFrom: "gather" },
+          },
+        ],
+      });
+      cleanup = c;
+
+      // Both calls produce no JSON block
+      mockSpawn
+        .mockReturnValueOnce(
+          makeSpawnResult(cliEnvelope("No JSON here.")),
+        )
+        .mockReturnValueOnce(
+          makeSpawnResult(cliEnvelope("Still no JSON.")),
+        );
+
+      const engine = new AgentEngine(silentLogger());
+      const result = await engine.run(agentDir, agentsRoot, "task-retry-exhaust");
+
+      expect(result.status).toBe("TRANSIENT");
+      expect(mockSpawn).toHaveBeenCalledTimes(2);
+    });
+
+    it("retries from a different step on transient error", async () => {
+      const { agentsRoot, agentDir, cleanup: c } = await createTempAgent({
+        steps: [
+          {
+            name: "preflight",
+            prompt: "prompts/preflight.md",
+            outputSchema: RESULT_OUTPUT_SCHEMA,
+          },
+          {
+            name: "gather",
+            prompt: "prompts/gather.md",
+            outputSchema: RESULT_OUTPUT_SCHEMA,
+            retry: { maxAttempts: 1, retryFrom: "preflight" },
+          },
+        ],
+        promptContents: {
+          "prompts/preflight.md": "Run preflight.",
+          "prompts/gather.md": "Gather data.",
+        },
+      });
+      cleanup = c;
+
+      // Call 1: preflight succeeds
+      // Call 2: gather fails (no JSON)
+      // Call 3: git reset --hard (resetWorkDir before retrying from preflight)
+      // Call 4: preflight succeeds (retry)
+      // Call 5: gather succeeds (retry)
+      mockSpawn
+        .mockReturnValueOnce(makeSpawnResult(cliEnvelope(VALID_RESULT_OUTPUT)))
+        .mockReturnValueOnce(makeSpawnResult(cliEnvelope("No JSON.")))
+        .mockReturnValueOnce(makeSpawnResult(""))  // git reset
+        .mockReturnValueOnce(makeSpawnResult(cliEnvelope(VALID_RESULT_OUTPUT)))
+        .mockReturnValueOnce(makeSpawnResult(cliEnvelope(VALID_RESULT_OUTPUT)));
+
+      const engine = new AgentEngine(silentLogger());
+      const result = await engine.run(agentDir, agentsRoot, "task-retry-from-other");
+
+      expect(result.status).toBe("SUCCESS");
+      expect(mockSpawn).toHaveBeenCalledTimes(5);
+    });
+
+    it("does not retry FATAL errors even with retry config", async () => {
+      const { agentsRoot, agentDir, cleanup: c } = await createTempAgent({
+        steps: [
+          {
+            name: "gather",
+            prompt: "prompts/gather.md",
+            outputSchema: RESULT_OUTPUT_SCHEMA,
+            retry: { maxAttempts: 2, retryFrom: "gather" },
+          },
+        ],
+      });
+      cleanup = c;
+
+      // Timeout → FATAL (not retryable)
+      mockSpawn.mockReturnValue(
+        makeSpawnResult("", { exitCode: null, timedOut: true, stderr: "" }),
+      );
+
+      const engine = new AgentEngine(silentLogger());
+      const result = await engine.run(agentDir, agentsRoot, "task-fatal-no-retry");
+
+      expect(result.status).toBe("FATAL");
+      expect(mockSpawn).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Auto-retry (no manifest retry config)
+  // -------------------------------------------------------------------------
+
+  describe("auto-retry on transient errors", () => {
+    it("auto-retries once on STEP_OUTPUT_MISSING without retry config", async () => {
+      const { agentsRoot, agentDir, cleanup: c } = await createTempAgent();
+      cleanup = c;
+
+      // First call: no JSON → STEP_OUTPUT_MISSING
+      // Second call (auto-retry): valid JSON → SUCCESS
+      mockSpawn
+        .mockReturnValueOnce(makeSpawnResult(cliEnvelope("Just prose, no JSON.")))
+        .mockReturnValueOnce(makeSpawnResult(cliEnvelope(VALID_RESULT_OUTPUT)));
+
+      const engine = new AgentEngine(silentLogger());
+      const result = await engine.run(agentDir, agentsRoot, "task-auto-retry");
+
+      expect(result.status).toBe("SUCCESS");
+      expect(mockSpawn).toHaveBeenCalledTimes(2);
+    });
+
+    it("auto-retries once on STEP_EXECUTION_FAILED without retry config", async () => {
+      const { agentsRoot, agentDir, cleanup: c } = await createTempAgent();
+      cleanup = c;
+
+      // First call: non-zero exit
+      // Second call (auto-retry): success
+      mockSpawn
+        .mockReturnValueOnce(makeSpawnResult("", { exitCode: 1, stderr: "rate limited" }))
+        .mockReturnValueOnce(makeSpawnResult(cliEnvelope(VALID_RESULT_OUTPUT)));
+
+      const engine = new AgentEngine(silentLogger());
+      const result = await engine.run(agentDir, agentsRoot, "task-auto-retry-exec");
+
+      expect(result.status).toBe("SUCCESS");
+      expect(mockSpawn).toHaveBeenCalledTimes(2);
+    });
+
+    it("fails after 1 auto-retry exhausted", async () => {
+      const { agentsRoot, agentDir, cleanup: c } = await createTempAgent();
+      cleanup = c;
+
+      // Both calls produce no JSON
+      mockSpawn.mockReturnValue(makeSpawnResult(cliEnvelope("Still no JSON.")));
+
+      const engine = new AgentEngine(silentLogger());
+      const result = await engine.run(agentDir, agentsRoot, "task-auto-retry-exhaust");
+
+      expect(result.status).toBe("TRANSIENT");
+      expect(mockSpawn).toHaveBeenCalledTimes(2); // 1 original + 1 auto-retry
+    });
+
+    it("manifest retry takes precedence over auto-retry", async () => {
+      const { agentsRoot, agentDir, cleanup: c } = await createTempAgent({
+        steps: [
+          {
+            name: "gather",
+            prompt: "prompts/gather.md",
+            outputSchema: RESULT_OUTPUT_SCHEMA,
+            retry: { maxAttempts: 2, retryFrom: "gather" },
+          },
+        ],
+      });
+      cleanup = c;
+
+      // 3 failures (1 original + 2 manifest retries), then success
+      mockSpawn
+        .mockReturnValueOnce(makeSpawnResult(cliEnvelope("No JSON.")))
+        .mockReturnValueOnce(makeSpawnResult(cliEnvelope("No JSON.")))
+        .mockReturnValueOnce(makeSpawnResult(cliEnvelope(VALID_RESULT_OUTPUT)));
+
+      const engine = new AgentEngine(silentLogger());
+      const result = await engine.run(agentDir, agentsRoot, "task-manifest-precedence");
+
+      expect(result.status).toBe("SUCCESS");
+      expect(mockSpawn).toHaveBeenCalledTimes(3);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Output format preamble
+  // -------------------------------------------------------------------------
+
+  describe("output format preamble", () => {
+    it("injects OUTPUT FORMAT REQUIREMENT into rendered prompt", async () => {
+      const { agentsRoot, agentDir, cleanup: c } = await createTempAgent();
+      cleanup = c;
+      mockSpawn.mockReturnValue(makeSpawnResult(cliEnvelope(VALID_RESULT_OUTPUT)));
+
+      const engine = new AgentEngine(silentLogger());
+      await engine.run(agentDir, agentsRoot, "task-preamble");
+
+      const callArgs = mockSpawn.mock.calls[0];
+      const argsStr = JSON.stringify(callArgs[1]);
+      expect(argsStr).toContain("OUTPUT FORMAT REQUIREMENT");
+      expect(argsStr).toContain("MUST contain exactly one JSON code block");
     });
   });
 });

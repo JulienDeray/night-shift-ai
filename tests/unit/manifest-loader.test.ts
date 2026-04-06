@@ -536,6 +536,42 @@ describe("extractLastJsonBlock", () => {
     const text = `\`\`\`json\n${jsonContent}\n\`\`\``;
     expect(extractLastJsonBlock(text)).toBe(jsonContent);
   });
+
+  it("tolerates trailing spaces on fence lines", () => {
+    const text = "```json   \n{\"key\":\"value\"}\n   ```";
+    expect(extractLastJsonBlock(text)).toBe('{"key":"value"}');
+  });
+
+  it("tolerates \\r\\n line endings", () => {
+    const text = "```json\r\n{\"key\":\"value\"}\r\n```";
+    expect(extractLastJsonBlock(text)).toBe('{"key":"value"}');
+  });
+
+  it("tolerates tabs on fence lines", () => {
+    const text = "```json\t\n{\"key\":\"value\"}\n\t```";
+    expect(extractLastJsonBlock(text)).toBe('{"key":"value"}');
+  });
+
+  it("falls back to bare JSON object when no fenced block", () => {
+    const text = '{"result":"ok"}';
+    expect(extractLastJsonBlock(text)).toBe('{"result":"ok"}');
+  });
+
+  it("falls back to bare JSON array when no fenced block", () => {
+    const text = '[1, 2, 3]';
+    expect(extractLastJsonBlock(text)).toBe('[1, 2, 3]');
+  });
+
+  it("falls back to bare JSON with surrounding prose", () => {
+    const text = 'Here is the result:\n{"result":"ok"}';
+    // Does not match — bare JSON fallback requires the trimmed text to start with { or [
+    expect(extractLastJsonBlock(text)).toBeNull();
+  });
+
+  it("returns null for invalid bare JSON", () => {
+    const text = '{not valid json}';
+    expect(extractLastJsonBlock(text)).toBeNull();
+  });
 });
 
 // ---------------------------------------------------------------------------
