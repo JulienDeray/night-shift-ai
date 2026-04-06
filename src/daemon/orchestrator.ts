@@ -79,6 +79,16 @@ export async function validateAgentsAtStartup(
           ...(agent.variables ?? {}),
           ...builtInPlaceholders,
         };
+        // Include state_dir if manifest declares stateDir
+        if (manifest.stateDir) {
+          allKnownVars.state_dir = `<state_dir>`;
+        }
+        // Include import variable names as placeholders (paths validated in Pass 2)
+        if (manifest.rawImports) {
+          for (const varName of Object.keys(manifest.rawImports)) {
+            allKnownVars[varName] = `<import:${varName}>`;
+          }
+        }
         // Merge all schedule-level overrides for this agent
         const scheduleOverrides = scheduleVarsByAgent.get(agent.name) ?? [];
         for (const overrides of scheduleOverrides) {
