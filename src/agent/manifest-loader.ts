@@ -265,6 +265,21 @@ export async function loadManifest(
     }
   }
 
+  // Resolve imports to absolute paths at load time so the engine can inject them
+  // as template variables. The orchestrator's Pass 2 validation performs additional
+  // cross-agent checks (agent exists in config, directory exists on disk), but the
+  // basic path resolution must happen here so AgentEngine.run() gets usable paths.
+  let resolvedImports: Record<string, string> | undefined;
+  if (manifest.imports) {
+    resolvedImports = {};
+    for (const [varName, importSpec] of Object.entries(manifest.imports)) {
+      const slashIdx = importSpec.indexOf("/");
+      const referencedAgent = importSpec.slice(0, slashIdx);
+      const dirName = importSpec.slice(slashIdx + 1);
+      resolvedImports[varName] = path.join(agentsRoot, referencedAgent, dirName);
+    }
+  }
+
   return {
     name: manifest.name,
     description: manifest.description,
@@ -273,6 +288,7 @@ export async function loadManifest(
     steps: resolvedSteps,
     stateDir: resolvedStateDir,
     rawImports: manifest.imports,
+    resolvedImports,
   };
 }
 
