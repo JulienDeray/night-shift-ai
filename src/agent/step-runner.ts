@@ -63,7 +63,11 @@ export function buildStepEnv(
  * only via the env option in buildStepEnv.
  *
  * When options.allowedTools is provided, it replaces the default ["Bash", "Read", "Write"].
- * When options.mcpConfigPath is provided, "--mcp-config <path>" is appended to args.
+ * When options.mcpConfigPath is provided, "--mcp-config <path> --strict-mcp-config" is
+ * appended so the step only sees MCP servers declared in that file. This isolates
+ * steps from the user's managed/global MCP configuration (including blocked entries
+ * from enterprise policy, which would otherwise surface as startup warnings and,
+ * on some CLI versions, non-zero exit codes).
  */
 export function buildStepArgs(
   prompt: string,
@@ -90,7 +94,7 @@ export function buildStepArgs(
   }
 
   if (options?.mcpConfigPath !== undefined) {
-    args.push("--mcp-config", options.mcpConfigPath);
+    args.push("--mcp-config", options.mcpConfigPath, "--strict-mcp-config");
   }
 
   return args;
