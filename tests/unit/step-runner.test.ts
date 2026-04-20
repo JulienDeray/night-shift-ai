@@ -133,4 +133,17 @@ describe("buildStepArgs", () => {
     expect(args).toContain("--mcp-config");
     expect(args).toContain("/path/to/mcp.json");
   });
+
+  it("includes --strict-mcp-config when mcpConfigPath provided", () => {
+    const args = buildStepArgs("prompt", "sonnet", undefined, {
+      mcpConfigPath: "/path/to/mcp.json",
+    });
+    expect(args).toContain("--strict-mcp-config");
+  });
+
+  it("omits --strict-mcp-config when mcpConfigPath is not provided", () => {
+    const args = buildStepArgs("prompt", "sonnet");
+    expect(args).not.toContain("--strict-mcp-config");
+    expect(args).not.toContain("--mcp-config");
+  });
 });
